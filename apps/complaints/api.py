@@ -1,13 +1,13 @@
 import json
 
 from django.core.exceptions import ValidationError
-from django.http import JsonResponse
+from django.http import FileResponse, Http404, JsonResponse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
 from apps.accounts.models import User
 from apps.common.listing import paginate
-from apps.complaints.models import Complaint
+from apps.complaints.models import Complaint, FollowUpFile
 from apps.complaints.services import (
     accept_complaint,
     assign_complaint,
@@ -157,5 +157,22 @@ def legal_close(request, pk):
     except ValidationError as error:
         return JsonResponse({"detail": error.messages[0]}, status=400)
     return JsonResponse(_complaint_data(complaint))
+
+
+@require_http_methods(["GET"])
+def complaint_media(request, pk):
+    complaint = _visible_complaint_or_forbidden(request, pk)
+    if complaint is None or not complaint.image:
+        raise Http404
+    return FileResponse(complaint.image.open("rb"))
+
+
+@require_http_methods(["GET"])
+def followup_media(request, pk, file_id):
+    complaint = _visible_complaint_or_forbidden(request, pk)
+    item = FollowUpFile.objects.filter(pk=file_id, follow_up__complaint_id=pk).first()
+    if complaint is None or item is None:
+        raise Http404
+    return FileResponse(item.file.open("rb"))
 
 
