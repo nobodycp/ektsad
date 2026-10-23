@@ -2,6 +2,7 @@ import json
 
 from django.contrib.auth import authenticate, login, logout
 from django.http import JsonResponse
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
 from apps.accounts.models import User
@@ -43,6 +44,7 @@ def logout_view(request):
     return JsonResponse({"detail": "ok"})
 
 
+@ensure_csrf_cookie
 @require_http_methods(["GET"])
 def me_view(request):
     if not request.user.is_authenticated:
