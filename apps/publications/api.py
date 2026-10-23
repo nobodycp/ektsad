@@ -83,7 +83,9 @@ def crossings(request):
     if not _can_publish(request.user, "can_publish_crossings"):
         return JsonResponse({"detail": "Forbidden"}, status=403)
     payload = _payload(request)
-    body = payload.get("body", "")
+    body = payload.get("body") or ""
+    if not isinstance(body, str):
+        body = str(body)
     image = request.FILES.get("image")
     if not body.strip() and image is None:
         return JsonResponse({"detail": "يجب إدخال النص أو إرفاق صورة."}, status=400)
