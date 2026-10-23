@@ -15,15 +15,24 @@ from apps.geography.models import Governorate, Region
 
 
 INVALID_CREDENTIALS = "بيانات الدخول غير صحيحة."
+LAST_ADMIN_DEACTIVATE = "لا يمكن تعطيل آخر مدير نظام مفعّل."
 
 
-@require_http_methods(["POST"])
 def _body(request):
     if request.content_type == "application/json":
         return json.loads(request.body or "{}")
     return request.POST
 
 
+def _last_active_admin(user):
+    return (
+        user.role == User.Role.ADMIN
+        and user.is_active
+        and not User.objects.filter(role=User.Role.ADMIN, is_active=True).exclude(pk=user.pk).exists()
+    )
+
+
+@require_http_methods(["POST"])
 def login_view(request):
     payload = _body(request)
     username = payload.get("username", "")
@@ -170,6 +179,8 @@ def user_detail(request, pk):
     if request.user.pk != user.pk and not _is_admin(request):
         return _forbidden()
     payload = json.loads(request.body or "{}")
+    if payload.get("is_active") is False and _last_active_admin(user):
+        return JsonResponse({"detail": LAST_ADMIN_DEACTIVATE}, status=400)
     allowed = ("display_name",)
     if _is_admin(request):
         allowed += (
@@ -189,6 +200,8 @@ def user_detail(request, pk):
         return JsonResponse({"detail": str(error)}, status=400)
     except ValidationError as error:
         return _validation_error(error)
+    if not user.is_active:
+        delete_user_sessions(user)
     return JsonResponse(_user_payload(user))
 
 
@@ -243,6 +256,9 @@ def user_actions(request):
             user = User.objects.get(pk=pk)
         except User.DoesNotExist:
             failed.append({"id": pk, "detail": "Not found"})
+            continue
+        if action == "deactivate" and _last_active_admin(user):
+            failed.append({"id": pk, "detail": LAST_ADMIN_DEACTIVATE})
             continue
         user.is_active = action == "activate"
         user.save(update_fields=["is_active"])

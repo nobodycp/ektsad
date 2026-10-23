@@ -167,3 +167,24 @@ class UserAdministrationTests(TestCase):
         self.assertEqual(bulk.status_code, 200)
         legal.refresh_from_db()
         self.assertFalse(legal.is_active)
+
+    def test_login_rejects_get_and_last_admin_cannot_be_deactivated(self):
+        self.assertEqual(self.client.get("/api/auth/login/").status_code, 405)
+
+        self.client.force_login(self.admin)
+        patched = self.client.patch(
+            f"/api/users/{self.admin.pk}/",
+            data=json.dumps({"is_active": False}),
+            content_type="application/json",
+        )
+        bulk = self.client.post(
+            "/api/users/actions/",
+            data=json.dumps({"action": "deactivate", "ids": [self.admin.pk]}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(patched.status_code, 400)
+        self.assertEqual(patched.json()["detail"], "لا يمكن تعطيل آخر مدير نظام مفعّل.")
+        self.assertEqual(bulk.json()["failed"][0]["detail"], "لا يمكن تعطيل آخر مدير نظام مفعّل.")
+        self.admin.refresh_from_db()
+        self.assertTrue(self.admin.is_active)
