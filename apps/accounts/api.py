@@ -50,6 +50,13 @@ def _me_payload(user):
         "username": user.username,
         "display_name": user.display_name,
         "role": user.role,
+        "governorate": user.governorate_id,
+        "governorate_name": user.governorate.name if user.governorate_id else None,
+        "region": user.region_id,
+        "region_name": user.region.name if user.region_id else None,
+        "can_publish_prices": user.can_publish_prices,
+        "can_publish_crossings": user.can_publish_crossings,
+        "can_view_all_complaints": user.can_view_all_complaints,
     }
 
 
