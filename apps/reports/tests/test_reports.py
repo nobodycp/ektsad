@@ -160,6 +160,18 @@ class ReportTests(TestCase):
         self.assertEqual(closed_day["legal"]["still_legal"], 0)
         self.assertEqual(closed_day["legal"]["resolved"], 1)
 
+    def test_non_numeric_ids_return_arabic_400(self):
+        self.client.force_login(self.admin)
+
+        governorate = self.client.get("/api/governor/report/", {"governorate": "abc"})
+        inspector = self.client.get("/api/reports/", {"inspector": "abc"})
+        region = self.client.get("/api/reports/", {"region": "abc"})
+
+        self.assertEqual(governorate.status_code, 400)
+        self.assertEqual(governorate.json()["detail"], "المحافظة غير صالحة.")
+        self.assertEqual(inspector.json()["detail"], "المفتش غير صالح.")
+        self.assertEqual(region.json()["detail"], "المنطقة غير صالحة.")
+
     def test_admin_rejects_region_from_another_governorate(self):
         self.client.force_login(self.admin)
 

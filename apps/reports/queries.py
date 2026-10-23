@@ -44,16 +44,26 @@ def _period(params):
     return start_day, end_day, start, end
 
 
+def _optional_id(value, message):
+    if value in (None, ""):
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as error:
+        raise ValidationError(message) from error
+    if parsed < 1:
+        raise ValidationError(message)
+    return parsed
+
+
 def _geo_filters(params):
-    governorate_id = params.get("governorate") or None
-    region_id = params.get("region") or None
+    governorate_id = _optional_id(params.get("governorate"), "المحافظة غير صالحة.")
+    region_id = _optional_id(params.get("region"), "المنطقة غير صالحة.")
+    inspector_id = _optional_id(params.get("inspector"), "المفتش غير صالح.")
     if governorate_id and region_id:
-        try:
-            belongs_to_governorate = Region.objects.filter(
-                pk=region_id, governorate_id=governorate_id
-            ).exists()
-        except (TypeError, ValueError):
-            belongs_to_governorate = False
+        belongs_to_governorate = Region.objects.filter(
+            pk=region_id, governorate_id=governorate_id
+        ).exists()
         if not belongs_to_governorate:
             raise ValidationError("المنطقة لا تتبع المحافظة.")
     filters = {}
@@ -61,8 +71,8 @@ def _geo_filters(params):
         filters["governorate_id"] = governorate_id
     if region_id:
         filters["region_id"] = region_id
-    if params.get("inspector"):
-        filters["inspector_id"] = params["inspector"]
+    if inspector_id:
+        filters["inspector_id"] = inspector_id
     return filters
 
 

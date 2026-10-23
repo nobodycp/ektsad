@@ -4,7 +4,7 @@ from django.views.decorators.http import require_GET
 
 from apps.accounts.models import User
 from apps.geography.models import Governorate
-from apps.reports.queries import _date_value, _today, governor_daily, admin_report
+from apps.reports.queries import _date_value, _optional_id, _today, governor_daily, admin_report
 
 
 def _forbidden(request):
@@ -18,9 +18,12 @@ def governor_report(request):
     if request.user.role == User.Role.GOVERNOR:
         governorate = request.user.governorate
     else:
-        governorate_id = request.GET.get("governorate")
-        if not governorate_id:
+        if not request.GET.get("governorate"):
             return JsonResponse({"detail": "المحافظة مطلوبة."}, status=400)
+        try:
+            governorate_id = _optional_id(request.GET.get("governorate"), "المحافظة غير صالحة.")
+        except ValidationError as error:
+            return JsonResponse({"detail": error.messages[0]}, status=400)
         governorate = Governorate.objects.filter(pk=governorate_id).first()
         if governorate is None:
             return JsonResponse({"detail": "المحافظة غير صالحة."}, status=400)
