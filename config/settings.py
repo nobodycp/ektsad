@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     "apps.complaints",
     "apps.publications",
     "apps.reports",
+    "apps.telegram",
 ]
 
 MIDDLEWARE = [
