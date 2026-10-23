@@ -3,12 +3,14 @@ import json
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth import update_session_auth_hash
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 from django.http import JsonResponse
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
 from apps.accounts.models import User
 from apps.accounts.services import delete_user_sessions, reset_password, set_user_password
+from apps.common.listing import paginate
 from apps.geography.models import Governorate, Region
 
 
@@ -99,10 +101,23 @@ def me_view(request):
     return JsonResponse(_me_payload(request.user))
 
 
-@require_http_methods(["POST"])
+@require_http_methods(["GET", "POST"])
 def users(request):
     if not _is_admin(request):
         return _forbidden()
+    if request.method == "GET":
+        queryset = User.objects.all()
+        query = (request.GET.get("q") or "").strip()
+        if query:
+            queryset = queryset.filter(Q(username__icontains=query) | Q(display_name__icontains=query))
+        if request.GET.get("role"):
+            queryset = queryset.filter(role=request.GET["role"])
+        active = request.GET.get("is_active")
+        if active in {"1", "0", "true", "false"}:
+            queryset = queryset.filter(is_active=active in {"1", "true"})
+        page = paginate(queryset.order_by("username"), request.GET)
+        page["results"] = [_user_payload(user) for user in page["results"]]
+        return JsonResponse(page)
     payload = _body(request)
     try:
         user = User(
@@ -191,7 +206,9 @@ def user_password(request, pk):
     if mode == "reset":
         if not _is_admin(request):
             return _forbidden()
-        return JsonResponse({"password": reset_password(user)})
+        raw = reset_password(user)
+        delete_user_sessions(user)
+        return JsonResponse({"password": raw})
 
     if mode != "set":
         return JsonResponse({"detail": "Invalid password mode."}, status=400)

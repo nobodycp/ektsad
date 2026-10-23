@@ -48,6 +48,25 @@ class UserAdministrationTests(TestCase):
         denied = self.client.delete(f"/api/users/{self.admin.pk}/")
         self.assertEqual(denied.status_code, 400)
 
+    def test_reset_invalidates_target_sessions_and_admin_lists_users(self):
+        self.client.force_login(self.inspector)
+        self.assertTrue(self._sessions_for(self.inspector))
+        self.client.force_login(self.admin)
+
+        reset = self.client.post(
+            f"/api/users/{self.inspector.pk}/password/",
+            data=json.dumps({"mode": "reset"}),
+            content_type="application/json",
+        )
+        listing = self.client.get("/api/users/", {"q": "مفتش", "role": "inspector"})
+
+        self.assertEqual(reset.status_code, 200)
+        self.assertEqual(len(reset.json()["password"]), 16)
+        self.assertFalse(self._sessions_for(self.inspector))
+        self.assertEqual(listing.status_code, 200)
+        self.assertEqual(set(listing.json()), {"count", "page", "page_size", "results"})
+        self.assertEqual(listing.json()["results"][0]["username"], "inspector")
+
     def test_admin_password_change_invalidates_target_sessions(self):
         self.client.force_login(self.inspector)
         self.assertTrue(self._sessions_for(self.inspector))
