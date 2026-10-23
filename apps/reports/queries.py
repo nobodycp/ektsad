@@ -80,7 +80,7 @@ def governor_daily(governorate, day):
         row["author_name"]: row["count"]
         for row in FollowUp.objects.filter(
             complaint__in=done, place=FollowUp.Place.FIELD
-        ).values("author_name").annotate(count=Count("id"))
+        ).values("author_name").annotate(count=Count("complaint", distinct=True))
     }
     return {
         "date": day.isoformat(),
@@ -142,8 +142,8 @@ def admin_report(params):
         "resolved": complaints.filter(
             closed_at__gte=start, closed_at__lt=end, status=Complaint.Status.RESOLVED
         ).count(),
-        "still_legal": complaints.filter(
-            status=Complaint.Status.LEGAL, legal_referred_at__isnull=False, legal_referred_at__lt=end
+        "still_legal": complaints.filter(legal_referred_at__lt=end).filter(
+            Q(closed_at__isnull=True) | Q(closed_at__gte=end)
         ).count(),
     }
     return {

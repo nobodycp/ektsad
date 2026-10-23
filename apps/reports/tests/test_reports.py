@@ -143,6 +143,23 @@ class ReportTests(TestCase):
         self.assertEqual(self.client.get("/api/governor/report/").status_code, 403)
         self.assertEqual(self.client.get("/api/reports/").status_code, 403)
 
+    def test_legal_case_closed_later_stays_open_at_the_earlier_day(self):
+        self.complaint(
+            status=Complaint.Status.RESOLVED,
+            accepted_at=at(self.previous_day, 9),
+            legal_referred_at=at(self.previous_day, 11),
+            closed_at=at(self.day, 10),
+            created_at=at(self.previous_day, 8),
+        )
+
+        earlier = admin_report({"date_from": "2026-10-23", "date_to": "2026-10-23"})
+        closed_day = admin_report({"date_from": "2026-10-24", "date_to": "2026-10-24"})
+
+        self.assertEqual(earlier["legal"]["still_legal"], 1)
+        self.assertEqual(earlier["legal"]["resolved"], 0)
+        self.assertEqual(closed_day["legal"]["still_legal"], 0)
+        self.assertEqual(closed_day["legal"]["resolved"], 1)
+
     def test_admin_rejects_region_from_another_governorate(self):
         self.client.force_login(self.admin)
 
