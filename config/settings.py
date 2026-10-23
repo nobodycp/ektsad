@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "apps.common",
     "apps.geography",
+    "apps.accounts",
 ]
 
 MIDDLEWARE = [
@@ -64,6 +65,7 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+AUTH_USER_MODEL = "accounts.User"
 
 if os.environ.get("BEHIND_PROXY") == "1":
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
