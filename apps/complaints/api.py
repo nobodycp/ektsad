@@ -40,7 +40,9 @@ PUBLIC_RATE_LIMIT_MESSAGE = "تجاوزت الحد المسموح لتقديم �
 def _complaint_data(complaint, detail=False):
     result = {
         "id": complaint.pk, "governorate": complaint.governorate_id,
-        "region": complaint.region_id, "title": complaint.title, "body": complaint.body,
+        "governorate_name": complaint.governorate.name,
+        "region": complaint.region_id, "region_name": complaint.region.name,
+        "title": complaint.title, "body": complaint.body,
         "status": complaint.status, "inspector": complaint.inspector_id,
         "inspector_name": complaint.inspector_name, "created_at": complaint.created_at.isoformat(),
         "is_flagged": complaint.is_flagged,

@@ -11,6 +11,27 @@ def _admin_only(request):
     return request.user.is_authenticated and getattr(request.user, "role", None) == "admin"
 
 
+@require_http_methods(["GET"])
+def public_governorates(request):
+    page = paginate(Governorate.objects.order_by("name"), request.GET)
+    page["results"] = [{"id": item.pk, "name": item.name} for item in page["results"]]
+    return JsonResponse(page)
+
+
+@require_http_methods(["GET"])
+def public_regions(request):
+    queryset = Region.objects.select_related("governorate").order_by("name")
+    governorate = request.GET.get("governorate")
+    if governorate:
+        queryset = queryset.filter(governorate_id=governorate)
+    page = paginate(queryset, request.GET)
+    page["results"] = [
+        {"id": item.pk, "governorate": item.governorate_id, "name": item.name}
+        for item in page["results"]
+    ]
+    return JsonResponse(page)
+
+
 @require_http_methods(["GET", "POST"])
 def governorates(request):
     if not _admin_only(request):

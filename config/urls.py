@@ -7,7 +7,7 @@ from apps.complaints.api import (
     assign, complaint_actions, complaint_detail, complaint_media, complaints, field_report,
     followup_media, legal_close, public_complaint,
 )
-from apps.geography.api import governorates, regions
+from apps.geography.api import governorates, public_governorates, public_regions, regions
 
 def health(request):
     try:
@@ -23,6 +23,8 @@ urlpatterns = [
     path("api/auth/logout/", logout_view),
     path("api/auth/me/", me_view),
     path("api/users/<int:pk>/", user_detail),
+    path("api/governorates/public/", public_governorates),
+    path("api/regions/public/", public_regions),
     path("api/governorates/", governorates),
     path("api/regions/", regions),
     path("api/complaints/", complaints),
