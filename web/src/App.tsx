@@ -1,75 +1,82 @@
-import { useState } from "react"
-import {
-  AppShell,
-  Button,
-  DataTable,
-  FilterBar,
-  STATUS_LABELS,
-  StatusChip,
-  Timeline,
-  type Column,
-  type FilterValues,
-} from "./design-system"
+import type { ReactNode } from "react"
+import { Navigate, Route, Routes, useLocation } from "react-router-dom"
+import { EmptyState, LoadingState } from "./design-system"
+import type { SessionUser } from "./api"
+import { AuthProvider, useAuth } from "./auth"
+import { APP_ROUTES, FORBIDDEN_MESSAGE, type AppRoute } from "./routes"
+import { Shell } from "./Shell"
+import { LoginPage } from "./pages/LoginPage"
+import { AccountPage } from "./pages/AccountPage"
+import { PlaceholderPage } from "./pages/PlaceholderPage"
+import "./app.css"
 
-type Report = { id: number; number: string; governorate: string; status: string; date: string }
+function FullPageLoading() {
+  return (
+    <div className="app-center" dir="rtl" lang="ar">
+      <LoadingState />
+    </div>
+  )
+}
 
-const sample: Report[] = STATUS_LABELS.map((status, i) => ({
-  id: i + 1,
-  number: `BL-2026-${String(i + 101).padStart(4, "0")}`,
-  governorate: ["القاهرة", "الجيزة", "الإسكندرية", "أسيوط", "المنيا"][i],
-  status,
-  date: `2026-10-${String(10 + i).padStart(2, "0")}`,
-}))
+function pageFor(route: AppRoute): ReactNode {
+  if (route.id === "account") return <AccountPage />
+  return <PlaceholderPage label={route.label} />
+}
 
-const columns: Column<Report>[] = [
-  { key: "number", header: "رقم البلاغ", render: (r) => r.number },
-  { key: "governorate", header: "المحافظة", render: (r) => r.governorate },
-  { key: "status", header: "الحالة", render: (r) => <StatusChip status={r.status} /> },
-  { key: "date", header: "التاريخ", render: (r) => r.date },
-]
+function Protected({ children }: { children: (user: SessionUser) => ReactNode }) {
+  const { session } = useAuth()
+  const location = useLocation()
+  if (session.status === "loading") return <FullPageLoading />
+  if (session.status === "anonymous") return <Navigate to="/" replace state={{ from: location.pathname }} />
+  return <>{children(session.user)}</>
+}
+
+function RoutePage({ route }: { route: AppRoute }) {
+  return (
+    <Protected>
+      {(user) =>
+        route.roles.includes(user.role) ? (
+          <Shell user={user} activeId={route.id} pageTitle={route.label}>
+            {pageFor(route)}
+          </Shell>
+        ) : (
+          <Shell user={user} pageTitle={route.label}>
+            <EmptyState title={FORBIDDEN_MESSAGE} />
+          </Shell>
+        )
+      }
+    </Protected>
+  )
+}
+
+function NotFound() {
+  return (
+    <Protected>
+      {(user) => (
+        <Shell user={user} pageTitle="الصفحة غير موجودة">
+          <EmptyState title="لم نجد الصفحة المطلوبة." description="تحقق من الرابط أو اختر صفحة من القائمة." />
+        </Shell>
+      )}
+    </Protected>
+  )
+}
+
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/" element={<LoginPage />} />
+      {APP_ROUTES.map((route) => (
+        <Route key={route.id} path={route.path} element={<RoutePage route={route} />} />
+      ))}
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  )
+}
 
 export function App() {
-  const [, setFilters] = useState<FilterValues>({})
   return (
-    <AppShell
-      title="منظومة المتابعة"
-      subtitle="الإدارة العامة للتفتيش"
-      nav={[
-        { id: "reports", label: "البلاغات", href: "#" },
-        { id: "inspectors", label: "المفتشون", href: "#" },
-        { id: "users", label: "المستخدمون", href: "#" },
-      ]}
-      activeId="reports"
-      pageTitle="البلاغات"
-      headerActions={<Button>بلاغ جديد</Button>}
-    >
-      <FilterBar
-        onChange={setFilters}
-        schema={[
-          { type: "search", key: "q", label: "بحث", placeholder: "رقم البلاغ أو الاسم" },
-          {
-            type: "select",
-            key: "status",
-            label: "الحالة",
-            options: STATUS_LABELS.map((s) => ({ value: s, label: s })),
-          },
-          { type: "date_range", key: "date", label: "الفترة" },
-        ]}
-      />
-      <DataTable
-        columns={columns}
-        rows={sample}
-        getRowId={(r) => r.id}
-        rowActions={() => [{ id: "open", label: "فتح", onSelect: () => {} }]}
-        bulkActions={[{ id: "assign", label: "إحالة إلى مفتش", onRun: () => {} }]}
-        pagination={{ page: 1, pageSize: 20, total: sample.length, onPageChange: () => {} }}
-      />
-      <Timeline
-        events={[
-          { id: "1", title: "تم استلام البلاغ", at: "2026-10-10" },
-          { id: "2", title: "إحالة إلى المتابعة الميدانية", at: "2026-10-11", actor: "م. أحمد سالم" },
-        ]}
-      />
-    </AppShell>
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>
   )
 }
