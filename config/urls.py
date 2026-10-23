@@ -1,6 +1,6 @@
 from django.db import connection
 from django.http import HttpResponse, HttpResponseServerError
-from django.urls import path
+from django.urls import include, path
 
 from apps.accounts.api import login_view, logout_view, me_view, user_detail
 from apps.complaints.api import (
@@ -34,4 +34,7 @@ urlpatterns = [
     path("api/complaints/<int:pk>/legal-close/", legal_close),
     path("api/media/complaints/<int:pk>/", complaint_media),
     path("api/media/followups/<int:pk>/<int:file_id>/", followup_media),
+    path("api/", include("apps.accounts.urls")),
+    path("api/", include("apps.publications.urls")),
+    path("api/", include("apps.reports.urls")),
 ]

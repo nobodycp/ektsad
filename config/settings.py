@@ -27,6 +27,8 @@ INSTALLED_APPS = [
     "apps.geography",
     "apps.accounts",
     "apps.complaints",
+    "apps.publications",
+    "apps.reports",
 ]
 
 MIDDLEWARE = [
