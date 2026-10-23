@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     "apps.common",
     "apps.geography",
     "apps.accounts",
+    "apps.complaints",
 ]
 
 MIDDLEWARE = [
