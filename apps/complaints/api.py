@@ -1,13 +1,16 @@
 import json
 
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.http import FileResponse, Http404, JsonResponse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
 from apps.accounts.models import User
+from apps.common.files import validate_upload
 from apps.common.listing import paginate
 from apps.complaints.models import Complaint, FollowUpFile
+from apps.geography.models import Region
 from apps.complaints.services import (
     accept_complaint,
     assign_complaint,
@@ -29,6 +32,9 @@ def _ip(request):
 
 def _forbidden(request):
     return not request.user.is_authenticated
+
+
+PUBLIC_RATE_LIMIT_MESSAGE = "تجاوزت الحد المسموح لتقديم الشكاوى. حاول لاحقاً."
 
 
 def _complaint_data(complaint, detail=False):
@@ -174,5 +180,33 @@ def followup_media(request, pk, file_id):
     if complaint is None or item is None:
         raise Http404
     return FileResponse(item.file.open("rb"))
+
+
+@require_http_methods(["POST"])
+def public_complaint(request):
+    payload = _payload(request)
+    try:
+        region = Region.objects.get(pk=payload.get("region"))
+        if region.governorate_id != int(payload.get("governorate")):
+            raise ValidationError("المنطقة لا تتبع المحافظة.")
+        image = request.FILES.get("image")
+        if image:
+            validate_upload(image, kinds={"image"})
+    except (Region.DoesNotExist, TypeError, ValueError, ValidationError) as error:
+        detail = error.messages[0] if isinstance(error, ValidationError) else "بيانات غير صالحة."
+        return JsonResponse({"detail": detail}, status=400)
+    ip = _ip(request) or ""
+    key = f"complaint-public-rate:{ip}"
+    if cache.add(key, 1, timeout=3600):
+        count = 1
+    else:
+        count = cache.incr(key)
+    if count > 10:
+        return JsonResponse({"detail": PUBLIC_RATE_LIMIT_MESSAGE}, status=429)
+    Complaint.objects.create(
+        governorate_id=region.governorate_id, region=region, title=payload.get("title", ""),
+        body=payload.get("body", ""), image=image, source=Complaint.Source.WEB, submitter_ip=ip or None,
+    )
+    return JsonResponse({"detail": "تم استلام الشكوى."}, status=201)
 
 

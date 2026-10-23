@@ -1,5 +1,6 @@
 import json
 
+from django.core.cache import cache
 from django.test import TestCase
 
 from apps.accounts.models import User
@@ -48,3 +49,18 @@ class ComplaintApiTests(TestCase):
     def test_anonymous_media_is_denied(self):
         response = self.client.get(f"/api/media/complaints/{self.complaint.pk}/")
         self.assertIn(response.status_code, {403, 404})
+
+    def test_public_success_has_no_id_and_eleventh_is_rate_limited(self):
+        cache.clear()
+        payload = {
+            "governorate": self.governorate.pk, "region": self.region.pk,
+            "title": "شكوى", "body": "تفاصيل",
+        }
+        response = self.client.post("/api/complaints/public/", payload)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json(), {"detail": "تم استلام الشكوى."})
+        for _ in range(9):
+            self.client.post("/api/complaints/public/", payload)
+        response = self.client.post("/api/complaints/public/", payload)
+        self.assertEqual(response.status_code, 429)
+        self.assertEqual(response.json()["detail"], "تجاوزت الحد المسموح لتقديم الشكاوى. حاول لاحقاً.")
