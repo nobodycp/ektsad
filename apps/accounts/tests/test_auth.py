@@ -64,3 +64,23 @@ class AuthenticationTests(TestCase):
         )
         self.client.force_login(user)
         self.assertEqual(self.client.get("/api/governorates/").status_code, 403)
+
+    def test_admin_geography_list_uses_page_contract(self):
+        admin = User.objects.create_user(
+            username="admin", password="valid-password-12", role=User.Role.ADMIN
+        )
+        self.client.force_login(admin)
+        body = self.client.get("/api/governorates/").json()
+        self.assertEqual(set(body), {"count", "page", "page_size", "results"})
+
+    def test_me_returns_role(self):
+        user = User.objects.create_user(
+            username="legal2",
+            password="valid-password-12",
+            role=User.Role.LEGAL,
+            display_name="الشؤون",
+        )
+        self.client.force_login(user)
+        body = self.client.get("/api/auth/me/").json()
+        self.assertEqual(body["role"], "legal")
+        self.assertEqual(body["display_name"], "الشؤون")

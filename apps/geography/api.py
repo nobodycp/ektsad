@@ -3,6 +3,7 @@ import json
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 
+from apps.common.listing import paginate
 from apps.geography.models import Governorate, Region
 
 
@@ -18,9 +19,9 @@ def governorates(request):
         payload = json.loads(request.body or "{}")
         governorate = Governorate.objects.create(name=payload["name"])
         return JsonResponse({"id": governorate.pk, "name": governorate.name}, status=201)
-    return JsonResponse(
-        {"results": [{"id": item.pk, "name": item.name} for item in Governorate.objects.all()]}
-    )
+    page = paginate(Governorate.objects.all(), request.GET)
+    page["results"] = [{"id": item.pk, "name": item.name} for item in page["results"]]
+    return JsonResponse(page)
 
 
 @require_http_methods(["GET", "POST"])
@@ -36,11 +37,9 @@ def regions(request):
             {"id": region.pk, "governorate": region.governorate_id, "name": region.name},
             status=201,
         )
-    return JsonResponse(
-        {
-            "results": [
-                {"id": item.pk, "governorate": item.governorate_id, "name": item.name}
-                for item in Region.objects.all()
-            ]
-        }
-    )
+    page = paginate(Region.objects.select_related("governorate"), request.GET)
+    page["results"] = [
+        {"id": item.pk, "governorate": item.governorate_id, "name": item.name}
+        for item in page["results"]
+    ]
+    return JsonResponse(page)
