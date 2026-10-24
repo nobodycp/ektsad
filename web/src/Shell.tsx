@@ -1,4 +1,4 @@
-import { useEffect, useState, type MouseEvent, type ReactNode } from "react"
+import { useCallback, useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { AppShell, Button, type NavEntry } from "./design-system"
 import { apiRequest, errorDetail, type ComplaintRow, type SessionUser } from "./api"
@@ -23,6 +23,28 @@ function internalHref(event: MouseEvent<HTMLElement>): string | null {
   return href
 }
 
+function useAway(open: boolean, close: () => void) {
+  const root = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target
+      if (target instanceof Node && root.current?.contains(target)) return
+      close()
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close()
+    }
+    document.addEventListener("pointerdown", onPointerDown)
+    document.addEventListener("keydown", onKey)
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown)
+      document.removeEventListener("keydown", onKey)
+    }
+  }, [open, close])
+  return root
+}
+
 function greeting(name: string) {
   const hour = new Date().getHours()
   const hello = hour < 12 ? "صباح الخير" : hour < 18 ? "نهارك سعيد" : "مساء الخير"
@@ -33,6 +55,8 @@ function greeting(name: string) {
 function Notifications() {
   const location = useLocation()
   const [open, setOpen] = useState(false)
+  const close = useCallback(() => setOpen(false), [])
+  const root = useAway(open, close)
   const [rows, setRows] = useState<ComplaintRow[]>([])
   const [count, setCount] = useState(0)
   const [loaded, setLoaded] = useState(false)
@@ -59,7 +83,7 @@ function Notifications() {
   }, [location.pathname])
 
   return (
-    <div className="ds-popover">
+    <div className="ds-popover" ref={root}>
       <button
         type="button"
         className={count > 0 ? "ds-icon-btn is-active" : "ds-icon-btn"}
@@ -106,10 +130,12 @@ function Notifications() {
 
 function UserMenu({ user, onSignOut, leaving }: { user: SessionUser; onSignOut: () => void; leaving: boolean }) {
   const [open, setOpen] = useState(false)
+  const close = useCallback(() => setOpen(false), [])
+  const root = useAway(open, close)
   const name = user.display_name || user.username
   const initial = name.trim().slice(0, 1)
   return (
-    <div className="ds-popover">
+    <div className="ds-popover" ref={root}>
       <button type="button" className="ds-avatar" aria-label="حساب المستخدم" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
         <span aria-hidden="true">{initial}</span>
       </button>

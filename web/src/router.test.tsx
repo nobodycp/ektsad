@@ -72,6 +72,19 @@ it("moves from complaints to account without a document navigation", async () =>
   expect(screen.getByRole("heading", { name: "الإعدادات" })).toBeInTheDocument()
 })
 
+it("closes the bell and the user menu when the click is outside them", async () => {
+  renderAt("/complaints/")
+  await user.click(screen.getByRole("button", { name: "حساب المستخدم" }))
+  expect(screen.getByRole("link", { name: "الإعدادات" })).toBeInTheDocument()
+  await user.click(screen.getByRole("heading", { name: "الشكاوى" }))
+  expect(screen.queryByRole("link", { name: "الإعدادات" })).not.toBeInTheDocument()
+
+  await user.click(screen.getByRole("button", { name: "الإشعارات" }))
+  expect(screen.getByText("شكاوى جديدة")).toBeInTheDocument()
+  await user.click(screen.getByRole("heading", { name: "الشكاوى" }))
+  expect(screen.queryByText("شكاوى جديدة")).not.toBeInTheDocument()
+})
+
 it("prevents the browser default on sidebar links", async () => {
   renderAt("/complaints/")
   await user.click(screen.getByRole("button", { name: "حساب المستخدم" }))
