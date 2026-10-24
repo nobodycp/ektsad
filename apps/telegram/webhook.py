@@ -11,8 +11,10 @@ from django.utils import timezone
 
 from apps.accounts.models import User
 from apps.complaints.models import Complaint
-from apps.complaints.services import accept_complaint, assign_complaint, close_legal, submit_field_report
-from apps.geography.models import Region
+from apps.complaints.services import (
+    accept_complaint, assign_complaint, close_legal, submit_field_report, visible_complaints,
+)
+from apps.geography.models import Governorate, Region
 from apps.publications.models import CrossingReport, PriceReport
 from apps.telegram.links import consume_staff_link
 from apps.telegram.models import (
@@ -81,7 +83,7 @@ def _linked_user(telegram_id):
     return link.user if link and link.user.is_active else None
 
 
-def _notify_new_complaint(complaint):
+def notify_new_complaint(complaint):
     inspectors = User.objects.filter(
         is_active=True, role=User.Role.INSPECTOR, region_id=complaint.region_id,
         telegram_link__isnull=False,
@@ -110,7 +112,7 @@ def _create_complaint(chat_id, user_id, governorate_id, region_id, title, body, 
             governorate=region.governorate, region=region, title=title.strip(), body=body.strip(),
             source=Complaint.Source.TELEGRAM, telegram_chat_id=str(chat_id), telegram_user_id=str(user_id), image=image,
         )
-        _notify_new_complaint(complaint)
+        notify_new_complaint(complaint)
         enqueue(chat_id, RECEIVED)
     return complaint
 
@@ -118,16 +120,20 @@ def _create_complaint(chat_id, user_id, governorate_id, region_id, title, body, 
 def _publications(chat_id, text):
     if text in {"قائمة الأسعار", "prices", "/prices"}:
         report = PriceReport.objects.order_by("-published_at").first()
-        enqueue(chat_id, report.image.name if report else "لا توجد قائمة أسعار منشورة.")
+        if report is None or not report.image:
+            enqueue(chat_id, "لا توجد قائمة أسعار منشورة.")
+        else:
+            enqueue(chat_id, photo=report.image.name)
         return True
     if text in {"حركة المعابر", "crossings", "/crossings"}:
         report = CrossingReport.objects.order_by("-published_at").first()
-        if report is None:
+        if report is None or (not report.body and not report.image):
             enqueue(chat_id, "لا توجد حركة معابر منشورة.")
         else:
-            enqueue(chat_id, report.body or "")
+            if report.body:
+                enqueue(chat_id, report.body)
             if report.image:
-                enqueue(chat_id, report.image.name)
+                enqueue(chat_id, photo=report.image.name)
         return True
     return False
 
@@ -154,7 +160,10 @@ def _staff_action(chat_id, telegram_id, text):
             assign_complaint(complaint, user, inspector, channel="telegram", ip=None, telegram_id=str(telegram_id))
         elif command == "/field":
             destination, body = bits[2], bits[3]
-            submit_field_report(complaint, user, body, [], destination)
+            submit_field_report(
+                complaint, user, body, [], destination,
+                channel="telegram", ip=None, telegram_id=str(telegram_id),
+            )
             if destination == "governor":
                 _citizen_resolution(complaint)
         elif command == "/close":
@@ -173,6 +182,87 @@ def _staff_action(chat_id, telegram_id, text):
 def _citizen_resolution(complaint):
     if complaint.source == Complaint.Source.TELEGRAM and complaint.telegram_chat_id:
         enqueue(complaint.telegram_chat_id, f"تم التعامل مع الشكوى تبعك: {complaint.title}.")
+
+
+def _work_list(chat_id, telegram_id, text):
+    user = _linked_user(telegram_id)
+    if user is None:
+        enqueue(chat_id, UNLINKED)
+        return
+    queryset = visible_complaints(user)
+    if text == "وصلت":
+        queryset = queryset.filter(status=Complaint.Status.RECEIVED)
+    elif text == "معلقة":
+        queryset = queryset.filter(status__in=[Complaint.Status.FIELD, Complaint.Status.LEGAL])
+    elif text == "مغلقة":
+        queryset = queryset.filter(status__in=[Complaint.Status.FINISHED, Complaint.Status.RESOLVED])
+    rows = list(queryset.order_by("-created_at")[:20])
+    if not rows:
+        enqueue(chat_id, "لا توجد شكاوى.")
+        return
+    enqueue(chat_id, "\n".join(f"{item.pk}. {item.title} — {item.status}" for item in rows))
+
+
+def _image_file(draft):
+    if not draft or not draft.payload.get("image"):
+        return None
+    return ContentFile(base64.b64decode(draft.payload["image"]), name=draft.payload["image_name"])
+
+
+def _finish_draft(chat_id, user_id, draft):
+    payload = draft.payload
+    result = _create_complaint(
+        chat_id, user_id, payload.get("governorate"), payload.get("region"),
+        payload.get("title", ""), payload.get("body", ""), _image_file(draft),
+    )
+    if result:
+        draft.delete()
+    elif result is None:
+        enqueue(chat_id, "بيانات الشكوى غير مكتملة.")
+
+
+def _advance_draft(chat_id, user_id, text):
+    draft = TelegramDraft.objects.filter(chat_id=str(chat_id)).first()
+    if draft is None or draft.step not in {"governorate", "region", "title", "body", "image"}:
+        return False
+    cleaned = text.strip()
+    payload = dict(draft.payload)
+    if draft.step == "governorate":
+        governorate = Governorate.objects.filter(name=cleaned).first()
+        if governorate is None:
+            enqueue(chat_id, "المحافظة غير موجودة.")
+            return True
+        payload["governorate"] = governorate.pk
+        draft.step = "region"
+        reply = "أرسل اسم المنطقة."
+    elif draft.step == "region":
+        region = Region.objects.filter(governorate_id=payload.get("governorate"), name=cleaned).first()
+        if region is None:
+            enqueue(chat_id, "المنطقة غير موجودة.")
+            return True
+        payload["region"] = region.pk
+        draft.step = "title"
+        reply = "أرسل عنوان الشكوى."
+    elif draft.step == "title":
+        payload["title"] = cleaned
+        draft.step = "body"
+        reply = "أرسل نص الشكوى."
+    elif draft.step == "body":
+        payload["body"] = cleaned
+        draft.step = "image"
+        reply = "أرسل صورة أو اكتب تخطي."
+    else:
+        if cleaned not in {"تخطي", "تقديم الشكوى"}:
+            enqueue(chat_id, "أرسل صورة أو اكتب تخطي.")
+            return True
+        draft.payload = payload
+        draft.save(update_fields=["payload", "step", "updated_at"])
+        _finish_draft(chat_id, user_id, draft)
+        return True
+    draft.payload = payload
+    draft.save(update_fields=["payload", "step", "updated_at"])
+    enqueue(chat_id, reply)
+    return True
 
 
 def _start_complaint(chat_id):
@@ -249,5 +339,13 @@ def handle_update(update):
         return
     elif text.startswith(("/accept", "/assign", "/field", "/close")):
         _staff_action(chat_id, user_id, text)
-    else:
+    elif text in {"شكاوى", "وصلت", "معلقة", "مغلقة"}:
+        _work_list(chat_id, user_id, text)
+    elif text == "تقديم شكوى":
         _start_complaint(chat_id)
+    elif text and _advance_draft(chat_id, user_id, text):
+        return
+    elif text:
+        enqueue(chat_id, "تقديم شكوى، قائمة الأسعار، أو حركة المعابر.")
+    elif photo:
+        enqueue(chat_id, "تم حفظ الصورة. اكتب تقديم الشكوى أو تخطي.")

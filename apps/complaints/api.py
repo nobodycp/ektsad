@@ -1,6 +1,7 @@
 import json
 
 from django.core.cache import cache
+from django.db import transaction
 from django.core.exceptions import ValidationError
 from django.http import FileResponse, Http404, JsonResponse
 from django.utils import timezone
@@ -205,10 +206,13 @@ def public_complaint(request):
         count = cache.incr(key)
     if count > 10:
         return JsonResponse({"detail": PUBLIC_RATE_LIMIT_MESSAGE}, status=429)
-    Complaint.objects.create(
-        governorate_id=region.governorate_id, region=region, title=payload.get("title", ""),
-        body=payload.get("body", ""), image=image, source=Complaint.Source.WEB, submitter_ip=ip or None,
-    )
+    with transaction.atomic():
+        complaint = Complaint.objects.create(
+            governorate_id=region.governorate_id, region=region, title=payload.get("title", ""),
+            body=payload.get("body", ""), image=image, source=Complaint.Source.WEB, submitter_ip=ip or None,
+        )
+        from apps.telegram.webhook import notify_new_complaint
+        notify_new_complaint(complaint)
     return JsonResponse({"detail": "تم استلام الشكوى."}, status=201)
 
 

@@ -134,7 +134,62 @@ class TelegramWebhookTests(TestCase):
             "message": {"chat": {"id": 700}, "from": {"id": 700}, "text": "/complaint 1 1 عنوان النص"},
         }
         self.client.post("/api/telegram/webhook/", complete, content_type="application/json", **self.secret)
-        self.assertTrue(Complaint.objects.get().image.name.endswith("complaint.jpg"))
+        complaint = Complaint.objects.get()
+        self.assertTrue(complaint.image)
+        self.assertIn("complaint", complaint.image.name)
+
+    @override_settings(TELEGRAM_WEBHOOK_SECRET="secret")
+    def test_incomplete_conversation_stays_a_draft(self):
+        from apps.telegram.models import TelegramDraft
+
+        def send(update_id, text):
+            self.client.post(
+                "/api/telegram/webhook/",
+                {"update_id": update_id, "message": {"chat": {"id": 900}, "from": {"id": 900}, "text": text}},
+                content_type="application/json",
+                **self.secret,
+            )
+
+        send(900, "تقديم شكوى")
+        send(901, "الخليل")
+
+        self.assertEqual(Complaint.objects.count(), 0)
+        draft = TelegramDraft.objects.get(chat_id="900")
+        self.assertEqual(draft.step, "region")
+        self.assertEqual(draft.payload["governorate"], self.governorate.pk)
+
+    def test_web_complaint_notifies_linked_staff_only(self):
+        from apps.telegram.models import TelegramLink, TelegramOutbox
+
+        TelegramLink.objects.create(user=self.inspector, telegram_id="801")
+        TelegramLink.objects.create(user=self.governor, telegram_id="802")
+        response = self.client.post("/api/complaints/public/", {
+            "governorate": self.governorate.pk, "region": self.region.pk, "title": "محل", "body": "النص",
+        })
+
+        self.assertEqual(response.status_code, 201)
+        texts = list(TelegramOutbox.objects.values_list("text", flat=True))
+        self.assertEqual(texts, [
+            f"وصلت شكوى في {self.region.name} بعنوان محل.",
+            f"وصلت شكوى في {self.region.name} بعنوان محل.",
+        ])
+
+    def test_price_button_queues_the_image(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        from apps.publications.models import PriceReport
+        from apps.telegram.models import TelegramOutbox
+        from apps.telegram.webhook import handle_update
+
+        PriceReport.objects.create(
+            image=SimpleUploadedFile("price.png", b"img", content_type="image/png"),
+            publisher_name="ناشر",
+        )
+        handle_update({"message": {"chat": {"id": 1}, "from": {"id": 1}, "text": "قائمة الأسعار"}})
+
+        item = TelegramOutbox.objects.get()
+        self.assertIn("price", item.photo)
+        self.assertEqual(item.text, "")
 
     def test_register_webhook_failure_keeps_unregistered_status(self):
         from apps.telegram.models import TelegramWebhookStatus

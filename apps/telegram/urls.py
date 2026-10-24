@@ -29,7 +29,12 @@ def webhook(request):
     if not record_update(update_id):
         return JsonResponse({"ok": True})
     _status_update(last_update_at=timezone.now())
-    handle_update(update)
+    try:
+        handle_update(update)
+    except Exception:
+        from apps.telegram.models import TelegramUpdate
+        TelegramUpdate.objects.filter(update_id=update_id).delete()
+        raise
     return JsonResponse({"ok": True})
 
 

@@ -17,8 +17,8 @@ def _retry(operation):
                 raise
 
 
-def enqueue(chat_id, text):
-    return _retry(lambda: TelegramOutbox.objects.create(chat_id=str(chat_id), text=text))
+def enqueue(chat_id, text="", photo=""):
+    return _retry(lambda: TelegramOutbox.objects.create(chat_id=str(chat_id), text=text, photo=photo))
 
 
 def next_delay(attempts):
@@ -40,11 +40,22 @@ def send_telegram_outbox():
     sent = 0
     for item in due:
         try:
-            response = httpx.post(
-                f"https://api.telegram.org/bot{token}/sendMessage",
-                json={"chat_id": item.chat_id, "text": item.text},
-                timeout=10,
-            )
+            if item.photo:
+                from django.core.files.storage import default_storage
+
+                with default_storage.open(item.photo, "rb") as photo:
+                    response = httpx.post(
+                        f"https://api.telegram.org/bot{token}/sendPhoto",
+                        data={"chat_id": item.chat_id, "caption": item.text},
+                        files={"photo": photo},
+                        timeout=10,
+                    )
+            else:
+                response = httpx.post(
+                    f"https://api.telegram.org/bot{token}/sendMessage",
+                    json={"chat_id": item.chat_id, "text": item.text},
+                    timeout=10,
+                )
             response.raise_for_status()
         except Exception as error:
             item.attempts += 1

@@ -51,7 +51,7 @@ def assign_complaint(complaint, actor, inspector, *, channel, ip, telegram_id):
 
 
 @transaction.atomic
-def submit_field_report(complaint, actor, text, files, destination):
+def submit_field_report(complaint, actor, text, files, destination, *, channel="web", ip=None, telegram_id=""):
     if actor.role != User.Role.INSPECTOR or complaint.inspector_id != actor.pk:
         raise ValidationError("غير مسموح.")
     if complaint.status != Complaint.Status.FIELD or not text or not text.strip():
@@ -66,6 +66,7 @@ def submit_field_report(complaint, actor, text, files, destination):
     follow_up = FollowUp.objects.create(
         complaint=complaint, author=actor, author_name=_name(actor),
         place=FollowUp.Place.FIELD, body=text.strip(),
+        channel=channel, author_ip=ip, author_telegram_id=telegram_id or "",
     )
     for upload in files:
         FollowUpFile.objects.create(follow_up=follow_up, file=upload)
