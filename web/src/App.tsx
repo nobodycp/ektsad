@@ -3,11 +3,18 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom"
 import { EmptyState, LoadingState } from "./design-system"
 import type { SessionUser } from "./api"
 import { AuthProvider, useAuth } from "./auth"
-import { APP_ROUTES, FORBIDDEN_MESSAGE, type AppRoute } from "./routes"
+import { APP_ROUTES, FORBIDDEN_MESSAGE, LOGIN_PATH, PUBLIC_PATH, canOpen, type AppRoute } from "./routes"
 import { Shell } from "./Shell"
 import { LoginPage } from "./pages/LoginPage"
 import { AccountPage } from "./pages/AccountPage"
 import { PlaceholderPage } from "./pages/PlaceholderPage"
+import { PublicPage } from "./pages/PublicPage"
+import { ComplaintsPage } from "./pages/ComplaintsPage"
+import { ComplaintPage } from "./pages/ComplaintPage"
+import { UsersPage } from "./pages/UsersPage"
+import { GeographyPage } from "./pages/GeographyPage"
+import { AdminReportsPage, GovernorReportPage } from "./pages/ReportsPage"
+import { PublicationsPage } from "./pages/PublicationsPage"
 import "./app.css"
 
 function FullPageLoading() {
@@ -18,16 +25,38 @@ function FullPageLoading() {
   )
 }
 
-function pageFor(route: AppRoute): ReactNode {
-  if (route.id === "account") return <AccountPage />
-  return <PlaceholderPage label={route.label} />
+function pageFor(route: AppRoute, user: SessionUser): ReactNode {
+  switch (route.id) {
+    case "account":
+      return <AccountPage />
+    case "complaints":
+      return <ComplaintsPage user={user} />
+    case "complaint":
+      return <ComplaintPage user={user} />
+    case "users":
+      return <UsersPage />
+    case "governorates":
+      return <GeographyPage kind="governorates" />
+    case "regions":
+      return <GeographyPage kind="regions" />
+    case "governor-report":
+      return <GovernorReportPage />
+    case "reports":
+      return <AdminReportsPage />
+    case "prices":
+      return <PublicationsPage kind="prices" user={user} />
+    case "crossings":
+      return <PublicationsPage kind="crossings" user={user} />
+    default:
+      return <PlaceholderPage label={route.label} />
+  }
 }
 
 function Protected({ children }: { children: (user: SessionUser) => ReactNode }) {
   const { session } = useAuth()
   const location = useLocation()
   if (session.status === "loading") return <FullPageLoading />
-  if (session.status === "anonymous") return <Navigate to="/" replace state={{ from: location.pathname }} />
+  if (session.status === "anonymous") return <Navigate to={LOGIN_PATH} replace state={{ from: location.pathname }} />
   return <>{children(session.user)}</>
 }
 
@@ -35,9 +64,9 @@ function RoutePage({ route }: { route: AppRoute }) {
   return (
     <Protected>
       {(user) =>
-        route.roles.includes(user.role) ? (
-          <Shell user={user} activeId={route.id} pageTitle={route.label}>
-            {pageFor(route)}
+        canOpen(route, user) ? (
+          <Shell user={user} activeId={route.navId ?? route.id} pageTitle={route.label}>
+            {pageFor(route, user)}
           </Shell>
         ) : (
           <Shell user={user} pageTitle={route.label}>
@@ -64,7 +93,8 @@ function NotFound() {
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<LoginPage />} />
+      <Route path={PUBLIC_PATH} element={<PublicPage />} />
+      <Route path={LOGIN_PATH} element={<LoginPage />} />
       {APP_ROUTES.map((route) => (
         <Route key={route.id} path={route.path} element={<RoutePage route={route} />} />
       ))}

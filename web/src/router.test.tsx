@@ -6,7 +6,19 @@ import { App } from "./App"
 import type { SessionUser } from "./api"
 import { primeSession } from "./auth"
 
-const admin: SessionUser = { id: 1, username: "admin", display_name: "المدير", role: "admin" }
+const admin: SessionUser = {
+  id: 1,
+  username: "admin",
+  display_name: "المدير",
+  role: "admin",
+  governorate: null,
+  governorate_name: null,
+  region: null,
+  region_name: null,
+  can_publish_prices: false,
+  can_publish_crossings: false,
+  can_view_all_complaints: false,
+}
 
 type Reply = { status: number; body: unknown }
 
@@ -75,7 +87,7 @@ it("shows the exact message when login fails", async () => {
       ? { status: 400, body: { detail: "بيانات الدخول غير صحيحة." } }
       : { status: 403, body: { detail: "Forbidden" } },
   )
-  renderAt("/")
+  renderAt("/login/")
   await user.type(field("اسم المستخدم"), "someone")
   await user.type(field("كلمة المرور"), "wrong-password")
   await user.click(screen.getByRole("button", { name: "دخول" }))
@@ -91,7 +103,7 @@ it("signs in and lands on complaints", async () => {
   mockFetch((url) =>
     url === "/api/auth/login/" ? { status: 200, body: admin } : { status: 403, body: { detail: "Forbidden" } },
   )
-  renderAt("/")
+  renderAt("/login/")
   await user.type(field("اسم المستخدم"), "admin")
   await user.type(field("كلمة المرور"), "correct-horse-battery")
   await user.click(screen.getByRole("button", { name: "دخول" }))
@@ -102,6 +114,25 @@ it("sends anonymous visitors to the login page", async () => {
   primeSession(null)
   renderAt("/account/")
   expect(screen.getByRole("heading", { name: "تسجيل الدخول" })).toBeInTheDocument()
+})
+
+it("serves the public page at / without signing in", () => {
+  primeSession(null)
+  renderAt("/")
+  expect(screen.getByRole("heading", { level: 1, name: "حماية المستهلك" })).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "تقديم الشكوى" })).toBeInTheDocument()
+  expect(screen.queryByRole("heading", { name: "تسجيل الدخول" })).not.toBeInTheDocument()
+})
+
+it("adds the publication items only when the flag is granted", () => {
+  primeSession({ ...admin, role: "governor", can_publish_prices: true })
+  const { unmount } = renderAt("/complaints/")
+  expect(sidebarLabels()).toEqual(["الشكاوى", "التقرير اليومي", "الأسعار", "الإعدادات"])
+  unmount()
+  primeSession({ ...admin, role: "inspector", can_publish_crossings: true })
+  renderAt("/prices/")
+  expect(sidebarLabels()).toEqual(["الشكاوى", "المعابر", "الإعدادات"])
+  expect(screen.getByText("لا تملك صلاحية الوصول إلى هذه الصفحة.")).toBeInTheDocument()
 })
 
 it("builds the sidebar for each role", () => {

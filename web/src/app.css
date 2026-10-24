@@ -115,3 +115,459 @@
   display: flex;
   justify-content: flex-start;
 }
+
+/* ---------- Shared page pieces ---------- */
+.page {
+  display: grid;
+  gap: var(--ds-space-5);
+  min-width: 0;
+}
+
+.page__bar {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--ds-space-3);
+}
+
+.page__bar > .ds-field {
+  width: 220px;
+}
+
+.app-num {
+  font-variant-numeric: tabular-nums;
+}
+
+.app-link {
+  color: var(--ds-ink);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: var(--ds-line);
+  text-underline-offset: 4px;
+  transition: text-decoration-color 120ms ease;
+}
+
+.app-link:hover {
+  text-decoration-color: var(--ds-cedar);
+}
+
+.app-flag {
+  color: var(--ds-copper);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.app-flag::before {
+  content: "⚑ ";
+}
+
+.app-muted {
+  margin: 0;
+  color: var(--ds-ink-faint);
+  font-size: 13px;
+}
+
+.app-prose {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.app-back {
+  margin: 0;
+  font-size: 13px;
+}
+
+.app-files {
+  margin: var(--ds-space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+  font-size: 13px;
+}
+
+.app-files a {
+  color: var(--ds-cedar);
+}
+
+/* Sheet: a ruled section of a page, never tiled into a grid. */
+.sheet {
+  padding: var(--ds-space-5);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-panel);
+  display: grid;
+  gap: var(--ds-space-4);
+}
+
+.sheet__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ds-space-3);
+  padding-bottom: var(--ds-space-2);
+  border-bottom: 1px solid var(--ds-line);
+}
+
+.sheet__heading {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.sheet__note {
+  margin: var(--ds-space-1) 0 0;
+  color: var(--ds-ink-soft);
+  font-size: 0.9rem;
+}
+
+.sheet__form {
+  display: grid;
+  gap: var(--ds-space-4);
+  max-width: 720px;
+}
+
+.sheet__form--inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  max-width: none;
+}
+
+.sheet__form--inline > .ds-field {
+  flex: 0 1 260px;
+}
+
+.sheet__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--ds-space-4);
+}
+
+.sheet__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+}
+
+.sheet__image {
+  max-width: 100%;
+  max-height: 520px;
+  justify-self: start;
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-input);
+}
+
+/* Ledger: figures on one ruled line, read right to left like a register. */
+.ledger {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0;
+  border-block: 2px solid var(--ds-ink);
+}
+
+.ledger__item {
+  flex: 1 1 140px;
+  padding: var(--ds-space-3) var(--ds-space-4);
+  border-inline-start: 1px solid var(--ds-line);
+}
+
+.ledger__item:first-child {
+  border-inline-start: 0;
+}
+
+.ledger__label {
+  font-size: 12px;
+  color: var(--ds-ink-soft);
+}
+
+.ledger__value {
+  margin: var(--ds-space-1) 0 0;
+  font-size: 1.6rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+}
+
+/* Dossier: one complaint as a filed record. */
+.dossier {
+  display: grid;
+  gap: var(--ds-space-4);
+  padding: var(--ds-space-5);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-line);
+  border-inline-start: 6px solid var(--ds-ink);
+  border-radius: var(--ds-radius-panel);
+}
+
+.dossier__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-3);
+}
+
+.dossier__number {
+  color: var(--ds-copper);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.dossier__title {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 700;
+  flex-basis: 100%;
+}
+
+.dossier__meta {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0;
+  border-block: 1px solid var(--ds-line);
+}
+
+.dossier__meta > div {
+  flex: 1 1 160px;
+  padding: var(--ds-space-2) var(--ds-space-3);
+  border-inline-start: 1px solid var(--ds-line);
+}
+
+.dossier__meta > div:first-child {
+  border-inline-start: 0;
+}
+
+.dossier__meta dt {
+  font-size: 12px;
+  color: var(--ds-ink-soft);
+}
+
+.dossier__meta dd {
+  margin: 0;
+  font-weight: 500;
+}
+
+.dossier__body {
+  font-size: 15px;
+  max-width: 72ch;
+}
+
+.dossier__image {
+  max-width: min(100%, 480px);
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-input);
+}
+
+/* One-time secret and confirmation */
+.secret {
+  display: grid;
+  gap: var(--ds-space-2);
+  justify-items: start;
+  padding: var(--ds-space-4);
+  border: 1px dashed var(--ds-cedar);
+  border-radius: var(--ds-radius-input);
+  background: rgba(30, 74, 56, 0.05);
+}
+
+.secret__label {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ds-cedar);
+  font-weight: 600;
+}
+
+.secret__value {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 1.25rem;
+  letter-spacing: 0.08em;
+  user-select: all;
+}
+
+.confirm {
+  display: grid;
+  gap: var(--ds-space-3);
+  padding: var(--ds-space-5);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-danger);
+  border-inline-start: 6px solid var(--ds-danger);
+  border-radius: var(--ds-radius-panel);
+}
+
+.confirm__title {
+  margin: 0;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.confirm__desc {
+  margin: 0;
+  color: var(--ds-ink-soft);
+}
+
+/* ---------- Public page ---------- */
+.public {
+  min-height: 100vh;
+  font-family: var(--ds-font);
+  color: var(--ds-ink);
+  background:
+    repeating-linear-gradient(to bottom, transparent 0 31px, var(--ds-line) 31px 32px),
+    var(--ds-paper);
+}
+
+.public__masthead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--ds-space-4);
+  padding: var(--ds-space-6) var(--ds-space-6) var(--ds-space-5);
+  background: var(--ds-sidebar-bg);
+  color: var(--ds-sidebar-text);
+  border-bottom: 4px solid var(--ds-copper);
+}
+
+.public__eyebrow {
+  margin: 0;
+  color: var(--ds-copper);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.public__title {
+  margin: 0;
+  font-size: 2.2rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.public__nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-1) var(--ds-space-4);
+  font-size: 14px;
+}
+
+.public__nav a {
+  color: var(--ds-sidebar-text);
+  opacity: 0.78;
+  text-decoration: none;
+  transition: opacity 120ms ease;
+}
+
+.public__nav a:hover {
+  opacity: 1;
+}
+
+.public__nav .public__staff {
+  opacity: 1;
+  padding-inline-start: var(--ds-space-4);
+  border-inline-start: 1px solid rgba(243, 239, 230, 0.24);
+  font-weight: 600;
+}
+
+.public__body {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  align-items: start;
+  gap: var(--ds-space-6);
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--ds-space-6);
+}
+
+.public__section {
+  position: relative;
+  padding: var(--ds-space-5);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-panel);
+}
+
+.public__section--form {
+  border-inline-start: 6px solid var(--ds-cedar);
+}
+
+.public__bulletins {
+  display: grid;
+  gap: var(--ds-space-5);
+}
+
+.public__index {
+  position: absolute;
+  inset-inline-end: var(--ds-space-5);
+  top: var(--ds-space-4);
+  color: var(--ds-copper);
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.public__heading {
+  margin: 0 0 var(--ds-space-3);
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.public__lede {
+  margin: 0 0 var(--ds-space-4);
+  color: var(--ds-ink-soft);
+}
+
+.public__form {
+  display: grid;
+  gap: var(--ds-space-4);
+}
+
+.public__pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--ds-space-3);
+}
+
+.public__actions {
+  display: flex;
+}
+
+.public__empty {
+  margin: 0;
+  padding: var(--ds-space-4) 0;
+  color: var(--ds-ink-soft);
+  border-top: 1px dashed var(--ds-line);
+}
+
+.public__figure {
+  margin: 0;
+  display: grid;
+  gap: var(--ds-space-3);
+}
+
+.public__text {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.public__image {
+  width: 100%;
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-input);
+}
+
+.public__caption {
+  font-size: 12px;
+  color: var(--ds-ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 860px) {
+  .public__masthead,
+  .public__body {
+    padding-inline: var(--ds-space-4);
+  }
+  .public__body {
+    grid-template-columns: 1fr;
+  }
+  .public__pair {
+    grid-template-columns: 1fr;
+  }
+}

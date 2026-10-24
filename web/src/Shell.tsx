@@ -3,9 +3,9 @@ import { useNavigate } from "react-router-dom"
 import { AppShell, Button } from "./design-system"
 import type { SessionUser } from "./api"
 import { useAuth } from "./auth"
-import { navForRole } from "./routes"
+import { LOGIN_PATH, navForUser } from "./routes"
 
-const ROLE_LABELS: Record<SessionUser["role"], string> = {
+export const ROLE_LABELS: Record<SessionUser["role"], string> = {
   admin: "مدير النظام",
   governor: "محافظ",
   inspector: "مفتش",
@@ -47,7 +47,7 @@ export function Shell({
   const onSignOut = async () => {
     setLeaving(true)
     await signOut()
-    navigate("/", { replace: true })
+    navigate(LOGIN_PATH, { replace: true })
   }
 
   return (
@@ -55,7 +55,7 @@ export function Shell({
       <AppShell
         title="منظومة حماية المستهلك"
         subtitle={`${user.display_name || user.username} · ${ROLE_LABELS[user.role]}`}
-        nav={navForRole(user.role).map((route) => ({ id: route.id, label: route.label, href: route.path }))}
+        nav={navForUser(user).map((route) => ({ id: route.id, label: route.label, href: route.path }))}
         activeId={activeId}
         pageTitle={pageTitle}
         headerActions={
