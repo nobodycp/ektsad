@@ -584,6 +584,7 @@ export function UsersPage() {
         {(data) => (
           <DataTable
             caption="المستخدمون"
+            actionMenu
             columns={columns}
             rows={data.results}
             getRowId={rowId}

@@ -20,7 +20,6 @@ const GROUP_LABELS = { reports: "التقارير", publish: "النشر", admin
 export const APP_ROUTES: AppRoute[] = [
   { id: "overview", path: "/overview/", label: "نظرة عامة", roles: ALL },
   { id: "complaints", path: "/complaints/", label: "الشكاوى", roles: ALL },
-  { id: "field-missions", path: "/field-missions/", label: "مهمات ميدانية", roles: ALL, flag: "can_view_field_missions" },
   { id: "complaint", path: "/complaints/:id/", label: "الشكوى", roles: ALL, navId: "complaints" },
   { id: "staff-report", path: "/reports/staff/", label: "أداء الموظفين", roles: ["admin"], group: "reports" },
   { id: "complaints-report", path: "/reports/complaints/", label: "تقرير الشكاوى", roles: ["admin"], group: "reports" },
@@ -28,6 +27,7 @@ export const APP_ROUTES: AppRoute[] = [
   { id: "governor-report", path: "/governor/report/", label: "تقرير الشكاوى", roles: ["governor"], group: "reports" },
   { id: "prices", path: "/prices/", label: "الأسعار", roles: ALL, flag: "can_publish_prices", group: "publish" },
   { id: "crossings", path: "/crossings/", label: "المعابر", roles: ALL, flag: "can_publish_crossings", group: "publish" },
+  { id: "field-missions", path: "/field-missions/", label: "مهمات ميدانية", roles: ALL, flag: "can_view_field_missions", group: "admin" },
   { id: "users", path: "/users/", label: "المستخدمون", roles: ["admin"], group: "admin" },
   { id: "governorates", path: "/governorates/", label: "المحافظات", roles: ["admin"], group: "admin" },
   { id: "regions", path: "/regions/", label: "المناطق", roles: ["admin"], group: "admin" },

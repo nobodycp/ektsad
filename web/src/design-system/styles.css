@@ -782,6 +782,44 @@ input[type="file"].ds-field__control::file-selector-button {
   gap: var(--ds-space-1);
 }
 
+.ds-icon-btn svg.ds-rowmenu__dots {
+  fill: currentColor;
+  stroke: none;
+}
+
+.ds-rowmenu {
+  position: fixed;
+  z-index: 30;
+  min-width: 11rem;
+  padding: 4px;
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-panel);
+  background: var(--ds-surface);
+  box-shadow: var(--ds-shadow);
+}
+
+.ds-rowmenu__item {
+  display: flex;
+  width: 100%;
+  min-height: 40px;
+  align-items: center;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ds-ink);
+  font: inherit;
+  text-align: start;
+}
+
+.ds-rowmenu__item:hover {
+  background: var(--ds-surface-2);
+}
+
+.ds-rowmenu__item.is-danger {
+  color: var(--ds-danger);
+}
+
 /* ---------- StatusChip ---------- */
 .ds-chip {
   display: inline-flex;

@@ -260,7 +260,8 @@ describe("users", () => {
       return undefined
     })
     inRouter(<UsersPage />)
-    await user.click(await screen.findByRole("button", { name: "كلمة المرور" }))
+    await user.click(await screen.findByRole("button", { name: "إجراءات" }))
+    await user.click(screen.getByRole("menuitem", { name: "كلمة المرور" }))
     await user.click(screen.getByRole("button", { name: "إعادة تعيين كلمة المرور" }))
 
     const shown = await screen.findByTestId("revealed-password")
@@ -280,7 +281,8 @@ describe("users", () => {
       return undefined
     })
     inRouter(<UsersPage />)
-    await user.click(await screen.findByRole("button", { name: "حذف" }))
+    await user.click(await screen.findByRole("button", { name: "إجراءات" }))
+    await user.click(screen.getByRole("menuitem", { name: "حذف" }))
     expect(fetchFn.mock.calls.some(([url]) => url === "/api/users/9/")).toBe(false)
     const dialog = screen.getByRole("alertdialog")
     await user.click(within(dialog).getByRole("button", { name: "تأكيد الحذف" }))
@@ -309,7 +311,8 @@ describe("users", () => {
       return undefined
     })
     inRouter(<UsersPage />)
-    await user.click(await screen.findByRole("button", { name: "دخول بالحساب" }))
+    await user.click(await screen.findByRole("button", { name: "إجراءات" }))
+    await user.click(screen.getByRole("menuitem", { name: "دخول بالحساب" }))
     expect(fetchFn.mock.calls.some(([url]) => url === "/api/users/9/enter/")).toBe(false)
     const dialog = screen.getByRole("dialog", { name: "دخول بالحساب" })
     await user.click(within(dialog).getByRole("button", { name: "دخول بالحساب" }))

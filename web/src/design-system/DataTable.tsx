@@ -23,6 +23,7 @@ export type DataTableProps<T> = {
   rows: T[]
   getRowId: (row: T) => RowId
   rowActions?: (row: T) => RowAction[]
+  actionMenu?: boolean
   bulkActions?: BulkAction[]
   pagination?: Pagination
   caption?: string
@@ -43,6 +44,7 @@ export function DataTable<T>({
   rows,
   getRowId,
   rowActions,
+  actionMenu = false,
   bulkActions = [],
   pagination,
   caption,
@@ -123,7 +125,7 @@ export function DataTable<T>({
                     ))}
                     {rowActions && (
                       <td className="ds-table__actions">
-                        <RowActions actions={rowActions(row)} />
+                        <RowActions actions={rowActions(row)} menu={actionMenu} />
                       </td>
                     )}
                   </tr>
