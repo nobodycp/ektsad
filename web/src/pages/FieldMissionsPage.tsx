@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react"
+import { Link } from "react-router-dom"
 import {
   Button,
   DataTable,
@@ -9,14 +10,13 @@ import {
   StatusChip,
   TextArea,
   TextField,
-  Timeline,
   type Column,
   type FilterField,
   type FilterValues,
   type TimelineEvent,
 } from "../design-system"
-import { apiRequest, apiUpload, withQuery, type FieldMission, type FollowUpLine, type Page, type SessionUser, type UserRow } from "../api"
-import { Loaded, NoticeLine, PAGE_SIZE, failureText, fileName, formatDateTime, useLoad, type Notice } from "./common"
+import { apiRequest, apiUpload, withQuery, type FieldMission, type Page, type SessionUser, type UserRow } from "../api"
+import { Loaded, NoticeLine, PAGE_SIZE, failureText, formatDateTime, useLoad, type Notice } from "./common"
 import { optionsOf, useAdminGeography } from "./geo"
 
 export const MISSION_KINDS = ["ضبط", "تحفظ", "إثبات حالة", "مصادرة", "إتلاف", "عينات فحص", "أخرى"] as const
@@ -25,9 +25,6 @@ export const MISSION_PRIORITIES = ["خطر", "عاجل", "متوسط", "عادي
 const KIND_OPTIONS = MISSION_KINDS.map((kind) => ({ value: kind, label: kind }))
 const PRIORITY_OPTIONS = MISSION_PRIORITIES.map((priority) => ({ value: priority, label: priority }))
 const PRIORITY_TONE: Record<string, string> = { خطر: "danger", عاجل: "field", متوسط: "legal", عادي: "incoming" }
-const PLACE_TITLE: Record<string, string> = { route: "إعادة التوجيه", field: "الرد الميداني", legal: "الشؤون القانونية" }
-const MAX_FILES = 5
-
 const SCHEMA: FilterField[] = [
   { type: "search", key: "q", label: "بحث", placeholder: "اسم المحل" },
   { type: "select", key: "kind", label: "نوع المهمة", options: KIND_OPTIONS },
@@ -41,7 +38,7 @@ export function canOpenMission(user: SessionUser) {
   return user.can_open_field_missions
 }
 
-function PriorityChip({ priority }: { priority: string }) {
+export function PriorityChip({ priority }: { priority: string }) {
   return (
     <span className="ds-chip" data-tone={PRIORITY_TONE[priority] ?? "unknown"}>
       {priority}
@@ -49,7 +46,7 @@ function PriorityChip({ priority }: { priority: string }) {
   )
 }
 
-function peopleOf(mission: FieldMission) {
+export function peopleOf(mission: FieldMission) {
   const names = mission.assignees.map((row) => row.name).filter(Boolean).join("، ")
   if (names) return names
   return mission.status === "عند إدارة المحافظة" ? "إدارة المحافظة" : "—"
@@ -179,222 +176,10 @@ function MissionForm({ user, onSaved, onCancel }: { user: SessionUser; onSaved: 
   )
 }
 
-function eventsOf(mission: FieldMission): TimelineEvent[] {
-  const opened: TimelineEvent = {
-    id: "opened",
-    title: "فتح المهمة",
-    at: formatDateTime(mission.created_at),
-    actor: mission.created_by_name || undefined,
-    body: <p className="app-prose">{mission.details}</p>,
-  }
-  const lines = (mission.follow_ups ?? []).map((line: FollowUpLine) => ({
-    id: `follow-${line.id}`,
-    title: PLACE_TITLE[line.place] ?? line.place,
-    at: formatDateTime(line.created_at),
-    actor: line.author_name,
-    body: (
-      <>
-        <p className="app-prose">{line.body}</p>
-        {line.files.length > 0 && (
-          <ul className="app-files" aria-label="المرفقات">
-            {line.files.map((file) => (
-              <li key={file.id}>
-                <a href={`/api/media/field-missions/${mission.id}/followups/${file.id}/`} target="_blank" rel="noreferrer">
-                  {fileName(file.name)}
-                </a>
-              </li>
-            ))}
-          </ul>
-        )}
-      </>
-    ),
-  }))
-  return [opened, ...lines]
-}
-
-function RedirectForm({ mission, onDone }: { mission: FieldMission; onDone: (notice: Notice) => void }) {
-  const [inspector, setInspector] = useState("")
-  const [inspectors, setInspectors] = useState<UserRow[]>([])
-  const [error, setError] = useState("")
-  const [busy, setBusy] = useState(false)
-
-  useEffect(() => {
-    let cancelled = false
-    apiRequest<Page<UserRow>>(withQuery("/api/users/", { role: "inspector", is_active: "1", page_size: 100 })).then((result) => {
-      if (!cancelled) setInspectors(result.data?.results ?? [])
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (!inspector) {
-      setError("اختر المفتش.")
-      return
-    }
-    setBusy(true)
-    const result = await apiRequest(`/api/field-missions/${mission.id}/redirect/`, { method: "POST", body: { inspector: Number(inspector) } })
-    setBusy(false)
-    if (result.ok) onDone({ tone: "ok", text: "تم توجيه المهمة إلى المفتش." })
-    else onDone({ tone: "error", text: failureText(result) })
-  }
-
-  return (
-    <form className="sheet__form" onSubmit={onSubmit} noValidate>
-      <Select
-        label="المفتش"
-        name="inspector"
-        placeholder="اختر المفتش"
-        options={inspectors.map((row) => ({ value: String(row.id), label: row.display_name || row.username }))}
-        value={inspector}
-        onChange={(e) => setInspector(e.target.value)}
-        error={error}
-        required
-      />
-      <div className="sheet__actions">
-        <Button type="submit" loading={busy}>
-          إعادة التوجيه
-        </Button>
-      </div>
-    </form>
-  )
-}
-
-function ReplyForm({ mission, onDone }: { mission: FieldMission; onDone: (notice: Notice) => void }) {
-  const [text, setText] = useState("")
-  const [destination, setDestination] = useState("")
-  const [files, setFiles] = useState<File[]>([])
-  const [fileKey, setFileKey] = useState(0)
-  const [errors, setErrors] = useState<{ text?: string; destination?: string; files?: string }>({})
-  const [busy, setBusy] = useState(false)
-
-  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const found: typeof errors = {}
-    if (!text.trim()) found.text = "نص الرد مطلوب."
-    if (!destination) found.destination = "اختر نتيجة المهمة."
-    if (files.length > MAX_FILES) found.files = "الحد الأقصى خمسة ملفات."
-    setErrors(found)
-    if (Object.keys(found).length) return
-    const form = new FormData()
-    form.set("text", text.trim())
-    form.set("destination", destination)
-    for (const file of files) form.append("files", file)
-    setBusy(true)
-    const result = await apiUpload(`/api/field-missions/${mission.id}/reply/`, form)
-    setBusy(false)
-    if (!result.ok) {
-      onDone({ tone: "error", text: failureText(result) })
-      return
-    }
-    setText("")
-    setDestination("")
-    setFiles([])
-    setFileKey((key) => key + 1)
-    onDone({ tone: "ok", text: destination === "legal" ? "أُرسلت المهمة إلى الشؤون القانونية." : "تم إنهاء المهمة." })
-  }
-
-  return (
-    <form className="sheet__form" onSubmit={onSubmit} noValidate>
-      <TextArea label="الرد" name="text" rows={4} value={text} onChange={(e) => setText(e.target.value)} error={errors.text} required />
-      <Select
-        label="النتيجة"
-        name="destination"
-        placeholder="اختر النتيجة"
-        options={[
-          { value: "finished", label: "منتهية" },
-          { value: "legal", label: "للشؤون القانونية" },
-        ]}
-        value={destination}
-        onChange={(e) => setDestination(e.target.value)}
-        error={errors.destination}
-        required
-      />
-      <FileField
-        key={fileKey}
-        label="المرفقات"
-        name="files"
-        multiple
-        accept="image/jpeg,image/png,image/webp,application/pdf"
-        hint="حتى خمسة ملفات. jpeg أو png أو webp أو pdf، بحد 5 ميغابايت للملف."
-        onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
-        error={errors.files}
-      />
-      <div className="sheet__actions">
-        <Button type="submit" loading={busy}>
-          إرسال الرد
-        </Button>
-      </div>
-    </form>
-  )
-}
-
-function CloseForm({ mission, onDone }: { mission: FieldMission; onDone: (notice: Notice) => void }) {
-  const [notes, setNotes] = useState("")
-  const [busy, setBusy] = useState(false)
-  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    setBusy(true)
-    const result = await apiRequest(`/api/field-missions/${mission.id}/close/`, { method: "POST", body: { notes: notes.trim() } })
-    setBusy(false)
-    onDone(result.ok ? { tone: "ok", text: "تم المعالجة." } : { tone: "error", text: failureText(result) })
-  }
-  return (
-    <form className="sheet__form" onSubmit={onSubmit} noValidate>
-      <TextArea label="الملاحظات" name="notes" rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} />
-      <div className="sheet__actions">
-        <Button type="submit" loading={busy}>
-          تم المعالجة
-        </Button>
-      </div>
-    </form>
-  )
-}
-
-function MissionBody({ mission, user, onChanged }: { mission: FieldMission; user: SessionUser; onChanged: () => void }) {
-  const [notice, setNotice] = useState<Notice>(null)
-  const assigned = mission.assignees.some((row) => row.id === user.id)
-  const onDone = (next: Notice) => {
-    setNotice(next)
-    onChanged()
-  }
-  return (
-    <div className="sheet__form">
-      <div className="sheet__grid">
-        <p><span className="ds-field__label">النوع</span><br />{mission.kind}</p>
-        <p><span className="ds-field__label">الأولوية</span><br /><PriorityChip priority={mission.priority} /></p>
-        <p><span className="ds-field__label">الحالة</span><br /><StatusChip status={mission.status} /></p>
-        <p><span className="ds-field__label">المحل</span><br />{mission.place_name}</p>
-        <p><span className="ds-field__label">الجوال</span><br /><bdi>{mission.phone}</bdi></p>
-        <p><span className="ds-field__label">المكان</span><br />{mission.governorate_name}{mission.region_name ? `، ${mission.region_name}` : ""}</p>
-        <p><span className="ds-field__label">المسؤولون</span><br />{peopleOf(mission)}</p>
-      </div>
-      {mission.has_image && <img className="ds-mission-photo" src={`/api/media/field-missions/${mission.id}/`} alt={mission.place_name} />}
-      <Timeline events={eventsOf(mission)} label="سجل الحركة" />
-      <NoticeLine notice={notice} />
-      {user.role === "governor" && mission.status === "عند إدارة المحافظة" && <RedirectForm mission={mission} onDone={onDone} />}
-      {user.role === "inspector" && assigned && mission.status === "قيد المتابعة الميدانية" && <ReplyForm mission={mission} onDone={onDone} />}
-      {user.role === "legal" && mission.status === "قيد المتابعة في الشؤون القانونية" && <CloseForm mission={mission} onDone={onDone} />}
-    </div>
-  )
-}
-
-function MissionView({ missionId, user, onChanged }: { missionId: number; user: SessionUser; onChanged: () => void }) {
-  const { state, reload } = useLoad(() => apiRequest<FieldMission>(`/api/field-missions/${missionId}/`), [missionId])
-  return (
-    <Loaded state={state} onRetry={reload}>
-      {(mission) => <MissionBody mission={mission} user={user} onChanged={() => { onChanged(); reload() }} />}
-    </Loaded>
-  )
-}
-
 export function FieldMissionsPage({ user }: { user: SessionUser }) {
   const [filters, setFilters] = useState<FilterValues>({})
   const [page, setPage] = useState(1)
   const [creating, setCreating] = useState(false)
-  const [openId, setOpenId] = useState<number | null>(null)
   const [notice, setNotice] = useState<Notice>(null)
   const { state, reload } = useLoad(
     () => apiRequest<Page<FieldMission>>(withQuery("/api/field-missions/", { q: filters.q, kind: filters.kind, page, page_size: PAGE_SIZE })),
@@ -404,14 +189,20 @@ export function FieldMissionsPage({ user }: { user: SessionUser }) {
     { key: "kind", header: "النوع", render: (row) => row.kind },
     { key: "priority", header: "الأولوية", render: (row) => <PriorityChip priority={row.priority} /> },
     { key: "status", header: "الحالة", render: (row) => <StatusChip status={row.status} /> },
-    { key: "place", header: "المحل", render: (row) => row.place_name },
+    {
+      key: "place",
+      header: "المحل",
+      render: (row) => (
+        <Link className="app-link" to={`/field-missions/${row.id}/`}>
+          {row.place_name}
+        </Link>
+      ),
+    },
     { key: "phone", header: "الجوال", render: (row) => <bdi>{row.phone}</bdi> },
     { key: "where", header: "المكان", render: (row) => row.governorate_name },
     { key: "who", header: "المسؤولون", render: (row) => peopleOf(row) },
     { key: "when", header: "التسجيل", render: (row) => formatDateTime(row.created_at) },
   ]
-  const openMission = state.status === "ready" ? state.data.results.find((row) => row.id === openId) : undefined
-
   return (
     <div className="page">
       {canOpenMission(user) && (
@@ -432,11 +223,6 @@ export function FieldMissionsPage({ user }: { user: SessionUser }) {
           />
         </Dialog>
       )}
-      {openId != null && (
-        <Dialog title={openMission?.place_name ?? "المهمة الميدانية"} onClose={() => setOpenId(null)}>
-          <MissionView missionId={openId} user={user} onChanged={reload} />
-        </Dialog>
-      )}
       <FilterBar
         schema={SCHEMA}
         onChange={(values) => {
@@ -454,7 +240,6 @@ export function FieldMissionsPage({ user }: { user: SessionUser }) {
             getRowId={rowId}
             getRowLabel={(row) => row.place_name}
             emptyTitle="لا توجد مهمات ميدانية."
-            rowActions={(row) => [{ id: "open", label: "عرض", onSelect: () => setOpenId(row.id) }]}
             pagination={{ page: data.page, pageSize: data.page_size, total: data.count, onPageChange: setPage }}
           />
         )}

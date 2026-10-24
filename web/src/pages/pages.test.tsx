@@ -6,6 +6,7 @@ import { afterEach, beforeEach, vi } from "vitest"
 import type { ComplaintRow, SessionUser, UserRow } from "../api"
 import { ComplaintPage } from "./ComplaintPage"
 import { ComplaintsPage } from "./ComplaintsPage"
+import { FieldMissionPage } from "./FieldMissionPage"
 import { FieldMissionsPage } from "./FieldMissionsPage"
 import { PublicPage } from "./PublicPage"
 import { TelegramHealthPage } from "./TelegramHealthPage"
@@ -372,20 +373,29 @@ describe("field missions", () => {
     expect(screen.getByRole("option", { name: "إدارة المحافظة" })).toBeInTheDocument()
   })
 
-  it("lets the governor redirect a mission that reached the office", async () => {
+  it("links each mission to its own page", async () => {
+    mockFetch((url) => (url.startsWith("/api/field-missions/") ? page([mission]) : undefined))
+    inRouter(<FieldMissionsPage user={{ ...base, can_view_field_missions: true }} />)
+    expect(await screen.findByRole("link", { name: "محل النور" })).toHaveAttribute("href", "/field-missions/4/")
+  })
+
+  it("shows the mission on its own page, including the governor redirect", async () => {
     mockFetch((url) => {
-      if (url.startsWith("/api/field-missions/?") ) return page([mission])
       if (url === "/api/field-missions/4/") return { status: 200, body: mission }
       if (url.startsWith("/api/users/")) return page([])
       return undefined
     })
-    inRouter(
-      <FieldMissionsPage
-        user={{ ...base, id: 2, role: "governor", governorate: 1, can_open_field_missions: true, can_view_field_missions: true }}
-      />,
+    const governor = { ...base, id: 2, role: "governor" as const, governorate: 1, can_open_field_missions: true, can_view_field_missions: true }
+    render(
+      <MemoryRouter initialEntries={["/field-missions/4/"]}>
+        <Routes>
+          <Route path="/field-missions/:id/" element={<FieldMissionPage user={governor} />} />
+        </Routes>
+      </MemoryRouter>,
     )
-    await user.click(await screen.findByRole("button", { name: "عرض" }))
-    expect(await screen.findByRole("list", { name: "سجل الحركة" })).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: "محل النور" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "العودة إلى المهمات الميدانية" })).toHaveAttribute("href", "/field-missions/")
+    expect(screen.getByRole("list", { name: "سجل حركة المهمة" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "إعادة التوجيه" })).toBeInTheDocument()
   })
 })

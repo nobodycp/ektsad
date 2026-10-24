@@ -17,6 +17,7 @@ import { AdminReportsPage, GovernorReportPage } from "./pages/ReportsPage"
 import { PublicationsPage } from "./pages/PublicationsPage"
 import { SystemSettingsPage, TelegramSettingsPage } from "./pages/SettingsPages"
 import { TelegramHealthPage } from "./pages/TelegramHealthPage"
+import { FieldMissionPage } from "./pages/FieldMissionPage"
 import { FieldMissionsPage } from "./pages/FieldMissionsPage"
 import "./app.css"
 
@@ -38,6 +39,8 @@ function pageFor(route: AppRoute, user: SessionUser): ReactNode {
       return <ComplaintsPage user={user} />
     case "field-missions":
       return <FieldMissionsPage user={user} />
+    case "field-mission":
+      return <FieldMissionPage user={user} />
     case "complaint":
       return <ComplaintPage user={user} />
     case "users":
