@@ -108,7 +108,16 @@ def notify_new_complaint(complaint):
         is_active=True, role=User.Role.GOVERNOR, governorate_id=complaint.governorate_id,
         telegram_link__isnull=False,
     ).select_related("telegram_link")
-    message = f"وصلت شكوى في {complaint.region.name} بعنوان {complaint.title}."
+    body = (complaint.body or "").strip()
+    if len(body) > 3500:
+        body = body[:3500].rstrip() + "…"
+    message = (
+        "وصلت شكوى.\n"
+        f"المحافظة: {complaint.governorate.name}\n"
+        f"المنطقة: {complaint.region.name}\n"
+        f"العنوان: {complaint.title}\n"
+        f"المحتوى: {body}"
+    )
     accept = {"inline_keyboard": [[{"text": "قبول", "callback_data": f"/accept {complaint.pk}"}]]}
     for user in inspectors:
         enqueue(user.telegram_link.telegram_id, message, markup=accept)

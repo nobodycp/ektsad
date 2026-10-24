@@ -170,10 +170,14 @@ class TelegramWebhookTests(TestCase):
 
         self.assertEqual(response.status_code, 201)
         texts = list(TelegramOutbox.objects.values_list("text", flat=True))
-        self.assertEqual(texts, [
-            f"وصلت شكوى في {self.region.name} بعنوان محل.",
-            f"وصلت شكوى في {self.region.name} بعنوان محل.",
-        ])
+        arrival = (
+            "وصلت شكوى.\n"
+            f"المحافظة: {self.governorate.name}\n"
+            f"المنطقة: {self.region.name}\n"
+            "العنوان: محل\n"
+            "المحتوى: النص"
+        )
+        self.assertEqual(texts, [arrival, arrival])
 
     def test_inspector_arrival_message_has_accept_button(self):
         from apps.telegram.models import TelegramLink, TelegramOutbox
