@@ -1,4 +1,4 @@
-import type { PublishFlag, Role, SessionUser } from "./api"
+import type { Role, RouteFlag, SessionUser } from "./api"
 
 export type AppRoute = {
   id: string
@@ -6,7 +6,7 @@ export type AppRoute = {
   label: string
   roles: Role[]
   /** Non-admin roles also need this session flag. Admin always passes. */
-  flag?: PublishFlag
+  flag?: RouteFlag
   /** Detail routes highlight their parent item and stay out of the sidebar. */
   navId?: string
   /** Sidebar group. Ungrouped routes stay as top-level links. */
@@ -20,6 +20,7 @@ const GROUP_LABELS = { reports: "التقارير", publish: "النشر", admin
 export const APP_ROUTES: AppRoute[] = [
   { id: "overview", path: "/overview/", label: "نظرة عامة", roles: ALL },
   { id: "complaints", path: "/complaints/", label: "الشكاوى", roles: ALL },
+  { id: "field-missions", path: "/field-missions/", label: "مهمات ميدانية", roles: ALL, flag: "can_view_field_missions" },
   { id: "complaint", path: "/complaints/:id/", label: "الشكوى", roles: ALL, navId: "complaints" },
   { id: "staff-report", path: "/reports/staff/", label: "أداء الموظفين", roles: ["admin"], group: "reports" },
   { id: "complaints-report", path: "/reports/complaints/", label: "تقرير الشكاوى", roles: ["admin"], group: "reports" },

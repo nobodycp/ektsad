@@ -33,6 +33,8 @@ const FLAGS = [
   { key: "can_publish_crossings", label: "نشر حركة المعابر" },
   { key: "can_view_all_complaints", label: "رؤية كل الشكاوى" },
   { key: "can_login_web", label: "الدخول من الموقع" },
+  { key: "can_open_field_missions", label: "فتح مهمة ميدانية" },
+  { key: "can_view_field_missions", label: "رؤية المهمات الميدانية" },
 ] as const
 
 type FlagKey = (typeof FLAGS)[number]["key"]
@@ -88,6 +90,8 @@ function draftFrom(user?: UserRow): Draft {
     can_publish_crossings: user?.can_publish_crossings ?? false,
     can_view_all_complaints: user?.can_view_all_complaints ?? false,
     can_login_web: user?.can_login_web ?? true,
+    can_open_field_missions: user?.can_open_field_missions ?? false,
+    can_view_field_missions: user?.can_view_field_missions ?? false,
   }
 }
 
@@ -135,6 +139,8 @@ function UserForm({
       can_publish_crossings: draft.can_publish_crossings,
       can_view_all_complaints: draft.can_view_all_complaints,
       can_login_web: draft.can_login_web,
+      can_open_field_missions: draft.can_open_field_missions,
+      can_view_field_missions: draft.can_view_field_missions,
     }
     if (creating) {
       body.username = draft.username.trim()

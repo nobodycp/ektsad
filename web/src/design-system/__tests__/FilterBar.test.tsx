@@ -76,6 +76,7 @@ describe("FilterBar", () => {
       "date_to",
       "role",
       "is_active",
+      "kind",
     ])
   })
 

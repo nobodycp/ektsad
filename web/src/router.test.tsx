@@ -18,6 +18,8 @@ const admin: SessionUser = {
   can_publish_prices: false,
   can_publish_crossings: false,
   can_view_all_complaints: false,
+  can_open_field_missions: false,
+  can_view_field_missions: false,
 }
 
 type Reply = { status: number; body: unknown }
@@ -139,7 +141,7 @@ it("adds the publication items only when the flag is granted", () => {
 
 it("builds the sidebar for each role", () => {
   const expected: Record<SessionUser["role"], string[]> = {
-    admin: ["نظرة عامة", "الشكاوى", "أداء الموظفين", "تقرير الشكاوى", "الأسعار", "المعابر", "المستخدمون", "المحافظات", "المناطق", "إعدادات النظام", "إعدادات تلغرام", "حالة تلغرام"],
+    admin: ["نظرة عامة", "الشكاوى", "مهمات ميدانية", "أداء الموظفين", "تقرير الشكاوى", "الأسعار", "المعابر", "المستخدمون", "المحافظات", "المناطق", "إعدادات النظام", "إعدادات تلغرام", "حالة تلغرام"],
     governor: ["نظرة عامة", "الشكاوى", "أداء الموظفين", "تقرير الشكاوى"],
     inspector: ["نظرة عامة", "الشكاوى"],
     legal: ["نظرة عامة", "الشكاوى"],
@@ -154,7 +156,7 @@ it("builds the sidebar for each role", () => {
 
 it("navigates to every sidebar page for admin", async () => {
   renderAt("/complaints/")
-  for (const label of ["نظرة عامة", "أداء الموظفين", "تقرير الشكاوى", "الأسعار", "المعابر", "المستخدمون", "المحافظات", "المناطق", "إعدادات النظام", "إعدادات تلغرام", "حالة تلغرام"]) {
+  for (const label of ["نظرة عامة", "مهمات ميدانية", "أداء الموظفين", "تقرير الشكاوى", "الأسعار", "المعابر", "المستخدمون", "المحافظات", "المناطق", "إعدادات النظام", "إعدادات تلغرام", "حالة تلغرام"]) {
     await user.click(screen.getByRole("link", { name: label }))
     expect(screen.getByRole("heading", { level: 1, name: label })).toBeInTheDocument()
   }

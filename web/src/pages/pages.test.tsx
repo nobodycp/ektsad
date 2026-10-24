@@ -45,6 +45,8 @@ const base: SessionUser = {
   can_publish_prices: false,
   can_publish_crossings: false,
   can_view_all_complaints: false,
+  can_open_field_missions: false,
+  can_view_field_missions: false,
 }
 
 const complaint: ComplaintRow = {
@@ -245,6 +247,8 @@ describe("users", () => {
     can_publish_crossings: false,
     can_view_all_complaints: false,
     can_login_web: true,
+    can_open_field_missions: false,
+    can_view_field_missions: false,
     is_active: true,
   }
 

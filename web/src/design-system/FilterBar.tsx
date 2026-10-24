@@ -12,6 +12,7 @@ export const FILTER_QUERY_KEYS = [
   "date_to",
   "role",
   "is_active",
+  "kind",
 ] as const
 
 export type FilterQueryKey = (typeof FILTER_QUERY_KEYS)[number]

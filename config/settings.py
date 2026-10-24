@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     "apps.geography",
     "apps.accounts",
     "apps.complaints",
+    "apps.field_missions",
     "apps.publications",
     "apps.reports",
     "apps.telegram",

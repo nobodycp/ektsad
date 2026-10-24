@@ -431,6 +431,13 @@ h4,
   color: var(--ds-ink);
 }
 
+.ds-mission-photo {
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-input);
+}
+
 .ds-impersonate p {
   margin: 0;
   font-size: 14px;

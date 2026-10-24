@@ -18,6 +18,7 @@ export type AppShellProps = {
 const ICONS: Record<string, string[]> = {
   overview: ["M4 11l8-7 8 7", "M6 10v9h12v-9"],
   complaints: ["M7 3h10v18H7z", "M10 8h4", "M10 12h4", "M10 16h3"],
+  "field-missions": ["M8 3h8v2H8z", "M6 5h12v16H6z", "M9 10h6", "M9 14h6"],
   reports: ["M4 19V5", "M4 19h16", "M8 16v-5", "M12 16V8", "M16 16v-3"],
   publish: ["M12 16V4", "M7 9l5-5 5 5", "M5 20h14"],
   admin: ["M12 3l8 4v5c0 5-3.4 8-8 9-4.6-1-8-4-8-9V7z"],

@@ -24,6 +24,8 @@ class User(AbstractUser):
     can_publish_crossings = models.BooleanField(default=False)
     can_view_all_complaints = models.BooleanField(default=False)
     can_login_web = models.BooleanField(default=True)
+    can_open_field_missions = models.BooleanField(default=False)
+    can_view_field_missions = models.BooleanField(default=False)
 
     def clean(self):
         super().clean()

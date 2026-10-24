@@ -12,10 +12,13 @@ export type SessionUser = {
   can_publish_prices: boolean
   can_publish_crossings: boolean
   can_view_all_complaints: boolean
+  can_open_field_missions: boolean
+  can_view_field_missions: boolean
   impersonator?: { id: number; username: string; display_name: string } | null
 }
 
 export type PublishFlag = "can_publish_prices" | "can_publish_crossings"
+export type RouteFlag = PublishFlag | "can_view_field_missions"
 
 export type ApiResult<T = unknown> = { ok: boolean; status: number; data: T | null }
 
@@ -70,7 +73,25 @@ export type UserRow = {
   can_publish_crossings: boolean
   can_view_all_complaints: boolean
   can_login_web: boolean
+  can_open_field_missions: boolean
+  can_view_field_missions: boolean
   is_active: boolean
+}
+
+export type FieldMission = {
+  id: number
+  kind: string
+  details: string
+  place_name: string
+  phone: string
+  has_image: boolean
+  governorate: number
+  governorate_name: string
+  region: number | null
+  region_name: string | null
+  created_by_name: string
+  created_at: string
+  assignees: { id: number | null; name: string }[]
 }
 
 export type ActionResult = { succeeded: number[]; failed: { id: number; detail: string }[] }

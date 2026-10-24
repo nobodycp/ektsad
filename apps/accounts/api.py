@@ -71,6 +71,8 @@ def _me_payload(user, request):
         "can_publish_crossings": user.can_publish_crossings,
         "can_view_all_complaints": user.can_view_all_complaints,
         "can_login_web": user.can_login_web,
+        "can_open_field_missions": user.can_open_field_missions,
+        "can_view_field_missions": user.can_view_field_missions,
         "impersonator": _impersonator_payload(request),
     }
 
@@ -87,6 +89,8 @@ def _user_payload(user):
         "can_publish_crossings": user.can_publish_crossings,
         "can_view_all_complaints": user.can_view_all_complaints,
         "can_login_web": user.can_login_web,
+        "can_open_field_missions": user.can_open_field_missions,
+        "can_view_field_missions": user.can_view_field_missions,
         "is_active": user.is_active,
     }
 
@@ -184,6 +188,8 @@ def users(request):
             queryset = queryset.filter(Q(username__icontains=query) | Q(display_name__icontains=query))
         if request.GET.get("role"):
             queryset = queryset.filter(role=request.GET["role"])
+        if request.GET.get("governorate"):
+            queryset = queryset.filter(governorate_id=request.GET["governorate"])
         active = request.GET.get("is_active")
         if active in {"1", "0", "true", "false"}:
             queryset = queryset.filter(is_active=active in {"1", "true"})
@@ -200,6 +206,8 @@ def users(request):
             can_publish_crossings=payload.get("can_publish_crossings", False),
             can_view_all_complaints=payload.get("can_view_all_complaints", False),
             can_login_web=payload.get("can_login_web", True),
+            can_open_field_missions=payload.get("can_open_field_missions", False),
+            can_view_field_missions=payload.get("can_view_field_missions", False),
         )
         _apply_user_fields(user, payload, ("governorate", "region"))
         if len(payload["password"]) < 12:
@@ -255,6 +263,8 @@ def user_detail(request, pk):
             "can_publish_crossings",
             "can_view_all_complaints",
             "can_login_web",
+            "can_open_field_missions",
+            "can_view_field_missions",
             "is_active",
         )
     try:

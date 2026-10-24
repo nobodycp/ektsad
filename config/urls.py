@@ -47,6 +47,7 @@ urlpatterns = [
     path("api/media/complaints/<int:pk>/", complaint_media),
     path("api/media/followups/<int:pk>/<int:file_id>/", followup_media),
     path("api/", include("apps.accounts.urls")),
+    path("api/", include("apps.field_missions.urls")),
     path("api/", include("apps.publications.urls")),
     path("api/", include("apps.reports.urls")),
     path("api/", include("apps.telegram.urls")),
