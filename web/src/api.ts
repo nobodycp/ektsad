@@ -81,6 +81,8 @@ export type UserRow = {
 export type FieldMission = {
   id: number
   kind: string
+  priority: string
+  status: string
   details: string
   place_name: string
   phone: string
@@ -91,7 +93,11 @@ export type FieldMission = {
   region_name: string | null
   created_by_name: string
   created_at: string
+  field_replied_at: string | null
+  legal_referred_at: string | null
+  closed_at: string | null
   assignees: { id: number | null; name: string }[]
+  follow_ups?: FollowUpLine[]
 }
 
 export type ActionResult = { succeeded: number[]; failed: { id: number; detail: string }[] }

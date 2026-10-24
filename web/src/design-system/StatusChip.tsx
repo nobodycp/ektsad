@@ -8,12 +8,14 @@ export const STATUS_LABELS = [
 
 export type StatusLabel = (typeof STATUS_LABELS)[number]
 
-const TONES: Record<StatusLabel, string> = {
+const TONES: Record<string, string> = {
   "واردة": "incoming",
+  "عند إدارة المحافظة": "incoming",
   "قيد المتابعة الميدانية": "field",
   "منتهية": "closed",
   "قيد المتابعة في الشؤون القانونية": "legal",
   "تم المعالجه خلص": "resolved",
+  "تم المعالجة": "resolved",
 }
 
 export function StatusChip({ status }: { status: StatusLabel | string }) {

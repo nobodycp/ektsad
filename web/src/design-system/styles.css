@@ -842,6 +842,11 @@ input[type="file"].ds-field__control::file-selector-button {
   background: currentColor;
 }
 
+.ds-chip[data-tone="danger"] {
+  color: var(--ds-danger);
+  background: var(--ds-danger-soft);
+  border-color: transparent;
+}
 .ds-chip[data-tone="incoming"] {
   color: var(--ds-ink);
   background: var(--ds-surface-2);

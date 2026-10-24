@@ -63,7 +63,10 @@ class FieldMissionApiTests(TestCase):
 
     def _open(self, user, **extra):
         self.client.force_login(user)
-        payload = {"kind": "ضبط", "details": "تفاصيل المهمة", "place_name": "محل النور", "phone": "0599000000"}
+        payload = {
+            "kind": "ضبط", "details": "تفاصيل المهمة", "place_name": "محل النور", "phone": "0599000000",
+            "priority": "عادي",
+        }
         payload.update(extra)
         return self.client.post("/api/field-missions/", data=json.dumps(payload), content_type="application/json")
 
@@ -139,7 +142,7 @@ class FieldMissionApiTests(TestCase):
         self.client.force_login(self.inspector)
         missing = self.client.post(
             "/api/field-missions/",
-            data=json.dumps({"kind": "ضبط", "details": "", "place_name": "محل", "phone": "0599"}),
+            data=json.dumps({"kind": "ضبط", "details": "", "place_name": "محل", "phone": "0599", "priority": "عادي"}),
             content_type="application/json",
         )
         self.assertEqual(missing.status_code, 400)
@@ -152,6 +155,7 @@ class FieldMissionApiTests(TestCase):
                 "details": "بضاعة",
                 "place_name": "محل الصورة",
                 "phone": "0568000000",
+                "priority": "عادي",
                 "image": _png(),
             },
         )
@@ -177,3 +181,110 @@ class FieldMissionApiTests(TestCase):
         me = self.client.get("/api/auth/me/").json()
         self.assertTrue(me["can_open_field_missions"])
         self.assertTrue(me["can_view_field_missions"])
+
+    def test_priority_is_required_and_a_direct_mission_starts_in_the_field(self):
+        self.client.force_login(self.admin)
+        missing = self.client.post(
+            "/api/field-missions/",
+            data=json.dumps({
+                "kind": "ضبط", "details": "تفاصيل", "place_name": "بلا أولوية", "phone": "0599",
+                "governorate": self.governorate.pk, "scope": "one", "inspector": self.inspector.pk,
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(missing.status_code, 400)
+        self.assertEqual(missing.json()["detail"], "اختر أولوية المهمة.")
+
+        opened = self._open(
+            self.admin, governorate=self.governorate.pk, scope="one", inspector=self.inspector.pk,
+            priority="عاجل", place_name="مباشر",
+        )
+        self.assertEqual(opened.status_code, 201)
+        self.assertEqual(opened.json()["priority"], "عاجل")
+        self.assertEqual(opened.json()["status"], "قيد المتابعة الميدانية")
+
+    def test_office_mission_is_redirected_once_then_replied_and_closed_like_a_complaint(self):
+        denied = self._open(self.governor, scope="office", place_name="ليست للمدير")
+        self.assertEqual(denied.status_code, 400)
+        self.assertEqual(denied.json()["detail"], "هذا التوجيه لمدير النظام.")
+
+        opened = self._open(
+            self.admin, governorate=self.governorate.pk, scope="office", priority="خطر", place_name="للإدارة",
+        )
+        self.assertEqual(opened.status_code, 201)
+        mission_id = opened.json()["id"]
+        self.assertEqual(opened.json()["status"], "عند إدارة المحافظة")
+        self.assertEqual(opened.json()["priority"], "خطر")
+        self.assertEqual(opened.json()["assignees"], [])
+
+        self.client.force_login(self.inspector)
+        self.assertEqual(self._titles(), [])
+        self.client.force_login(self.governor)
+        self.assertEqual(self._titles(), ["للإدارة"])
+
+        redirected = self.client.post(
+            f"/api/field-missions/{mission_id}/redirect/",
+            data=json.dumps({"inspector": self.inspector.pk}),
+            content_type="application/json",
+        )
+        self.assertEqual(redirected.status_code, 200)
+        self.assertEqual(redirected.json()["status"], "قيد المتابعة الميدانية")
+        self.assertEqual(redirected.json()["assignees"], [{"id": self.inspector.pk, "name": "المفتش"}])
+        self.assertEqual(redirected.json()["region_name"], "المنطقة الأولى")
+        self.assertEqual(redirected.json()["follow_ups"][0]["body"], "أُعيد توجيه المهمة إلى المفتش.")
+
+        again = self.client.post(
+            f"/api/field-missions/{mission_id}/redirect/",
+            data=json.dumps({"inspector": self.other_inspector.pk}),
+            content_type="application/json",
+        )
+        self.assertEqual(again.status_code, 400)
+        self.assertEqual(again.json()["detail"], "أُعيد توجيه هذه المهمة.")
+
+        self.client.force_login(self.colleague)
+        self.assertEqual(self._titles(), ["للإدارة"])
+        outsider = self.client.post(
+            f"/api/field-missions/{mission_id}/reply/",
+            data={"text": "لست المسؤول", "destination": "finished"},
+        )
+        self.assertEqual(outsider.status_code, 403)
+        self.assertEqual(outsider.json()["detail"], "غير مسموح.")
+
+        self.client.force_login(self.inspector)
+        empty = self.client.post(f"/api/field-missions/{mission_id}/reply/", data={"text": "  ", "destination": "legal"})
+        self.assertEqual(empty.status_code, 400)
+        self.assertEqual(empty.json()["detail"], "نص الرد مطلوب.")
+
+        report = SimpleUploadedFile("report.pdf", b"%PDF-1.4", content_type="application/pdf")
+        replied = self.client.post(
+            f"/api/field-missions/{mission_id}/reply/",
+            data={"text": "ضُبطت البضاعة", "destination": "legal", "files": report},
+        )
+        self.assertEqual(replied.status_code, 200)
+        body = replied.json()
+        self.assertEqual(body["status"], "قيد المتابعة في الشؤون القانونية")
+        field_line = body["follow_ups"][-1]
+        self.assertEqual(field_line["place"], "field")
+        self.assertEqual(field_line["body"], "ضُبطت البضاعة")
+        self.assertEqual(len(field_line["files"]), 1)
+
+        self.client.force_login(self.legal)
+        media = self.client.get(f"/api/media/field-missions/{mission_id}/followups/{field_line['files'][0]['id']}/")
+        self.assertEqual(media.status_code, 200)
+        closed = self.client.post(
+            f"/api/field-missions/{mission_id}/close/",
+            data=json.dumps({"notes": "أُغلقت بعد المراجعة"}),
+            content_type="application/json",
+        )
+        self.assertEqual(closed.status_code, 200)
+        self.assertEqual(closed.json()["status"], "تم المعالجة")
+        self.assertEqual(closed.json()["follow_ups"][-1]["place"], "legal")
+        self.assertEqual(closed.json()["follow_ups"][-1]["body"], "أُغلقت بعد المراجعة")
+
+        again_close = self.client.post(
+            f"/api/field-missions/{mission_id}/close/",
+            data=json.dumps({"notes": "مرة ثانية"}),
+            content_type="application/json",
+        )
+        self.assertEqual(again_close.status_code, 400)
+        self.assertEqual(again_close.json()["detail"], "هذه المهمة مغلقة.")

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, vi } from "vitest"
 import type { ComplaintRow, SessionUser, UserRow } from "../api"
 import { ComplaintPage } from "./ComplaintPage"
 import { ComplaintsPage } from "./ComplaintsPage"
+import { FieldMissionsPage } from "./FieldMissionsPage"
 import { PublicPage } from "./PublicPage"
 import { TelegramHealthPage } from "./TelegramHealthPage"
 import { UsersPage } from "./UsersPage"
@@ -333,4 +334,58 @@ it("shows an unregistered Telegram webhook to the system admin", async () => {
   expect(await screen.findByText("غير مسجّل")).toBeInTheDocument()
   expect(screen.getByText("تعذّر التسجيل")).toBeInTheDocument()
   expect(screen.getByText("2")).toBeInTheDocument()
+})
+
+describe("field missions", () => {
+  const mission = {
+    id: 4,
+    kind: "ضبط",
+    priority: "خطر",
+    status: "عند إدارة المحافظة",
+    details: "تفاصيل المهمة",
+    place_name: "محل النور",
+    phone: "0599000000",
+    has_image: false,
+    governorate: 1,
+    governorate_name: "محافظة تجريبية",
+    region: null,
+    region_name: null,
+    created_by_name: "مدير النظام",
+    created_at: "2026-10-24T08:00:00+00:00",
+    field_replied_at: null,
+    legal_referred_at: null,
+    closed_at: null,
+    assignees: [],
+    follow_ups: [],
+  }
+
+  it("asks for a priority and can address the governorate office", async () => {
+    mockFetch((url) => {
+      if (url.startsWith("/api/field-missions/")) return page([])
+      if (url.startsWith("/api/governorates/")) return page([{ id: 1, name: "محافظة تجريبية" }])
+      if (url.startsWith("/api/regions/")) return page([])
+      return undefined
+    })
+    inRouter(<FieldMissionsPage user={{ ...base, can_view_field_missions: true }} />)
+    await user.click(await screen.findByRole("button", { name: "مهمة جديدة" }))
+    expect(screen.getByLabelText(/^الأولوية/)).toBeInTheDocument()
+    expect(screen.getByRole("option", { name: "إدارة المحافظة" })).toBeInTheDocument()
+  })
+
+  it("lets the governor redirect a mission that reached the office", async () => {
+    mockFetch((url) => {
+      if (url.startsWith("/api/field-missions/?") ) return page([mission])
+      if (url === "/api/field-missions/4/") return { status: 200, body: mission }
+      if (url.startsWith("/api/users/")) return page([])
+      return undefined
+    })
+    inRouter(
+      <FieldMissionsPage
+        user={{ ...base, id: 2, role: "governor", governorate: 1, can_open_field_missions: true, can_view_field_missions: true }}
+      />,
+    )
+    await user.click(await screen.findByRole("button", { name: "عرض" }))
+    expect(await screen.findByRole("list", { name: "سجل الحركة" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "إعادة التوجيه" })).toBeInTheDocument()
+  })
 })
