@@ -1,0 +1,17 @@
+---
+description: مواصفات Pearl موجودة داخل هذا المستودع. طبّقها على React، ولا تخترع شكلاً أرفع
+alwaysApply: true
+---
+
+# الواجهة من ملفات المشروع
+
+المواصفات انتقلت مع المستودع. لا تعتمد على مسار سطح المكتب.
+
+- `DESIGN.md` — هوية Pearl، الألوان، الخطوط، الهيدر، القوائم، الجداول، النماذج، الحركة، الجوال.
+- `.cursor/rules/pearl-ui.mdc` و `.cursor/rules/ui-navigation-and-toasts.mdc` — قواعد الشغل الأصلية.
+- `design-reference/css/design-system.css` و `design-reference/css/login.css` — الشكل المنفّذ.
+- `design-reference/templates/base_management.html` و `design-reference/templates/partials/` — هيكل السايد بار، الهيدر، قائمة المستخدم، الجرس.
+
+قبل تعديل واجهة: افتح القالب والجزء المقابل في CSS، وانقل البنية كاملة (أيقونة، اسم، فاصل، حالة، مقاس، فتح وإغلاق). إذا ذُكر نقص واحد، راجع السطح كله.
+
+هذا المشروع React في `web/src/design-system` و `web/src`. حيث تذكر القواعد ملفات Django أو htmx أو Bootstrap أو `core/tests_ui_conventions.py`، نفّذ السلوك نفسه هنا ولا تنشئ تلك الملفات. الزر الأساسي حبر، الأحمر علامة فقط، والخطأ `--rd-danger`. النصوص والصلاحيات تبقى نصوص هذا المنتج.

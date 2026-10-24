@@ -16,18 +16,6 @@ ENV = {
     "POSTGRES_DB": "test",
     "POSTGRES_USER": "test",
     "POSTGRES_PASSWORD": "test-password",
-    "ADMIN_USERNAME": "admin",
-    "ADMIN_PASSWORD": "admin-password-12",
-    "ADMIN_DISPLAY_NAME": "مدير النظام",
-    "GOVERNOR_USERNAME": "governor",
-    "GOVERNOR_PASSWORD": "governor-password-12",
-    "GOVERNOR_DISPLAY_NAME": "مدير المحافظة",
-    "INSPECTOR_USERNAME": "inspector",
-    "INSPECTOR_PASSWORD": "inspector-password-12",
-    "INSPECTOR_DISPLAY_NAME": "المفتش",
-    "LEGAL_USERNAME": "legal",
-    "LEGAL_PASSWORD": "legal-password-12",
-    "LEGAL_DISPLAY_NAME": "الشؤون القانونية",
 }
 
 
@@ -50,9 +38,9 @@ class BootstrapTests(TestCase):
         user.refresh_from_db()
         self.assertTrue(user.check_password("changed-password-12"))
 
-    @patch.dict(os.environ, {**ENV, "ADMIN_PASSWORD": "short"}, clear=True)
-    def test_short_password_stops_and_names_key(self):
-        with self.assertRaisesMessage(CommandError, "ADMIN_PASSWORD"):
+    @patch.dict(os.environ, {k: v for k, v in ENV.items() if k != "POSTGRES_DB"}, clear=True)
+    def test_missing_database_name_stops_and_names_key(self):
+        with self.assertRaisesMessage(CommandError, "POSTGRES_DB"):
             call_command("bootstrap")
 
     @patch.dict(os.environ, ENV, clear=True)

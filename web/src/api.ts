@@ -68,6 +68,7 @@ export type UserRow = {
   can_publish_prices: boolean
   can_publish_crossings: boolean
   can_view_all_complaints: boolean
+  can_login_web: boolean
   is_active: boolean
 }
 

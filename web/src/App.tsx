@@ -12,8 +12,10 @@ import { ComplaintsPage } from "./pages/ComplaintsPage"
 import { ComplaintPage } from "./pages/ComplaintPage"
 import { UsersPage } from "./pages/UsersPage"
 import { GeographyPage } from "./pages/GeographyPage"
+import { OverviewPage } from "./pages/OverviewPage"
 import { AdminReportsPage, GovernorReportPage } from "./pages/ReportsPage"
 import { PublicationsPage } from "./pages/PublicationsPage"
+import { SystemSettingsPage, TelegramSettingsPage } from "./pages/SettingsPages"
 import { TelegramHealthPage } from "./pages/TelegramHealthPage"
 import "./app.css"
 
@@ -29,6 +31,8 @@ function pageFor(route: AppRoute, user: SessionUser): ReactNode {
   switch (route.id) {
     case "account":
       return <AccountPage />
+    case "overview":
+      return <OverviewPage user={user} />
     case "complaints":
       return <ComplaintsPage user={user} />
     case "complaint":
@@ -40,9 +44,17 @@ function pageFor(route: AppRoute, user: SessionUser): ReactNode {
     case "regions":
       return <GeographyPage kind="regions" />
     case "governor-report":
-      return <GovernorReportPage />
-    case "reports":
-      return <AdminReportsPage />
+      return <GovernorReportPage part="complaints" />
+    case "governor-staff":
+      return <GovernorReportPage part="staff" />
+    case "complaints-report":
+      return <AdminReportsPage part="complaints" />
+    case "staff-report":
+      return <AdminReportsPage part="staff" />
+    case "system-settings":
+      return <SystemSettingsPage />
+    case "telegram-settings":
+      return <TelegramSettingsPage />
     case "prices":
       return <PublicationsPage kind="prices" user={user} />
     case "crossings":

@@ -29,7 +29,23 @@ RATE_LIMITED = "تجاوزت الحد المسموح لتقديم الشكاوى
 
 
 def _value(name):
+    stored = _stored_setting(name)
+    if stored:
+        return stored
     return getattr(settings, name, "") or os.environ.get(name, "")
+
+
+def _stored_setting(name):
+    from apps.common.models import SystemSettings
+
+    row = SystemSettings.objects.filter(pk=1).first()
+    if row is None:
+        return ""
+    return {
+        "TELEGRAM_BOT_TOKEN": row.telegram_bot_token,
+        "TELEGRAM_BOT_USERNAME": row.telegram_bot_username,
+        "TELEGRAM_WEBHOOK_SECRET": row.telegram_webhook_secret,
+    }.get(name, "")
 
 
 def _retry(operation):

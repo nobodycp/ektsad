@@ -1,0 +1,7914 @@
+/**
+ * Recharge Desk — design system (tokens + layout + shared components)
+ * Loaded after Bootstrap; overrides CSS variables for both themes.
+ */
+
+/* -------------------------------------------------------------------------- */
+/* Global UI density (~80%) — not zoom: on body                             */
+/* -------------------------------------------------------------------------- */
+/*
+ * Bootstrap 5 uses `rem` for typography, spacing, forms, buttons, modals,
+ * tables, and utilities. Setting the root font-size to 80% of the browser
+ * default compacts the whole UI proportionally, keeps media queries in `px`
+ * (viewport) valid, and respects user font preferences (percentage scales with
+ * the UA “medium” size). Fixed `px` radii below are converted to `rem` so
+ * corners stay visually consistent with scaled type.
+ */
+html {
+  font-size: 80%;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Theme-agnostic tokens (z-index, radii, transitions, fonts)                 */
+/*                                                                            */
+/* IMPORTANT: these must live at :root, NOT inside a theme selector. If they  */
+/* only exist under [data-bs-theme="light"], then `var(--rd-z-sidebar)` is    */
+/* undefined in dark mode and the whole `z-index` declaration becomes invalid */
+/* -> the sidebar loses its 1040 stacking and renders under dashboard cards.  */
+/* -------------------------------------------------------------------------- */
+:root {
+  /* Pearl type stack: IBM Plex Sans Arabic (Arabic body), Noto Kufi Arabic
+     (Arabic headings), Inter Tight (numbers + English body). */
+  --rd-font: "Inter Tight", "IBM Plex Sans Arabic", system-ui, sans-serif;
+  --rd-font-ar: "IBM Plex Sans Arabic", "Inter Tight", system-ui, sans-serif;
+  --rd-font-heading: "Noto Kufi Arabic", var(--rd-font-ar);
+  --rd-font-num: "Inter Tight", system-ui, sans-serif;
+
+  --rd-radius-xs: 0.375rem;
+  --rd-radius-sm: 0.625rem;
+  --rd-radius-md: 0.875rem;
+  --rd-radius-lg: 1.125rem;
+  --rd-radius-xl: 1.375rem;
+
+  --rd-z-sidebar: 1040;
+  --rd-z-topbar: 1030;
+  /* Management drawer scrim: above the topbar so it dims it too, below the
+     sidebar it belongs to. */
+  --rd-z-backdrop: 1035;
+  --rd-z-sticky: 1020;
+
+  --rd-transition-fast: 0.14s ease;
+  --rd-transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Print: paper is white in either theme. */
+  --rd-print-paper: #ffffff;
+  --rd-print-ink: #000000;
+  --rd-print-rule: #888888;
+  --rd-print-rule-soft: #cccccc;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Tokens — light (Pearl: warm off-white, ink primary, logo-red accent)      */
+/* -------------------------------------------------------------------------- */
+[data-bs-theme="light"] {
+  color-scheme: light;
+
+  /* Pearl core */
+  --rd-ink: #0a0a0a;
+  --rd-muted: #6b6b68;
+  --rd-faint: #a3a39e;
+  --rd-surface: #ffffff;
+  --rd-surface-2: #f4f4f2;
+  --rd-accent: #d00000;
+  --rd-accent-soft: rgba(208, 0, 0, 0.1);
+  --rd-on-accent: #ffffff;
+  /* Text-safe logo red (>= 4.5:1 on surface). Red fills are accent only. */
+  --rd-accent-ink: #9b0c14;
+  --rd-primary-bg: #0a0a0a;
+  --rd-primary-fg: #ffffff;
+
+  --rd-shadow-card: 0 1px 2px rgba(10, 10, 10, 0.04), 0 1px 1px rgba(10, 10, 10, 0.02);
+  --rd-shadow-xs: 0 1px 2px rgba(10, 10, 10, 0.04);
+  --rd-shadow-sm: 0 2px 8px rgba(10, 10, 10, 0.06);
+  --rd-shadow-md: 0 8px 24px rgba(10, 10, 10, 0.08);
+  --rd-shadow-lg: 0 16px 48px rgba(10, 10, 10, 0.1);
+  /* Floating panels (menus, search): elevated surface + pop shadow. */
+  --rd-surface-raised: #ffffff;
+  --rd-shadow-pop: 0 16px 48px rgba(10, 10, 10, 0.1);
+  --rd-shadow-float: 0 10px 22px -10px rgba(10, 10, 10, 0.55);
+
+  /* Chrome: drawer scrim, text on red count chips, and status tones that
+     sit on an ink surface (toasts, employee balance hero), i.e. the opposite
+     theme's values. */
+  --rd-scrim: rgba(10, 10, 10, 0.32);
+  --rd-on-danger: #ffffff;
+  --rd-success-on-ink: #4ade80;
+  --rd-warning-on-ink: #fbbf24;
+  --rd-danger-on-ink: #f87171;
+
+  /* Hero surface: stays ink in both themes (login brand panel). The plate
+     sits behind uploaded logos, which are drawn for a light background. */
+  --rd-hero-bg: #0a0a0a;
+  --rd-hero-fg: #ffffff;
+  --rd-hero-plate: #ffffff;
+  --rd-hero-success: #4ade80;
+
+  --bs-body-bg: #fafaf8;
+  --bs-body-color: var(--rd-ink);
+  --bs-secondary-color: var(--rd-muted);
+  --bs-secondary-bg: var(--rd-surface);
+  --bs-tertiary-bg: var(--rd-surface-2);
+  --bs-border-color: #ececea;
+  /* Field / control outline: >= 3:1 against --rd-surface (WCAG 1.4.11). */
+  --rd-field-border: #8a8a86;
+  --bs-border-color-translucent: rgba(10, 10, 10, 0.08);
+
+  /* Legacy accent names — kept so existing CSS/templates keep working */
+  --rd-accent-hover: #b00000;
+  --rd-accent-muted: var(--rd-accent-soft);
+  --rd-accent-2: #d00000;
+  /* Text-safe logo red: fill behind white text / small text on a red tint (>= 4.5:1). */
+  --rd-accent-2-strong: #9b0c14;
+  --rd-accent-2-strong-rgb: 155, 12, 20;
+  --rd-on-accent-strong: #ffffff;
+  --rd-accent-2-ink: #7a090f;
+
+  --rd-success: #0a7a3e;
+  --rd-success-soft: #e8f6ee;
+  --rd-warning: #c2410c;
+  --rd-warning-soft: #fff0e9;
+  --rd-warning-ink: var(--rd-warning);
+  --rd-danger: #b91c1c;
+  --rd-danger-soft: #fdecec;
+  --rd-info: var(--rd-ink);
+  --rd-info-soft: var(--rd-surface-2);
+
+  /* Company identity tones (letter marks, ranking bars). Never green / red /
+     orange: those mean status here. Each is >= 4.5:1 on --rd-surface. */
+  --rd-tone-1: #1d4ed8;
+  --rd-tone-2: #0f766e;
+  --rd-tone-3: #6d28d9;
+  --rd-tone-4: #be185d;
+  --rd-tone-5: #0e7490;
+  --rd-tone-6: #475569;
+  /* Company logos sit on a light tile in both themes (logos are drawn for white). */
+  --rd-logo-bg: #ffffff;
+
+  /* Bootstrap 5.3 theme colors -> Pearl (utilities, badges, alerts, links
+     read these; `-rgb` triplets feed rgba(var(...), opacity)). */
+  --bs-primary: var(--rd-ink);
+  --bs-primary-rgb: 10, 10, 10;
+  --bs-primary-text-emphasis: var(--rd-ink);
+  --bs-primary-bg-subtle: var(--rd-surface-2);
+  --bs-primary-border-subtle: var(--bs-border-color);
+  --bs-success: var(--rd-success);
+  --bs-success-rgb: 10, 122, 62;
+  --bs-success-text-emphasis: var(--rd-success);
+  --bs-success-bg-subtle: var(--rd-success-soft);
+  --bs-success-border-subtle: rgba(10, 122, 62, 0.25);
+  --bs-warning: var(--rd-warning);
+  --bs-warning-rgb: 194, 65, 12;
+  --bs-warning-text-emphasis: var(--rd-warning-ink);
+  --bs-warning-bg-subtle: var(--rd-warning-soft);
+  --bs-warning-border-subtle: rgba(194, 65, 12, 0.25);
+  --bs-danger: var(--rd-danger);
+  --bs-danger-rgb: 185, 28, 28;
+  --bs-danger-text-emphasis: var(--rd-danger);
+  --bs-danger-bg-subtle: var(--rd-danger-soft);
+  --bs-danger-border-subtle: rgba(185, 28, 28, 0.25);
+  --bs-info: var(--rd-ink);
+  --bs-info-rgb: 10, 10, 10;
+  --bs-info-text-emphasis: var(--rd-ink);
+  --bs-info-bg-subtle: var(--rd-surface-2);
+  --bs-info-border-subtle: var(--bs-border-color);
+  --bs-link-color: var(--rd-ink);
+  --bs-link-color-rgb: 10, 10, 10;
+  --bs-link-hover-color: var(--rd-accent-ink);
+  --bs-link-hover-color-rgb: 155, 12, 20;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Tokens — dark (layered warm surfaces, not pure black)                      */
+/* -------------------------------------------------------------------------- */
+[data-bs-theme="dark"] {
+  color-scheme: dark;
+
+  /* Pearl core */
+  --rd-ink: #f5f5f2;
+  --rd-muted: #9a9a94;
+  --rd-faint: #6b6b66;
+  --rd-surface: #151514;
+  --rd-surface-2: #1f1f1d;
+  --rd-accent: #ff3b3b;
+  --rd-accent-soft: rgba(255, 59, 59, 0.15);
+  --rd-on-accent: #0a0a0a;
+  --rd-accent-ink: #ff9a9a;
+  --rd-primary-bg: #f5f5f2;
+  --rd-primary-fg: #0a0a0a;
+
+  --rd-shadow-card: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+  --rd-shadow-xs: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+  --rd-shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.35);
+  --rd-shadow-md: 0 12px 40px rgba(0, 0, 0, 0.45);
+  --rd-shadow-lg: 0 20px 56px rgba(0, 0, 0, 0.55);
+  /* Floating panels: lighter than the page/cards so they read as raised. */
+  --rd-surface-raised: #262624;
+  --rd-shadow-pop: 0 20px 56px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  --rd-shadow-float: 0 10px 24px -10px rgba(0, 0, 0, 0.85);
+
+  --rd-scrim: rgba(0, 0, 0, 0.6);
+  --rd-on-danger: #0a0a0a;
+  --rd-success-on-ink: #0a7a3e;
+  --rd-warning-on-ink: #c2410c;
+  --rd-danger-on-ink: #b91c1c;
+
+  --rd-hero-bg: #050505;
+  --rd-hero-fg: #f5f5f2;
+  --rd-hero-plate: #f5f5f2;
+  --rd-hero-success: #4ade80;
+
+  --bs-body-bg: #0b0b0a;
+  --bs-body-color: var(--rd-ink);
+  --bs-secondary-color: var(--rd-muted);
+  --bs-secondary-bg: var(--rd-surface);
+  --bs-tertiary-bg: var(--rd-surface-2);
+  --bs-border-color: #2a2a27;
+  /* Field / control outline: >= 3:1 against --rd-surface (WCAG 1.4.11). */
+  --rd-field-border: #74746e;
+  --bs-border-color-translucent: rgba(255, 255, 255, 0.1);
+
+  /* Legacy accent names — kept so existing CSS/templates keep working */
+  --rd-accent-hover: #ff6b6b;
+  --rd-accent-muted: var(--rd-accent-soft);
+  --rd-accent-2: #ff3b3b;
+  --rd-accent-2-strong: #ff9a9a;
+  --rd-accent-2-strong-rgb: 255, 154, 154;
+  --rd-on-accent-strong: #0a0a0a;
+  --rd-accent-2-ink: #ffb4b4;
+
+  --rd-success: #4ade80;
+  --rd-success-soft: rgba(74, 222, 128, 0.12);
+  --rd-warning: #fbbf24;
+  --rd-warning-soft: rgba(251, 191, 36, 0.12);
+  --rd-warning-ink: #fcd34d;
+  --rd-danger: #f87171;
+  --rd-danger-soft: rgba(248, 113, 113, 0.12);
+  --rd-info: var(--rd-ink);
+  --rd-info-soft: var(--rd-surface-2);
+
+  --rd-tone-1: #60a5fa;
+  --rd-tone-2: #2dd4bf;
+  --rd-tone-3: #a78bfa;
+  --rd-tone-4: #f472b6;
+  --rd-tone-5: #22d3ee;
+  --rd-tone-6: #94a3b8;
+  --rd-logo-bg: #f5f5f2;
+
+  --bs-primary: var(--rd-ink);
+  --bs-primary-rgb: 245, 245, 242;
+  --bs-primary-text-emphasis: var(--rd-ink);
+  --bs-primary-bg-subtle: var(--rd-surface-2);
+  --bs-primary-border-subtle: var(--bs-border-color);
+  --bs-success: var(--rd-success);
+  --bs-success-rgb: 74, 222, 128;
+  --bs-success-text-emphasis: var(--rd-success);
+  --bs-success-bg-subtle: var(--rd-success-soft);
+  --bs-success-border-subtle: rgba(74, 222, 128, 0.25);
+  --bs-warning: var(--rd-warning);
+  --bs-warning-rgb: 251, 191, 36;
+  --bs-warning-text-emphasis: var(--rd-warning-ink);
+  --bs-warning-bg-subtle: var(--rd-warning-soft);
+  --bs-warning-border-subtle: rgba(251, 191, 36, 0.25);
+  --bs-danger: var(--rd-danger);
+  --bs-danger-rgb: 248, 113, 113;
+  --bs-danger-text-emphasis: var(--rd-danger);
+  --bs-danger-bg-subtle: var(--rd-danger-soft);
+  --bs-danger-border-subtle: rgba(248, 113, 113, 0.25);
+  --bs-info: var(--rd-ink);
+  --bs-info-rgb: 245, 245, 242;
+  --bs-info-text-emphasis: var(--rd-ink);
+  --bs-info-bg-subtle: var(--rd-surface-2);
+  --bs-info-border-subtle: var(--bs-border-color);
+  --bs-link-color: var(--rd-ink);
+  --bs-link-color-rgb: 245, 245, 242;
+  --bs-link-hover-color: var(--rd-accent-ink);
+  --bs-link-hover-color-rgb: 255, 154, 154;
+}
+
+/* @end-tokens */
+/* Below this line: tokens only — no raw hex (core/tests_design_tokens.py). */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Typography */
+html[lang="ar"] body.rd-body,
+html[lang="ar"] body.app-shell {
+  font-family: var(--rd-font-ar);
+}
+
+html:not([lang="ar"]) body.rd-body,
+html:not([lang="ar"]) body.app-shell {
+  font-family: var(--rd-font);
+}
+
+body.rd-body,
+body.app-shell {
+  font-feature-settings: "kern" 1, "liga" 1;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Latin tracking only — Arabic letters must never be tracked (breaks joining). */
+html:not([lang="ar"]) body.rd-body,
+html:not([lang="ar"]) body.app-shell {
+  letter-spacing: -0.01em;
+}
+
+/* Arabic headings use Noto Kufi Arabic (600/700 only). */
+html[lang="ar"] h1,
+html[lang="ar"] h2,
+html[lang="ar"] h3,
+html[lang="ar"] h4,
+html[lang="ar"] .rd-heading-xl,
+html[lang="ar"] .rd-heading-lg,
+html[lang="ar"] .rd-card-header {
+  font-family: var(--rd-font-heading);
+  letter-spacing: 0;
+}
+
+html[lang="ar"] h1,
+html[lang="ar"] h2,
+html[lang="ar"] h3,
+html[lang="ar"] h4 {
+  font-weight: 700;
+}
+
+.rd-heading-xl {
+  font-size: clamp(1.35rem, 2vw, 1.65rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.rd-heading-lg {
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.rd-text-muted {
+  color: var(--bs-secondary-color) !important;
+  font-size: 0.875rem;
+}
+
+/* Numbers always use Inter Tight (Arabic UI included) with tabular figures. */
+.tabular-nums,
+.rd-stat-value,
+.kpi-success,
+.kpi-warning,
+.kpi-danger,
+.kpi-info,
+.kpi-muted,
+.kpi-expense {
+  font-family: var(--rd-font-num);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.rd-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--bs-secondary-color);
+}
+
+/* -------------------------------------------------------------------------- */
+/* App layout — management                                                   */
+/* -------------------------------------------------------------------------- */
+.rd-app {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto 1fr;
+  /* Own stacking context so the fixed sidebar/backdrop never get clipped or
+     reordered by sibling stacking contexts created by the sticky topbar's
+     backdrop-filter (Safari/iOS). */
+  isolation: isolate;
+}
+
+@media (min-width: 992px) {
+  .rd-app {
+    grid-template-columns: minmax(14rem, 16.75rem) 1fr;
+    grid-template-rows: 1fr;
+  }
+}
+
+/* Pearl page glow: soft orange at the top inline-end, faint ink at the
+   bottom inline-start. A fixed layer at z-index -1 inside .rd-app's
+   isolated stacking context paints behind all shell content (and works on
+   iOS, unlike background-attachment: fixed). */
+.rd-app {
+  --rd-glow-accent: color-mix(in srgb, var(--rd-accent) 10%, transparent);
+  --rd-glow-ink: color-mix(in srgb, var(--rd-ink) 3.5%, transparent);
+  --rd-glow-end-x: 85%;
+  --rd-glow-start-x: 0%;
+}
+
+.rd-app::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(52rem 26rem at var(--rd-glow-end-x) -8%, var(--rd-glow-accent), transparent 70%),
+    radial-gradient(50rem 30rem at var(--rd-glow-start-x) 105%, var(--rd-glow-ink), transparent 70%);
+}
+
+[dir="rtl"] .rd-app {
+  --rd-glow-end-x: 15%;
+  --rd-glow-start-x: 100%;
+}
+
+[data-bs-theme="dark"] .rd-app {
+  --rd-glow-accent: color-mix(in srgb, var(--rd-accent) 6%, transparent);
+  --rd-glow-ink: color-mix(in srgb, var(--rd-ink) 2%, transparent);
+}
+
+.rd-sidebar {
+  position: fixed;
+  /* Use physical properties — older Safari/iOS do not honor inset-block /
+     inset-inline-* on `position: fixed` reliably, which left the sidebar
+     un-anchored and effectively dumped it back into normal flow. */
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: auto;
+  width: min(18rem, 88vw);
+  z-index: var(--rd-z-sidebar);
+  background: var(--bs-secondary-bg);
+  border-right: 1px solid var(--bs-border-color);
+  border-left: none;
+  transform: translateX(-105%);
+  transition: transform var(--rd-transition), box-shadow var(--rd-transition);
+  padding: 1rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  box-shadow: var(--rd-shadow-md);
+}
+
+[dir="rtl"] .rd-sidebar {
+  left: auto;
+  right: 0;
+  transform: translateX(105%);
+  border-right: none;
+  border-left: 1px solid var(--bs-border-color);
+}
+
+.rd-sidebar.is-open {
+  transform: translateX(0);
+}
+
+@media (min-width: 992px) {
+  .rd-sidebar {
+    position: sticky;
+    top: 0;
+    bottom: auto;
+    left: auto;
+    right: auto;
+    width: auto;
+    height: 100vh;
+    transform: none !important;
+    box-shadow: none;
+    border-left: none;
+    border-right: 1px solid var(--bs-border-color);
+  }
+  [dir="rtl"] .rd-sidebar {
+    transform: none !important;
+    border-right: none;
+    border-left: 1px solid var(--bs-border-color);
+  }
+}
+
+/* Mobile: make the sidebar surface clearly distinct from the page body in
+   dark mode so it doesn't visually melt into the content underneath. */
+@media (max-width: 991.98px) {
+  [data-bs-theme="dark"] .rd-sidebar:not(:has(.rd-sidebar-nav--accordion)) {
+    background: var(--bs-tertiary-bg);
+  }
+}
+
+.rd-sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--rd-z-backdrop);
+  /* --rd-scrim is darker in dark mode so the dim layer stays unambiguous
+     over an already-dark body. */
+  background: var(--rd-scrim);
+  backdrop-filter: blur(2px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--rd-transition);
+}
+
+.rd-sidebar-backdrop.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (min-width: 992px) {
+  .rd-sidebar-backdrop {
+    display: none !important;
+  }
+}
+
+.rd-sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.35rem 0.5rem 0.85rem;
+  text-decoration: none;
+  color: inherit;
+  border-radius: var(--rd-radius-sm);
+  transition: background var(--rd-transition-fast);
+}
+
+.rd-sidebar-brand:hover {
+  background: var(--bs-tertiary-bg);
+  color: inherit;
+}
+
+.rd-sidebar-brand-mark {
+  flex: 0 0 auto;
+  width: 2.65rem;
+  height: 2.65rem;
+  border-radius: 0.85rem;
+  background: var(--rd-primary-bg);
+  display: grid;
+  place-items: center;
+  color: var(--rd-primary-fg);
+  font-family: var(--rd-font-heading);
+  font-weight: 700;
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.rd-sidebar-brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.rd-sidebar-brand-name {
+  font-weight: 700;
+  font-size: 1.02rem;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+  color: var(--rd-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html[lang="ar"] .rd-sidebar-brand-name {
+  font-family: var(--rd-font-heading);
+  letter-spacing: 0;
+}
+
+.rd-sidebar-brand-tagline {
+  font-size: 0.78rem;
+  line-height: 1.3;
+  color: var(--rd-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* When the admin has uploaded a SiteBranding logo we replace the
+   "R + text" stack with the wordmark itself, centered and capped to a
+   sidebar-friendly height so a tall logo can't push the nav off-screen. */
+.rd-sidebar-brand--logo {
+  justify-content: center;
+  padding: 0;
+  margin: 0;
+}
+
+.rd-sidebar-brand-logo {
+  display: block;
+  width: 100%;
+  max-width: 10rem;
+  max-height: 3rem;
+  height: auto;
+  object-fit: contain;
+}
+
+/* Both themes show the logo with no plate. Dark uses a server-built copy
+   whose black ink is lifted to silver (SiteBranding.logo_dark_url). */
+[data-bs-theme="dark"] .rd-sidebar-brand-logo--light,
+:root:not([data-bs-theme="dark"]) .rd-sidebar-brand-logo--dark {
+  display: none;
+}
+
+/* Tighten the surrounding chrome when the brand is just a logo so the
+   empty space above (sidebar padding) and below (gap + nav section header)
+   doesn't visually dwarf the wordmark itself. */
+.rd-sidebar:has(.rd-sidebar-brand--logo) {
+  padding-top: 0.85rem;
+  gap: 0.65rem;
+}
+
+.rd-sidebar-brand--logo + .rd-sidebar-nav .rd-nav-section:first-child {
+  padding-top: 0.15rem;
+}
+
+.rd-sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1;
+  overflow-y: auto;
+  padding-block: 0.25rem;
+}
+
+.rd-nav-section {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--bs-secondary-color);
+  padding: 0.75rem 0.65rem 0.35rem;
+}
+
+.rd-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: var(--rd-radius-sm);
+  color: var(--bs-body-color);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition:
+    background var(--rd-transition-fast),
+    color var(--rd-transition-fast),
+    transform var(--rd-transition-fast);
+  border: 1px solid transparent;
+}
+
+.rd-nav-link:hover {
+  background: var(--rd-surface-2);
+  color: var(--rd-ink);
+}
+
+.rd-nav-link.is-active {
+  background: var(--rd-surface);
+  color: var(--rd-ink);
+  border-color: var(--bs-border-color);
+  box-shadow: var(--rd-shadow-xs);
+  font-weight: 600;
+}
+
+.rd-nav-icon {
+  flex: 0 0 auto;
+  width: 1.25rem;
+  height: 1.25rem;
+  opacity: 0.85;
+}
+
+.rd-nav-link.is-active .rd-nav-icon {
+  opacity: 1;
+  color: var(--rd-accent);
+}
+
+.rd-nav-icon svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Sidebar accordion nav — a raised rail, muted items, logo-red active mark   */
+/* -------------------------------------------------------------------------- */
+/* Declare the palette on BOTH the sidebar (parent) and the nav itself so
+   that rules targeting either side resolve the same variables. CSS custom
+   properties inherit downward only — declaring them just on the child
+   meant `.rd-sidebar:has(...) { background: var(--rd-nav-bw-bg) }`
+   silently resolved to an invalid value (and the sidebar fell back to a
+   transparent background).
+
+   The rail is a surface, one step off the page, so it reads as chrome
+   rather than more canvas. Items stay muted; hover is a surface-2 wash;
+   the active item is an accent tint with a short logo-red mark and an
+   accent icon. The surface is opaque so the mobile drawer never shows
+   the content through it. */
+.rd-sidebar:has(.rd-sidebar-nav--accordion),
+.rd-sidebar-nav--accordion {
+  --rd-nav-bw-bg: var(--rd-surface);
+  --rd-nav-bw-surface: var(--rd-surface-2);
+  --rd-nav-bw-text: var(--rd-ink);
+  --rd-nav-bw-muted: var(--rd-muted);
+  --rd-nav-bw-border: var(--bs-border-color);
+  --rd-nav-bw-hover: var(--rd-surface-2);
+  --rd-nav-bw-active-bg: var(--rd-accent-soft);
+  --rd-nav-bw-active-text: var(--rd-ink);
+  --rd-nav-bw-active-border: transparent;
+  --rd-nav-bw-active-shadow: none;
+  --rd-nav-bw-active-icon: var(--rd-accent);
+}
+
+.rd-sidebar-nav--accordion {
+  gap: 0.2rem;
+}
+
+[data-bs-theme="dark"] .rd-sidebar:has(.rd-sidebar-nav--accordion),
+[data-bs-theme="dark"] .rd-sidebar-nav--accordion {
+  --rd-nav-bw-active-shadow: none;
+}
+
+.rd-sidebar-nav--accordion .rd-nav-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.rd-sidebar-nav--accordion .rd-nav-group + .rd-nav-group {
+  margin-top: 0.45rem;
+}
+
+/* Group toggles read as quiet section labels (no fill), not as rows. */
+.rd-sidebar-nav--accordion .rd-nav-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  padding: 0.6rem 0.75rem 0.4rem;
+  border: none;
+  border-radius: 0.85rem;
+  background: transparent;
+  color: var(--rd-nav-bw-muted);
+  font-family: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  text-align: start;
+  cursor: pointer;
+  transition: color var(--rd-transition-fast);
+}
+
+.rd-sidebar-nav--accordion .rd-nav-group-toggle:hover {
+  background: transparent;
+  color: var(--rd-nav-bw-text);
+}
+
+.rd-sidebar-nav--accordion .rd-nav-group-toggle:focus-visible,
+.rd-sidebar-nav--accordion .rd-nav-link:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 0.2rem var(--rd-accent-soft);
+}
+
+.rd-sidebar-nav--accordion .rd-nav-group-chevron {
+  flex: 0 0 auto;
+  width: 0.85rem;
+  height: 0.85rem;
+  display: grid;
+  place-items: center;
+  color: var(--rd-faint);
+  transition: transform var(--rd-transition-fast);
+}
+
+.rd-sidebar-nav--accordion .rd-nav-group-chevron svg {
+  width: 0.75rem;
+  height: 0.75rem;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+[dir="rtl"] .rd-sidebar-nav--accordion .rd-nav-group-chevron svg {
+  transform: scaleX(-1);
+}
+
+.rd-sidebar-nav--accordion .rd-nav-group.is-open .rd-nav-group-chevron {
+  transform: rotate(90deg);
+}
+
+[dir="rtl"] .rd-sidebar-nav--accordion .rd-nav-group.is-open .rd-nav-group-chevron {
+  transform: rotate(-90deg);
+}
+
+/* An expanded section's header lifts from muted to ink so the open group is
+   anchored to the active page below it; orange stays on the active item. */
+.rd-sidebar-nav--accordion .rd-nav-group.is-open .rd-nav-group-toggle {
+  color: var(--rd-nav-bw-text);
+}
+
+/* Section labels keep their icon (Pearl mockup C): same 1.1rem grid as the
+   link icons below, a touch quieter. */
+.rd-sidebar-nav--accordion .rd-nav-group-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  opacity: 0.7;
+}
+
+.rd-sidebar-nav--accordion .rd-nav-group-icon svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.rd-sidebar-nav--accordion .rd-nav-group.is-open .rd-nav-group-icon {
+  opacity: 0.9;
+}
+
+.rd-sidebar-nav--accordion .rd-nav-group-label {
+  flex: 1;
+  min-width: 0;
+  letter-spacing: 0.005em;
+}
+
+/* Markup order is icon → label → chevron, which puts the chevron at the
+   end of the row in both LTR and RTL. No `order` overrides needed. */
+
+.rd-sidebar-nav--accordion .rd-nav-group-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--rd-transition);
+}
+
+.rd-sidebar-nav--accordion .rd-nav-group.is-open .rd-nav-group-panel {
+  grid-template-rows: 1fr;
+}
+
+.rd-sidebar-nav--accordion .rd-nav-group-panel-inner {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  min-height: 0;
+  /* No vertical padding while collapsed — it would otherwise show through
+     the `grid-template-rows: 0fr` collapse. */
+  padding-block: 0;
+  padding-inline-start: 0.45rem;
+}
+
+.rd-sidebar-nav--accordion .rd-nav-group.is-open .rd-nav-group-panel-inner {
+  padding-block: 0.15rem 0.35rem;
+  margin-inline-start: 1.05rem;
+  padding-inline-start: 0.55rem;
+  border-inline-start: 1px solid var(--rd-nav-bw-border);
+}
+
+.rd-sidebar-nav--accordion .rd-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.85rem;
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: var(--rd-nav-bw-muted);
+  border-color: transparent;
+}
+
+.rd-sidebar-nav--accordion .rd-nav-link:hover {
+  background: var(--rd-nav-bw-hover);
+  color: var(--rd-nav-bw-text);
+}
+
+.rd-sidebar-nav--accordion .rd-nav-link.is-active {
+  position: relative;
+  background: var(--rd-nav-bw-active-bg);
+  color: var(--rd-nav-bw-active-text);
+  border-color: var(--rd-nav-bw-active-border);
+  box-shadow: var(--rd-nav-bw-active-shadow);
+  font-weight: 600;
+}
+
+.rd-sidebar-nav--accordion .rd-nav-link.is-active::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0.28rem;
+  top: 0.42rem;
+  bottom: 0.42rem;
+  width: 2px;
+  border-radius: 99px;
+  background: var(--rd-accent);
+}
+
+.rd-sidebar-nav--accordion .rd-nav-link.is-active .rd-nav-icon {
+  color: var(--rd-nav-bw-active-icon);
+  opacity: 1;
+}
+
+.rd-sidebar-nav--accordion .rd-nav-icon {
+  flex: 0 0 auto;
+  width: 1.1rem;
+  height: 1.1rem;
+  opacity: 0.65;
+}
+
+.rd-sidebar-nav--accordion .rd-nav-icon svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.rd-sidebar-nav--accordion .rd-nav-link.is-active .rd-nav-icon svg {
+  stroke-width: 2;
+}
+
+/* Pinned quick-access section: a flat list of links above the accordions,
+   same rows as the grouped links but without the group indent. The
+   section labels below separate it, so no divider. */
+.rd-sidebar-nav--accordion .rd-nav-pinned {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  padding-bottom: 0.7rem;
+  margin-bottom: 0.35rem;
+  border-bottom: 1px solid var(--rd-nav-bw-border);
+}
+
+.rd-sidebar-nav--accordion .rd-nav-link--pinned .rd-nav-icon {
+  width: 1.15rem;
+  height: 1.15rem;
+  opacity: 0.78;
+}
+
+.rd-sidebar-nav--accordion .rd-nav-link--pinned .rd-nav-icon svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.rd-sidebar-nav--accordion .rd-nav-link--pinned.is-active .rd-nav-icon {
+  opacity: 1;
+}
+
+.rd-sidebar-nav--accordion .rd-nav-link-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Ink count chip (Pearl: red is for errors, not for counts), sitting at the
+   end of the row. The bell badge keeps its own danger styling. */
+.rd-nav-count {
+  flex: 0 0 auto;
+  margin-inline-start: auto;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: var(--rd-primary-bg);
+  color: var(--rd-primary-fg);
+  font-family: var(--rd-font-num);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.15rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.rd-nav-count[hidden] {
+  display: none !important;
+}
+
+/* Flat sidebar panel — flush against the top + screen edge, no rounding,
+   no floating drop-shadow. Just a hairline separator between the sidebar
+   and the main content. Surface follows the active theme via the B&W
+   tokens declared above. */
+.rd-sidebar:has(.rd-sidebar-nav--accordion) {
+  background: var(--rd-nav-bw-bg) !important;
+  color: var(--rd-nav-bw-text);
+  border: 0;
+  border-radius: 0;
+  padding: 1.4rem 0.9rem 1rem;
+  gap: 1rem;
+  box-shadow: none;
+}
+
+.rd-sidebar:has(.rd-sidebar-nav--accordion) .rd-sidebar-brand {
+  color: var(--rd-nav-bw-text);
+  padding: 0.15rem 0.55rem 0.85rem;
+  border-bottom: 1px solid var(--rd-nav-bw-border);
+  border-radius: 0;
+}
+
+.rd-sidebar:has(.rd-sidebar-nav--accordion) .rd-sidebar-brand--logo {
+  position: relative;
+}
+
+.rd-sidebar:has(.rd-sidebar-nav--accordion) .rd-sidebar-brand--logo::after {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0.85rem;
+  bottom: -1px;
+  width: 1.6rem;
+  height: 2px;
+  border-radius: 99px;
+  background: var(--rd-accent);
+}
+
+.rd-sidebar:has(.rd-sidebar-nav--accordion) .rd-sidebar-brand:hover {
+  background: var(--rd-nav-bw-hover);
+  color: var(--rd-nav-bw-text);
+}
+
+@media (min-width: 992px) {
+  .rd-sidebar:has(.rd-sidebar-nav--accordion) {
+    top: 0;
+    align-self: stretch;
+    height: 100vh;
+    margin: 0;
+    margin-inline-start: 0;
+    margin-inline-end: 0;
+    border-radius: 0;
+    /* Hairline separator between sidebar and main content. RTL flips it to
+       the left edge so the sidebar still sits flush against the screen
+       edge on its outer side. */
+    border-inline-end: 1px solid var(--rd-nav-bw-border);
+    box-shadow: none;
+  }
+
+  [dir="rtl"] .rd-sidebar:has(.rd-sidebar-nav--accordion) {
+    margin-inline-start: 0;
+    margin-inline-end: 0;
+    border-inline-end: 1px solid var(--rd-nav-bw-border);
+    border-inline-start: 0;
+  }
+}
+
+@media (max-width: 991.98px) {
+  .rd-sidebar:has(.rd-sidebar-nav--accordion) {
+    border-radius: 0;
+    box-shadow: var(--rd-shadow-lg);
+  }
+
+  /* Touch targets: 3.45rem = 44 px at the 80 % root size. */
+  .rd-sidebar-nav--accordion .rd-nav-link {
+    min-height: 3.45rem;
+  }
+
+  .rd-sidebar-nav--accordion .rd-nav-group-toggle {
+    min-height: 3.45rem;
+  }
+}
+
+.rd-sidebar-brand--logo + .rd-sidebar-nav--accordion {
+  padding-top: 0.15rem;
+}
+
+.rd-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.rd-topbar {
+  position: sticky;
+  top: 0;
+  z-index: var(--rd-z-topbar);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem 1rem;
+  /* Mockup C: the bar is part of the page (no hairline, no card). The
+     translucent page colour + blur only keeps scrolled content readable.
+     NOTE: the phone sheets (search, bell, avatar menu) are `position:
+     absolute` and anchor to this sticky bar (their wrappers are static below
+     576 px). Do not rely on backdrop-filter as a containing block. */
+  background: color-mix(in srgb, var(--bs-body-bg) 88%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
+}
+
+@media (min-width: 992px) {
+  .rd-topbar {
+    padding: 0.95rem 1.5rem;
+  }
+}
+
+/* Start: mobile menu button + greeting. Shrinks first (greeting ellipsis). */
+.rd-topbar-start {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.rd-hello {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.3;
+}
+
+.rd-hello__title {
+  font-size: 1.4rem; /* mockup C: 18 px */
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--rd-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html[lang="ar"] .rd-hello__title {
+  font-family: var(--rd-font-heading);
+  letter-spacing: 0;
+}
+
+.rd-hello__date {
+  font-size: 0.86rem; /* mockup C: 11 px */
+  color: var(--rd-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 575.98px) {
+  .rd-hello {
+    display: none;
+  }
+}
+
+/* End (mockup C): search pill · bell · theme · language · "Sales entry" · avatar. */
+.rd-topbar-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex: 0 1 auto;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.rd-topbar-cluster {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.rd-topbar-cta {
+  min-height: 2.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding-inline: 1rem;
+  border-radius: 0.85rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.rd-topbar-cta__plus {
+  display: none;
+}
+
+@media (min-width: 992px) {
+  .rd-topbar-meta {
+    flex-wrap: nowrap;
+    gap: 0.6rem;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .rd-topbar-meta,
+  .rd-topbar-cluster {
+    gap: 0.3rem;
+  }
+
+  /* Phones: the label stays in the accessible name; the "+" icon is the
+     visible affordance. Same 44 px square as the other bar controls. */
+  .rd-topbar-cta {
+    width: 3.45rem;
+    min-width: 3.45rem;
+    min-height: 3.45rem;
+    padding: 0;
+  }
+
+  .rd-topbar-cta__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .rd-topbar-cta__plus {
+    display: block;
+  }
+}
+
+/* Topbar search — collapses to an icon button matching the bell /
+ * theme-toggle, expands into a floating panel that mirrors the
+ * .rd-user-menu-panel / .rd-notif-panel aesthetic so all three
+ * popovers in the topbar feel like the same component family. */
+.rd-search {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Topbar icon buttons (search, theme, bell, mobile menu) share one shape:
+   a surface square with a hairline, ink icon, surface-2 on hover. */
+.rd-search-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 2.6rem;
+  height: 2.6rem;
+  min-width: 2.6rem;
+  min-height: 2.6rem;
+  padding: 0;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.85rem; /* mockup C: 11 px */
+  background: var(--rd-surface);
+  color: var(--rd-ink);
+  cursor: pointer;
+  transition:
+    background var(--rd-transition-fast),
+    border-color var(--rd-transition-fast),
+    color var(--rd-transition-fast);
+}
+
+.rd-search-toggle:hover {
+  background: var(--rd-surface-2);
+  color: var(--rd-ink);
+}
+
+.rd-search-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 0.25rem color-mix(in srgb, var(--rd-ink) 7%, transparent);
+}
+
+.rd-search[data-rd-search-open="true"] .rd-search-toggle {
+  background: var(--rd-surface-2);
+  border-color: color-mix(in srgb, var(--rd-ink) 22%, var(--bs-border-color));
+}
+
+.rd-search-toggle__placeholder,
+.rd-search-toggle__kbd {
+  display: none;
+}
+
+/* Desktop: the toggle reads as a wide search field with the "/" shortcut. */
+@media (min-width: 992px) {
+  .rd-search-toggle {
+    width: clamp(14rem, 24vw, 21rem); /* mockup C: min 180 px */
+    border-radius: 0.95rem; /* mockup C: 12 px */
+    justify-content: flex-start;
+    gap: 0.55rem;
+    padding-inline: 0.8rem 0.5rem;
+    color: var(--rd-muted);
+  }
+
+  .rd-search-toggle svg {
+    flex: 0 0 auto;
+    width: 1.15rem;
+    height: 1.15rem;
+  }
+
+  .rd-search-toggle__placeholder {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: start;
+    font-size: 0.88rem;
+    font-weight: 500;
+  }
+
+  .rd-search-toggle__kbd {
+    display: block;
+    flex: 0 0 auto;
+    min-width: 1.45rem;
+    padding: 0.12rem 0.4rem;
+    border-radius: 0.45rem;
+    background: var(--rd-surface-2);
+    color: var(--rd-muted);
+    font-family: var(--rd-font-num);
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.2;
+    text-align: center;
+    box-shadow: none;
+  }
+
+  .rd-search-toggle:hover {
+    color: var(--rd-ink);
+  }
+
+  /* The open panel covers the bar so typing happens in the same place: the
+     offsets cancel the panel's 0.4rem padding + 1px border, and the field
+     matches the bar's height, radius, icon and text. Results drop below. */
+  .rd-search .rd-search-panel {
+    top: calc(-0.4rem - 1px);
+    inset-inline-start: calc(-0.4rem - 1px);
+    width: max(calc(100% + 0.8rem + 2px), 22rem);
+    max-height: min(75vh, 34rem);
+    overflow-y: auto;
+    animation: none;
+  }
+
+  .rd-search .rd-search-field {
+    min-height: 2.6rem;
+    gap: 0.55rem;
+    padding-block: 0;
+    padding-inline: calc(0.8rem - 1px) calc(0.5rem - 1px);
+    border-radius: 0.95rem;
+    background: var(--rd-surface);
+  }
+
+  .rd-search .rd-search-field-icon svg {
+    width: 1.15rem;
+    height: 1.15rem;
+  }
+
+  .rd-search .rd-search-input {
+    font-size: 0.88rem;
+  }
+}
+
+.rd-search-panel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  /* Anchor the panel to the start edge of the toggle so it always opens
+   * INTO the viewport: in LTR that's the toggle's left edge (panel
+   * extends right); in RTL the start edge is on the right (panel
+   * extends left). With the previous `inset-inline-end: 0` the panel
+   * opened OUTWARD on Arabic mobile and got clipped against the
+   * viewport edge. */
+  inset-inline-start: 0;
+  z-index: 1080;
+  width: min(16.5rem, calc(100vw - 1rem));
+  background: var(--rd-surface-raised);
+  color: var(--bs-body-color);
+  border: 1px solid color-mix(in srgb, var(--rd-ink) 14%, var(--bs-border-color));
+  border-radius: var(--rd-radius-lg);
+  box-shadow: var(--rd-shadow-pop);
+  padding: 0.4rem;
+  display: block;
+  max-height: min(75vh, 34rem);
+  overflow-y: auto;
+  animation: rd-user-menu-in 0.12s ease-out;
+}
+
+.rd-search-panel[hidden] { display: none !important; }
+
+/* The input field is a plain row that visually behaves like one of
+ * the menu items — neutral background, soft border, accent ring on
+ * focus. Avoids the busy "form-control" look from before. */
+.rd-search-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: var(--rd-surface-2);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 0.3rem 0.65rem;
+  gap: 0.45rem;
+  transition: border-color var(--rd-transition-fast), box-shadow var(--rd-transition-fast);
+}
+
+.rd-search-field:focus-within {
+  border-color: var(--rd-ink);
+  background: var(--rd-surface);
+  box-shadow: 0 0 0 0.25rem color-mix(in srgb, var(--rd-ink) 7%, transparent);
+}
+
+.rd-search-field-icon {
+  display: inline-flex;
+  color: var(--bs-secondary-color);
+  flex: 0 0 auto;
+}
+
+.rd-search-field-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.rd-search-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  outline: none;
+  padding: 0.05rem 0;
+  font-size: 0.82rem;
+  color: var(--rd-ink);
+  -webkit-text-fill-color: var(--rd-ink);
+  caret-color: var(--rd-ink);
+}
+
+/* Typed text must stay plainly readable: explicit selection + autofill colours
+   (UA defaults gave a grey block over the text in dark mode). */
+.rd-search-input::selection {
+  background: color-mix(in srgb, var(--rd-accent) 35%, transparent);
+  color: var(--rd-ink);
+  -webkit-text-fill-color: var(--rd-ink);
+}
+
+.rd-search-input:-webkit-autofill,
+.rd-search-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--rd-ink);
+  box-shadow: 0 0 0 100rem var(--rd-surface-2) inset;
+  caret-color: var(--rd-ink);
+  transition: background-color 9999s ease-out;
+}
+
+.rd-search-input::placeholder {
+  color: var(--bs-secondary-color);
+  opacity: 0.85;
+}
+
+/* Strip the WebKit "x" the search input renders by default — we
+ * already handle clearing implicitly via Esc / click-outside. */
+.rd-search-input::-webkit-search-decoration,
+.rd-search-input::-webkit-search-cancel-button,
+.rd-search-input::-webkit-search-results-button,
+.rd-search-input::-webkit-search-results-decoration {
+  display: none;
+}
+
+.rd-search-kbd {
+  flex: 0 0 auto;
+  font-size: 0.65rem;
+  font-family: inherit;
+  font-weight: 600;
+  color: var(--bs-secondary-color);
+  background: var(--rd-surface);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.4rem;
+  padding: 0.03rem 0.3rem;
+  line-height: 1;
+}
+
+/* The PANEL is the only scroll box (see .rd-search-panel); results never scroll on their own. */
+.rd-search-results {
+  margin-top: 0.3rem;
+}
+
+.rd-search-results[hidden] { display: none !important; }
+
+.rd-search-group + .rd-search-group {
+  border-top: 1px solid var(--bs-border-color);
+  margin-top: 0.35rem;
+  padding-top: 0.4rem;
+}
+
+.rd-search-group-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--bs-secondary-color);
+  padding: 0.4rem 0.6rem 0.25rem;
+}
+
+.rd-search-item {
+  display: block;
+  padding: 0.35rem 0.5rem;
+  border-radius: var(--rd-radius-sm);
+  color: var(--bs-body-color);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background var(--rd-transition-fast);
+}
+
+.rd-search-item:hover,
+.rd-search-item[aria-selected="true"] {
+  background: var(--bs-tertiary-bg);
+  color: var(--bs-body-color);
+  text-decoration: none;
+}
+
+.rd-search-item-label {
+  font-weight: 600;
+  font-size: 0.82rem;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rd-search-item-sublabel {
+  font-size: 0.72rem;
+  color: var(--bs-secondary-color);
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 0.1rem;
+}
+
+.rd-search-empty,
+.rd-search-hint {
+  padding: 1.25rem 0.75rem;
+  text-align: center;
+  color: var(--bs-secondary-color);
+  font-size: 0.85rem;
+}
+
+.rd-search-more {
+  display: block;
+  text-align: center;
+  margin-top: 0.4rem;
+  padding: 0.55rem;
+  border-top: 1px solid var(--bs-border-color);
+  color: var(--rd-ink);
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.rd-search-more:hover {
+  background: var(--rd-surface-2);
+  color: var(--rd-accent-ink);
+  text-decoration: none;
+}
+
+/* Phones: the results open as a full-width sheet under the top bar, never
+   wider than the viewport. .rd-search is static here so the panel anchors to
+   the sticky bar (see .rd-topbar), not to the toggle's wrapper. */
+@media (max-width: 575.98px) {
+  .rd-search {
+    position: static;
+  }
+
+  .rd-search .rd-search-panel {
+    position: absolute;
+    inset-inline: 0.5rem;
+    top: calc(100% + 0.4rem);
+    width: auto;
+    /* bar (~5.9rem) + gap + a comfortable 1rem bottom margin */
+    max-height: calc(100vh - 8rem);
+    max-height: calc(100dvh - 8rem);
+    overflow-y: auto;
+  }
+  .rd-search-input {
+    font-size: 0.9rem;
+  }
+  .rd-search-kbd { display: none; }
+}
+
+.rd-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  min-width: 2.6rem;
+  min-height: 2.6rem;
+  border-radius: 0.85rem;
+  border: 1px solid var(--bs-border-color);
+  background: var(--rd-surface);
+  color: var(--rd-ink);
+  transition: background var(--rd-transition-fast), border-color var(--rd-transition-fast);
+}
+
+.rd-menu-btn:hover {
+  background: var(--rd-surface-2);
+}
+
+.rd-menu-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 0.25rem color-mix(in srgb, var(--rd-ink) 7%, transparent);
+}
+
+@media (min-width: 992px) {
+  .rd-menu-btn {
+    display: none;
+  }
+}
+
+.rd-content {
+  flex: 1;
+  padding: 1rem 1rem 2.5rem;
+  max-width: 90rem;
+  width: 100%;
+  margin-inline: auto;
+}
+
+@media (min-width: 992px) {
+  .rd-content {
+    padding: 1.35rem 1.5rem 3rem;
+  }
+}
+
+/* Wide desktops (1680 px and up in practice): use the width instead of
+   centring a 90rem column between empty gutters, and give the sidebar room. */
+@media (min-width: 1400px) {
+  .rd-app {
+    grid-template-columns: minmax(16rem, 19rem) 1fr;
+  }
+
+  .rd-content {
+    max-width: 125rem;
+    padding-inline: 2rem;
+  }
+
+  .rd-sidebar .rd-nav-link {
+    font-size: 0.98rem;
+    padding: 0.62rem 0.75rem;
+  }
+}
+
+/* Page chrome */
+.rd-page-header {
+  margin-bottom: 1.5rem;
+}
+
+.rd-page-header h1,
+.rd-page-header .rd-heading-xl {
+  margin-bottom: 0.3rem;
+  color: var(--rd-ink);
+}
+
+.rd-page-header p,
+.rd-page-header .rd-text-muted {
+  color: var(--rd-muted);
+}
+
+/* Section tabs — settings, phone refresh, SIM inventory, API */
+.rd-section-tabs.nav-tabs {
+  border-bottom: 1px solid var(--bs-border-color);
+  gap: 0.35rem;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-inline: 0.25rem;
+  scroll-padding-inline: 0.25rem;
+}
+
+.rd-section-tabs.nav-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.rd-section-tabs .nav-link {
+  position: relative;
+  border: none;
+  border-radius: 0;
+  margin-bottom: -1px;
+  color: var(--rd-muted);
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 0.6rem 0.85rem;
+  white-space: nowrap;
+  background: transparent;
+  transition: color var(--rd-transition-fast);
+}
+
+.rd-section-tabs .nav-link::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0.85rem;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--rd-accent);
+  transform: scaleX(0);
+  opacity: 0;
+  transition:
+    transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.15s ease;
+}
+
+.rd-section-tabs .nav-link:hover {
+  color: var(--rd-ink);
+  background: transparent;
+}
+
+.rd-section-tabs .nav-link.active {
+  color: var(--rd-ink);
+  background: transparent;
+}
+
+.rd-section-tabs .nav-link.active::after {
+  transform: scaleX(1);
+  opacity: 1;
+}
+
+/* Cards */
+.rd-card {
+  background: var(--rd-surface);
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--rd-radius-lg);
+  box-shadow: var(--rd-shadow-card);
+}
+
+a.rd-card {
+  color: inherit;
+  transition: transform var(--rd-transition);
+}
+
+a.rd-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--rd-shadow-sm);
+}
+
+.rd-card-body {
+  padding: 1.15rem 1.25rem;
+}
+
+.rd-card-header {
+  padding: 0.9rem 1.25rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--rd-ink);
+  border-bottom: 1px solid var(--bs-border-color);
+  border-radius: var(--rd-radius-lg) var(--rd-radius-lg) 0 0;
+  background: transparent;
+}
+
+/* Stat KPI */
+.rd-stat {
+  position: relative;
+  overflow: hidden;
+}
+
+.rd-stat::after {
+  content: none;
+}
+
+.rd-stat .rd-card-body {
+  position: relative;
+  z-index: 1;
+}
+
+.rd-stat-value {
+  font-family: var(--rd-font-num);
+  font-size: clamp(1.65rem, 3vw, 2.1rem);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+  color: var(--rd-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.rd-stat-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--rd-radius-sm);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: var(--rd-surface-2);
+  color: var(--rd-ink);
+  margin-bottom: 0.75rem;
+}
+
+/* Trend chip (KPI deltas): direction-neutral numbers, so always LTR. */
+.rd-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-family: var(--rd-font-num);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  unicode-bidi: isolate;
+  white-space: nowrap;
+  background: var(--rd-surface-2);
+  color: var(--rd-muted);
+}
+
+.rd-trend svg {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
+.rd-trend--up {
+  background: var(--rd-success-soft);
+  color: var(--rd-success);
+}
+
+.rd-trend--down {
+  background: var(--rd-warning-soft);
+  color: var(--rd-warning-ink);
+}
+
+/* Loading placeholder. The sweep runs on a pseudo-element (transform only). */
+.rd-skeleton {
+  --rd-skeleton-from: -100%;
+  --rd-skeleton-to: 100%;
+  position: relative;
+  display: block;
+  min-height: 1em;
+  overflow: hidden;
+  border-radius: var(--rd-radius-sm);
+  background: var(--rd-surface-2);
+  color: transparent;
+}
+
+[dir="rtl"] .rd-skeleton {
+  --rd-skeleton-from: 100%;
+  --rd-skeleton-to: -100%;
+}
+
+.rd-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--rd-surface) 65%, transparent),
+    transparent
+  );
+  transform: translateX(var(--rd-skeleton-from));
+  animation: rd-skeleton-sweep 1.4s ease-in-out infinite;
+}
+
+@keyframes rd-skeleton-sweep {
+  to {
+    transform: translateX(var(--rd-skeleton-to));
+  }
+}
+
+.rd-stat-icon svg {
+  width: 1.375rem;
+  height: 1.375rem;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+}
+
+/* Filter toolbar */
+.rd-filter-bar .form-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--rd-muted);
+  margin-bottom: 0.3rem;
+}
+
+.rd-filter-bar .form-control,
+.rd-filter-bar .form-select {
+  font-size: 0.875rem;
+}
+
+/* Tables — Bootstrap paints cells with the page color; inside Pearl cards
+   they must stay on the card surface. */
+.table {
+  --bs-table-bg: transparent;
+  --bs-table-color: var(--rd-ink);
+  --bs-table-border-color: var(--bs-border-color);
+  --bs-table-hover-bg: var(--rd-surface-2);
+  --bs-table-hover-color: var(--rd-ink);
+  --bs-table-striped-bg: color-mix(in srgb, var(--rd-surface-2) 55%, transparent);
+  --bs-table-active-bg: var(--rd-surface-2);
+}
+
+.rd-table-wrap {
+  border-radius: var(--rd-radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--bs-border-color);
+  background: var(--rd-surface);
+}
+
+.rd-table-wrap .table {
+  margin-bottom: 0;
+}
+
+.rd-table-wrap thead th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--rd-muted);
+  background: var(--rd-surface) !important;
+  border-bottom: 1px solid var(--bs-border-color);
+  white-space: nowrap;
+}
+
+.rd-table-wrap tbody td {
+  vertical-align: middle;
+  padding-block: 0.85rem;
+  border-color: var(--bs-border-color);
+}
+
+.rd-table-wrap tbody tr:last-child > td {
+  border-bottom: 0;
+}
+
+.rd-table-wrap.table-responsive {
+  border-radius: var(--rd-radius-lg);
+}
+
+.rd-card > .table-responsive.rd-table-wrap {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  border-top: 1px solid var(--bs-border-color);
+}
+
+/* Badges — soft status pills with a leading dot */
+.rd-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.3;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  letter-spacing: 0;
+  white-space: nowrap;
+  background: var(--rd-surface-2);
+  color: var(--rd-ink);
+}
+
+.rd-badge--pending,
+.rd-badge--warning {
+  background: var(--rd-warning-soft);
+  color: var(--rd-warning-ink);
+}
+
+.rd-badge--paid {
+  background: var(--rd-success-soft);
+  color: var(--rd-success);
+}
+
+.rd-badge--cancelled {
+  background: var(--rd-danger-soft);
+  color: var(--rd-danger);
+}
+
+.rd-badge--neutral {
+  background: var(--rd-surface-2);
+  color: var(--rd-muted);
+}
+
+/* Sale attributes (not workflow status). Each chip keeps its own tone so
+   loss (danger), new SIM (warning), and payment-to-employee stay distinct. */
+.rd-sale-esim-badge {
+  background: color-mix(in srgb, var(--rd-tone-1) 14%, transparent);
+  color: var(--rd-tone-1);
+}
+
+/* Handed to an employee — teal, not warning/danger (those read as errors). */
+.rd-sale-employee-payment-badge {
+  background: color-mix(in srgb, var(--rd-tone-2) 14%, transparent);
+  color: var(--rd-tone-2);
+}
+
+/* Stock sale — yellow/amber warning tone (was grey and easy to miss). */
+.rd-sale-new-sim-badge {
+  background: var(--rd-warning-soft);
+  color: var(--rd-warning-ink);
+}
+
+/* Deferred payment. Violet stays clear of eSIM blue and employee teal. */
+.rd-sale-on-account-badge {
+  background: color-mix(in srgb, var(--rd-tone-3) 14%, transparent);
+  color: var(--rd-tone-3);
+}
+
+/* Scoped size bump for chips that carry data (expense category, audit action): 0.82rem stays above the 0.8rem readable floor. */
+.rd-badge--readable {
+  font-size: 0.82rem;
+}
+
+/* Count badges and badges that carry their own icon skip the dot. */
+:is(.rd-badge--paid, .rd-badge--pending, .rd-badge--warning, .rd-badge--cancelled, .rd-badge--neutral, .rd-sale-esim-badge, .rd-sale-employee-payment-badge, .rd-sale-new-sim-badge, .rd-sale-on-account-badge):not(.tabular-nums):not(:has(svg))::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.rd-badge--neutral:not(.tabular-nums):not(:has(svg))::before {
+  background: var(--rd-faint);
+}
+
+/* Solid danger: needs a human, louder than a cancelled/failed chip. */
+.rd-badge--conflict {
+  background: var(--rd-danger);
+  color: var(--rd-surface);
+}
+
+/* Bootstrap contextual badges -> Pearl soft pills. Bootstrap's utilities are
+   !important (and some templates add .text-dark), so these must be too. */
+.badge:is(.bg-success, .text-bg-success, .bg-warning, .text-bg-warning, .bg-danger, .text-bg-danger, .bg-info, .text-bg-info, .bg-secondary, .text-bg-secondary) {
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.badge:is(.bg-success, .text-bg-success) {
+  background-color: var(--rd-success-soft) !important;
+  color: var(--rd-success) !important;
+}
+
+.badge:is(.bg-warning, .text-bg-warning) {
+  background-color: var(--rd-warning-soft) !important;
+  color: var(--rd-warning-ink) !important;
+}
+
+.badge:is(.bg-danger, .text-bg-danger) {
+  background-color: var(--rd-danger-soft) !important;
+  color: var(--rd-danger) !important;
+}
+
+.badge:is(.bg-info, .text-bg-info) {
+  background-color: var(--rd-surface-2) !important;
+  color: var(--rd-ink) !important;
+}
+
+.badge:is(.bg-secondary, .text-bg-secondary) {
+  background-color: var(--rd-surface-2) !important;
+  color: var(--rd-muted) !important;
+}
+
+/* .text-bg-primary hard-codes white text; follow the ink primary pair. */
+.badge.text-bg-primary {
+  background-color: var(--rd-primary-bg) !important;
+  color: var(--rd-primary-fg) !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Charge-and-record sales: "auto charge" mode segment + charge state segment  */
+/* -------------------------------------------------------------------------- */
+.rd-charge-cluster {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  vertical-align: middle;
+}
+
+.rd-charge-tag {
+  display: inline-flex;
+  align-items: stretch;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.rd-charge-tag__mode,
+.rd-charge-tag__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.5rem;
+}
+
+.rd-charge-tag__mode {
+  background: color-mix(in srgb, var(--rd-tone-3) 14%, transparent);
+  color: var(--rd-tone-3);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rd-tone-3) 42%, transparent);
+}
+
+.rd-charge-tag__state {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 32%, transparent);
+}
+
+.rd-charge-tag--processing .rd-charge-tag__state {
+  background: var(--rd-info-soft);
+  color: var(--rd-info);
+}
+
+.rd-charge-tag--success .rd-charge-tag__state {
+  background: var(--rd-success-soft);
+  color: var(--rd-success);
+}
+
+.rd-charge-tag--failed {
+  white-space: normal;
+  max-width: 18rem;
+}
+
+.rd-charge-tag--failed .rd-charge-tag__state {
+  background: var(--rd-danger-soft);
+  color: var(--rd-danger);
+}
+
+.rd-charge-tag--unverified .rd-charge-tag__state {
+  background: var(--rd-warning-soft);
+  color: var(--rd-warning-ink);
+}
+
+.rd-charge-tag--not-sent .rd-charge-tag__state {
+  background: var(--rd-danger-soft);
+  color: var(--rd-danger);
+}
+
+.rd-charge-tag__pulse {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: currentColor;
+  animation: rd-charge-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes rd-charge-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.65);
+  }
+}
+
+.rd-table-modern > .rd-charge-row > tr.rd-charge-detail-row > td {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.rd-charge-details {
+  font-size: 0.8rem;
+}
+
+.rd-charge-details__title {
+  margin: 0 0 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.rd-charge-details__summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--rd-accent-2);
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.rd-charge-details__summary::-webkit-details-marker {
+  display: none;
+}
+
+.rd-charge-details__summary::before {
+  content: "";
+  width: 0.4rem;
+  height: 0.4rem;
+  border-inline-end: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform var(--rd-transition-fast);
+}
+
+[dir="rtl"] .rd-charge-details__summary::before {
+  transform: rotate(45deg);
+}
+
+.rd-charge-details[open] > .rd-charge-details__summary::before {
+  transform: rotate(45deg);
+}
+
+[dir="rtl"] .rd-charge-details[open] > .rd-charge-details__summary::before {
+  transform: rotate(-45deg);
+}
+
+.rd-charge-details__body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-top: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bs-tertiary-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--rd-radius-sm);
+}
+
+.rd-charge-details__checking {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--rd-accent-2-ink);
+}
+
+.rd-charge-details__alert {
+  flex-basis: 100%;
+  color: var(--rd-danger);
+  font-weight: 600;
+}
+
+.rd-charge-details__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.25rem;
+  min-width: 0;
+}
+
+.rd-charge-details__facts dt {
+  font-weight: 500;
+  color: var(--bs-secondary-color);
+  font-size: 0.72rem;
+}
+
+.rd-charge-details__facts dd {
+  margin: 0;
+}
+
+.rd-charge-details__message dd {
+  max-width: 28rem;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+/* Sale actions: a top-layer menu (escapes the table scroll shell). */
+.rd-sale-actions {
+  position: fixed;
+  inset: auto;
+  width: max-content;
+  min-width: 11rem;
+  max-width: calc(100vw - 1rem);
+  margin: 0;
+  padding: 0.35rem;
+  overflow: auto;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--rd-radius-md);
+  background: var(--rd-surface);
+  color: var(--rd-ink);
+  box-shadow: var(--rd-shadow-md);
+}
+
+.rd-sale-actions__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.rd-charge-dialog {
+  width: min(32rem, calc(100vw - 2rem));
+  max-height: min(85vh, 40rem);
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--rd-radius-lg);
+  background: var(--rd-surface);
+  color: var(--rd-ink);
+  box-shadow: var(--rd-shadow-lg);
+}
+
+.rd-charge-dialog::backdrop {
+  background: var(--rd-scrim);
+}
+
+.rd-charge-dialog__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--bs-border-color);
+}
+
+.rd-charge-dialog__heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  min-width: 0;
+}
+
+.rd-charge-dialog__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.rd-charge-dialog__body {
+  padding: 1rem;
+  overflow: auto;
+}
+
+.rd-charge-dialog .rd-charge-details__body {
+  flex-direction: column;
+  align-items: stretch;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+
+.rd-charge-dialog .rd-charge-details__facts {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--rd-radius-md);
+  overflow: hidden;
+}
+
+.rd-charge-dialog .rd-charge-details__facts > div {
+  display: grid;
+  grid-template-columns: minmax(7rem, 9rem) 1fr;
+  gap: 0.75rem;
+  align-items: baseline;
+  padding: 0.7rem 0.85rem;
+  background: var(--rd-surface);
+}
+
+.rd-charge-dialog .rd-charge-details__facts > div + div {
+  border-top: 1px solid var(--bs-border-color);
+}
+
+.rd-charge-dialog .rd-charge-details__facts dt {
+  margin: 0;
+}
+
+.rd-charge-dialog .rd-charge-details__facts dd {
+  font-weight: 600;
+}
+
+.rd-charge-dialog .rd-charge-details__alert {
+  padding: 0.7rem 0.85rem;
+  border-radius: var(--rd-radius-sm);
+  background: var(--rd-danger-soft);
+}
+
+.rd-charge-dialog .rd-charge-details__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--bs-border-color);
+}
+
+.rd-charge-dialog .rd-charge-details__actions form,
+.rd-charge-dialog .rd-charge-details__actions .btn {
+  width: 100%;
+}
+
+.rd-charge-details__actions-title {
+  margin: 0 0 0.15rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--rd-muted);
+}
+
+.rd-sale-actions form {
+  margin: 0;
+}
+
+.rd-sale-actions__item {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  border: 0;
+  border-radius: var(--rd-radius-xs);
+  background: transparent;
+  color: var(--rd-ink);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 650;
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.rd-sale-actions__item:hover,
+.rd-sale-actions__item:focus-visible {
+  background: var(--rd-surface-2);
+  outline: none;
+}
+
+.rd-sale-actions__item--danger {
+  color: var(--rd-danger);
+}
+
+/* Buttons */
+.rd-btn-icon {
+  width: 2.375rem;
+  height: 2.375rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+}
+
+.btn {
+  --bs-btn-focus-box-shadow: 0 0 0 0.25rem color-mix(in srgb, var(--rd-ink) 7%, transparent);
+  border-radius: 0.75rem;
+  font-weight: 600;
+  transition:
+    background-color var(--rd-transition-fast),
+    border-color var(--rd-transition-fast),
+    color var(--rd-transition-fast),
+    box-shadow var(--rd-transition-fast),
+    transform 0.15s ease;
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn:focus-visible {
+  box-shadow: var(--bs-btn-focus-box-shadow);
+}
+
+.btn-primary {
+  --bs-btn-color: var(--rd-primary-fg);
+  --bs-btn-bg: var(--rd-primary-bg);
+  --bs-btn-border-color: var(--rd-primary-bg);
+  --bs-btn-hover-color: var(--rd-primary-fg);
+  --bs-btn-hover-bg: color-mix(in srgb, var(--rd-primary-bg) 86%, var(--rd-surface));
+  --bs-btn-hover-border-color: color-mix(in srgb, var(--rd-primary-bg) 86%, var(--rd-surface));
+  --bs-btn-active-color: var(--rd-primary-fg);
+  --bs-btn-active-bg: var(--rd-primary-bg);
+  --bs-btn-active-border-color: var(--rd-primary-bg);
+  --bs-btn-disabled-color: var(--rd-primary-fg);
+  --bs-btn-disabled-bg: var(--rd-primary-bg);
+  --bs-btn-disabled-border-color: var(--rd-primary-bg);
+}
+
+.btn-primary:hover:not(:disabled),
+.btn-accent:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.btn-primary:active:not(:disabled),
+.btn-accent:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* The one special orange action per screen (e.g. charge). */
+.btn-accent {
+  --bs-btn-color: var(--rd-on-accent);
+  --bs-btn-bg: var(--rd-accent);
+  --bs-btn-border-color: var(--rd-accent);
+  --bs-btn-hover-color: var(--rd-on-accent);
+  --bs-btn-hover-bg: var(--rd-accent-hover);
+  --bs-btn-hover-border-color: var(--rd-accent-hover);
+  --bs-btn-active-color: var(--rd-on-accent);
+  --bs-btn-active-bg: var(--rd-accent);
+  --bs-btn-active-border-color: var(--rd-accent);
+  --bs-btn-disabled-color: var(--rd-on-accent);
+  --bs-btn-disabled-bg: var(--rd-accent);
+  --bs-btn-disabled-border-color: var(--rd-accent);
+  --bs-btn-focus-box-shadow: 0 0 0 0.25rem var(--rd-accent-soft);
+  font-weight: 700;
+}
+
+.btn-outline-secondary {
+  --bs-btn-color: var(--rd-ink);
+  --bs-btn-bg: var(--rd-surface);
+  --bs-btn-border-color: var(--bs-border-color);
+  --bs-btn-hover-color: var(--rd-ink);
+  --bs-btn-hover-bg: var(--rd-surface-2);
+  --bs-btn-hover-border-color: var(--bs-border-color);
+  --bs-btn-active-color: var(--rd-ink);
+  --bs-btn-active-bg: var(--rd-surface-2);
+  --bs-btn-active-border-color: var(--bs-border-color);
+  --bs-btn-disabled-color: var(--rd-faint);
+  --bs-btn-disabled-bg: var(--rd-surface);
+  --bs-btn-disabled-border-color: var(--bs-border-color);
+}
+
+/* Compiled Bootstrap hard-codes its blue/green/red here; map them to Pearl. */
+.btn-outline-primary {
+  --bs-btn-color: var(--rd-ink);
+  --bs-btn-bg: transparent;
+  --bs-btn-border-color: var(--rd-ink);
+  --bs-btn-hover-color: var(--rd-primary-fg);
+  --bs-btn-hover-bg: var(--rd-primary-bg);
+  --bs-btn-hover-border-color: var(--rd-primary-bg);
+  --bs-btn-active-color: var(--rd-primary-fg);
+  --bs-btn-active-bg: var(--rd-primary-bg);
+  --bs-btn-active-border-color: var(--rd-primary-bg);
+  --bs-btn-disabled-color: var(--rd-faint);
+  --bs-btn-disabled-border-color: var(--bs-border-color);
+}
+
+.btn-outline-danger {
+  --bs-btn-color: var(--rd-danger);
+  --bs-btn-bg: transparent;
+  --bs-btn-border-color: color-mix(in srgb, var(--rd-danger) 35%, transparent);
+  --bs-btn-hover-color: var(--rd-danger);
+  --bs-btn-hover-bg: var(--rd-danger-soft);
+  --bs-btn-hover-border-color: var(--rd-danger);
+  --bs-btn-active-color: var(--rd-danger);
+  --bs-btn-active-bg: var(--rd-danger-soft);
+  --bs-btn-active-border-color: var(--rd-danger);
+  --bs-btn-disabled-color: var(--rd-danger);
+  --bs-btn-disabled-border-color: color-mix(in srgb, var(--rd-danger) 35%, transparent);
+}
+
+.btn-outline-success {
+  --bs-btn-color: var(--rd-success);
+  --bs-btn-bg: transparent;
+  --bs-btn-border-color: color-mix(in srgb, var(--rd-success) 35%, transparent);
+  --bs-btn-hover-color: var(--rd-success);
+  --bs-btn-hover-bg: var(--rd-success-soft);
+  --bs-btn-hover-border-color: var(--rd-success);
+  --bs-btn-active-color: var(--rd-success);
+  --bs-btn-active-bg: var(--rd-success-soft);
+  --bs-btn-active-border-color: var(--rd-success);
+  --bs-btn-disabled-color: var(--rd-success);
+  --bs-btn-disabled-border-color: color-mix(in srgb, var(--rd-success) 35%, transparent);
+}
+
+/* Warning = soft burnt-orange family, never Bootstrap's bright yellow. */
+.btn-warning,
+.btn-outline-warning {
+  --bs-btn-color: var(--rd-warning-ink);
+  --bs-btn-hover-color: var(--rd-warning-ink);
+  /* Fills stay at the soft tint so warning-ink text keeps >= 4.5:1;
+     feedback comes from the border. */
+  --bs-btn-hover-bg: var(--rd-warning-soft);
+  --bs-btn-hover-border-color: color-mix(in srgb, var(--rd-warning) 70%, transparent);
+  --bs-btn-active-color: var(--rd-warning-ink);
+  --bs-btn-active-bg: var(--rd-warning-soft);
+  --bs-btn-active-border-color: var(--rd-warning-ink);
+  --bs-btn-disabled-color: var(--rd-warning-ink);
+  --bs-btn-disabled-border-color: color-mix(in srgb, var(--rd-warning) 35%, transparent);
+  --bs-btn-focus-box-shadow: 0 0 0 0.25rem color-mix(in srgb, var(--rd-warning) 18%, transparent);
+}
+
+.btn-warning {
+  --bs-btn-bg: var(--rd-warning-soft);
+  --bs-btn-border-color: color-mix(in srgb, var(--rd-warning) 35%, transparent);
+  --bs-btn-disabled-bg: var(--rd-warning-soft);
+}
+
+.btn-outline-warning {
+  --bs-btn-bg: transparent;
+  --bs-btn-border-color: color-mix(in srgb, var(--rd-warning) 45%, transparent);
+  --bs-btn-disabled-bg: transparent;
+}
+
+/* Info = neutral (surface + hairline + ink), not cyan. */
+.btn-info,
+.btn-outline-info {
+  --bs-btn-color: var(--rd-ink);
+  --bs-btn-bg: var(--rd-surface);
+  --bs-btn-border-color: var(--bs-border-color);
+  --bs-btn-hover-color: var(--rd-ink);
+  --bs-btn-hover-bg: var(--rd-surface-2);
+  --bs-btn-hover-border-color: color-mix(in srgb, var(--rd-ink) 22%, transparent);
+  --bs-btn-active-color: var(--rd-ink);
+  --bs-btn-active-bg: var(--rd-surface-2);
+  --bs-btn-active-border-color: var(--rd-ink);
+  --bs-btn-disabled-color: var(--rd-muted);
+  --bs-btn-disabled-bg: var(--rd-surface);
+  --bs-btn-disabled-border-color: var(--bs-border-color);
+}
+
+/* Solid info is the "pressed" state of toggles: an ink hairline marks it. */
+.btn-info {
+  --bs-btn-bg: var(--rd-surface-2);
+  --bs-btn-border-color: var(--rd-ink);
+  --bs-btn-hover-border-color: var(--rd-ink);
+}
+
+.btn-success,
+.btn-danger {
+  --bs-btn-color: var(--rd-surface);
+  --bs-btn-hover-color: var(--rd-surface);
+  --bs-btn-active-color: var(--rd-surface);
+  --bs-btn-disabled-color: var(--rd-surface);
+}
+
+.btn-success {
+  --bs-btn-bg: var(--rd-success);
+  --bs-btn-border-color: var(--rd-success);
+  --bs-btn-hover-bg: color-mix(in srgb, var(--rd-success) 86%, var(--rd-ink));
+  --bs-btn-hover-border-color: color-mix(in srgb, var(--rd-success) 86%, var(--rd-ink));
+  --bs-btn-active-bg: var(--rd-success);
+  --bs-btn-active-border-color: var(--rd-success);
+  --bs-btn-disabled-bg: var(--rd-success);
+  --bs-btn-disabled-border-color: var(--rd-success);
+}
+
+.btn-danger {
+  --bs-btn-bg: var(--rd-danger);
+  --bs-btn-border-color: var(--rd-danger);
+  --bs-btn-hover-bg: color-mix(in srgb, var(--rd-danger) 86%, var(--rd-ink));
+  --bs-btn-hover-border-color: color-mix(in srgb, var(--rd-danger) 86%, var(--rd-ink));
+  --bs-btn-active-bg: var(--rd-danger);
+  --bs-btn-active-border-color: var(--rd-danger);
+  --bs-btn-disabled-bg: var(--rd-danger);
+  --bs-btn-disabled-border-color: var(--rd-danger);
+}
+
+/* Text links in tables and lists (customer names, product lines, people):
+   ink, no underline at rest; text-safe orange + underline on hover. The
+   underline is !important to beat .text-decoration-none on the same anchors. */
+a.fw-semibold:not(.btn),
+a.rd-person__name {
+  text-decoration: none;
+  text-underline-offset: 0.2em;
+}
+
+a.fw-semibold:not(.btn):hover,
+a.rd-person__name:hover {
+  color: var(--rd-accent-ink);
+  text-decoration: underline !important;
+}
+
+/* Forms */
+.form-control,
+.form-select {
+  border-radius: 0.75rem;
+  background-color: var(--rd-surface);
+  border-color: var(--rd-field-border);
+  color: var(--rd-ink);
+  transition:
+    border-color var(--rd-transition-fast),
+    box-shadow var(--rd-transition-fast);
+}
+
+.form-control::placeholder {
+  color: var(--rd-muted);
+}
+
+.form-control:disabled,
+.form-select:disabled {
+  background-color: var(--rd-surface-2);
+  color: var(--rd-muted);
+}
+
+.form-control:focus,
+.form-select:focus {
+  background-color: var(--rd-surface);
+  border-color: var(--rd-ink);
+  box-shadow: 0 0 0 0.25rem color-mix(in srgb, var(--rd-ink) 7%, transparent);
+}
+
+.form-check-input {
+  background-color: var(--rd-surface);
+  border-color: var(--rd-field-border);
+}
+
+.form-check-input:checked {
+  background-color: var(--rd-accent);
+  border-color: var(--rd-accent);
+}
+
+.form-check-input:focus {
+  border-color: var(--rd-ink);
+  box-shadow: 0 0 0 0.25rem color-mix(in srgb, var(--rd-ink) 7%, transparent);
+}
+
+/* Pearl switch: grey track that turns orange, white knob with a soft shadow.
+   Sized in em (= 2.25rem x 1.3rem at body size) so wrappers that bump
+   font-size to scale the switch keep working. */
+.form-switch .form-check-input,
+.form-switch .form-check-input:focus,
+[data-bs-theme] .form-switch .form-check-input:not(:checked):not(:focus) {
+  --bs-form-switch-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3.1' fill='white'/%3e%3c/svg%3e");
+}
+
+.form-switch .form-check-input {
+  width: 2.25em;
+  height: 1.3em;
+  margin-top: 0.1em;
+  border: 0;
+  /* >= 3:1 against --rd-surface in both themes (non-text contrast). */
+  background-color: color-mix(in srgb, var(--rd-ink) 48%, var(--rd-surface));
+  box-shadow: inset 0 1px 2px color-mix(in srgb, var(--rd-ink) 10%, transparent);
+  cursor: pointer;
+}
+
+.form-switch .form-check-input:checked {
+  background-color: var(--rd-accent);
+}
+
+.form-switch .form-check-input:focus {
+  box-shadow: 0 0 0 0.25rem var(--rd-accent-soft);
+}
+
+@keyframes rd-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Theme toggle — shell variant (legacy paired buttons, kept so any
+ * older surfaces that haven't been migrated still render sensibly). */
+.rd-theme-toggle .btn {
+  border-radius: var(--rd-radius-xs);
+  font-weight: 600;
+  font-size: 0.75rem;
+  padding: 0.35rem 0.65rem;
+}
+
+.rd-theme-toggle .btn.active {
+  background: var(--rd-primary-bg);
+  border-color: var(--rd-primary-bg);
+  color: var(--rd-primary-fg);
+}
+
+/* New single-icon theme toggle. Visually matches .rd-search-toggle and
+ * .rd-notif-trigger so the topbar reads as one consistent row of
+ * round icon buttons. The two SVGs (sun/moon) are both rendered into
+ * the DOM and CSS swaps which one is visible based on the current
+ * <html data-bs-theme>; clicking flips the theme via theme.js. */
+.rd-theme-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.375rem;
+  height: 2.375rem;
+  padding: 0;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.75rem;
+  background: var(--rd-surface);
+  color: var(--rd-ink);
+  cursor: pointer;
+  transition:
+    background var(--rd-transition-fast),
+    color var(--rd-transition-fast);
+}
+
+.rd-theme-btn:hover {
+  background: var(--rd-surface-2);
+  color: var(--rd-ink);
+}
+
+.rd-theme-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 0.25rem color-mix(in srgb, var(--rd-ink) 7%, transparent);
+}
+
+.rd-theme-icon { display: none; }
+
+[data-bs-theme="light"] .rd-theme-icon-moon,
+[data-bs-theme="dark"]  .rd-theme-icon-sun {
+  display: block;
+}
+
+/* Employee shell */
+.rd-employee-app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bs-body-bg);
+}
+
+.rd-sale-form__stack {
+  gap: 0.7rem;
+}
+
+.rd-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.rd-sale-form .rd-field-group + .rd-field-group {
+  margin-top: 0;
+}
+
+.rd-field-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--bs-secondary-color);
+}
+
+.rd-field-error,
+.rd-sale-form .errorlist {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--rd-danger);
+  font-size: 0.84rem;
+  font-weight: 750;
+  line-height: 1.35;
+}
+.rd-field-error .errorlist {
+  margin: 0;
+  padding: 0;
+}
+.rd-field-error li,
+.rd-sale-form .errorlist li {
+  margin: 0;
+}
+
+.rd-sale-form .has-error .rd-field-label {
+  color: var(--rd-danger);
+}
+.rd-sale-form .form-control.is-invalid,
+.rd-sale-form .form-select.is-invalid,
+.rd-sale-form .has-error .form-control {
+  border-color: var(--rd-danger);
+  box-shadow: 0 0 0 0.15rem color-mix(in srgb, var(--rd-danger) 18%, transparent);
+}
+.rd-sale-form .has-error .employee-chip:not(.is-active) {
+  border-color: color-mix(in srgb, var(--rd-danger) 55%, var(--bs-border-color));
+}
+
+/* HTMX */
+.htmx-request .htmx-indicator {
+  opacity: 1 !important;
+}
+
+.htmx-indicator {
+  opacity: 0;
+  transition: opacity var(--rd-transition);
+}
+
+/* Legacy Bootstrap compatibility: old `.card` / `.app-card` should still
+   render like the Recharge Desk card, but new templates must use `.rd-card`. */
+.app-shell .card,
+.app-card {
+  border-radius: var(--rd-radius-md);
+  border: 1px solid var(--bs-border-color);
+  box-shadow: var(--rd-shadow-xs);
+  background: var(--bs-secondary-bg);
+  color: var(--bs-body-color);
+}
+
+.app-shell .card-header,
+.app-card .card-header {
+  padding: 0.85rem 1.2rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  background: color-mix(in srgb, var(--bs-tertiary-bg) 55%, var(--bs-secondary-bg));
+  border-bottom: 1px solid var(--bs-border-color);
+  border-radius: var(--rd-radius-md) var(--rd-radius-md) 0 0;
+}
+
+.app-shell .card-body {
+  padding: 1.1rem 1.2rem;
+}
+
+.app-shell .card-footer,
+.rd-card-footer {
+  padding: 0.75rem 1rem;
+  background: color-mix(in srgb, var(--bs-tertiary-bg) 22%, var(--bs-secondary-bg));
+  border-top: 1px solid var(--bs-border-color);
+  border-radius: 0 0 var(--rd-radius-md) var(--rd-radius-md);
+}
+
+.app-shell .rd-card.overflow-hidden > .table-responsive:not(.rd-table-wrap),
+.app-shell .card.overflow-hidden > .table-responsive:not(.rd-table-wrap) {
+  border-top: 1px solid var(--bs-border-color);
+}
+
+.app-shell .rd-card > .table-responsive:not(.rd-table-wrap) .table,
+.app-shell .card > .table-responsive:not(.rd-table-wrap) .table {
+  margin-bottom: 0;
+}
+
+.app-shell .rd-card > .table-responsive:not(.rd-table-wrap) .table thead th,
+.app-shell .card > .table-responsive:not(.rd-table-wrap) .table thead th {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--bs-secondary-color);
+  background: color-mix(in srgb, var(--bs-secondary-bg) 92%, var(--bs-tertiary-bg));
+  border-bottom: 1px solid var(--bs-border-color);
+  white-space: nowrap;
+}
+
+/* Empty state */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  /* Light by design: no grey well. The standalone variant is only a dashed
+     hairline; inside a card it has no box at all (rule below). */
+  border: 1px dashed var(--bs-border-color);
+  border-radius: var(--rd-radius-lg);
+  padding: 1rem;
+  text-align: center;
+  color: var(--rd-muted);
+  background: transparent;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.rd-card .empty-state,
+.rd-card-body .empty-state {
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+}
+
+.empty-state > * {
+  margin: 0;
+}
+
+.empty-state__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  margin-block-end: 0.15rem;
+  border-radius: 50%;
+  background: var(--rd-surface-2);
+  color: var(--rd-muted);
+}
+
+.empty-state__title {
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: var(--rd-muted);
+}
+
+.empty-state__text {
+  max-width: 28rem;
+  font-size: 0.85rem;
+  color: var(--rd-muted);
+}
+
+.empty-state__action {
+  margin-block-start: 0.65rem;
+}
+
+/* Reconcile — Layan + Sky matching pages (templates/companies/*_reconcile.html, static/js/reconcile.js). */
+.rd-rec [hidden] {
+  display: none !important;
+}
+
+.rd-rec-run {
+  padding: 1.15rem 1.25rem;
+  margin-block-end: 1.25rem;
+}
+
+.rd-rec-run__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem 1.25rem;
+  align-items: start;
+}
+
+@media (min-width: 768px) {
+  .rd-rec-run__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.rd-rec-run__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+  margin-block-start: 1.15rem;
+}
+
+.rd-rec-run__actions .btn {
+  min-width: 9.25rem;
+}
+
+@media (max-width: 575.98px) {
+  .rd-rec-run__actions .btn {
+    width: 100%;
+  }
+}
+
+/* Shown only while nav.js marks the form data-rd-submitting (a boosted submit). */
+.rd-rec-running {
+  display: none;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.6rem;
+  color: var(--rd-ink);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.rd-rec-run__form[data-rd-submitting] .rd-rec-running {
+  display: flex;
+}
+
+.rd-rec-running__hint {
+  color: var(--rd-muted);
+  font-weight: 400;
+}
+
+.rd-rec-waiting {
+  padding: 1.25rem;
+  border-style: dashed;
+  box-shadow: none;
+}
+
+.rd-rec-waiting__lead {
+  max-width: 38rem;
+  margin: 0 0 1.1rem;
+  color: var(--rd-muted);
+}
+
+.rd-rec-steps {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 768px) {
+  .rd-rec-steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+  }
+}
+
+.rd-rec-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+  padding: 0.9rem 1rem;
+  border-radius: var(--rd-radius-md);
+  background: var(--rd-surface-2);
+}
+
+.rd-rec-step__num {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 50%;
+  background: var(--rd-surface);
+  color: var(--rd-ink);
+  font-family: var(--rd-font-num);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.rd-rec-step__text {
+  margin-block-start: 0.15rem;
+  color: var(--rd-muted);
+  font-size: 0.85rem;
+}
+
+.rd-rec-meta {
+  margin: 0 0 0.85rem;
+  color: var(--rd-muted);
+  font-size: 0.88rem;
+}
+
+.rd-rec-period__arrow {
+  display: inline-block;
+}
+
+[dir="rtl"] .rd-rec-period__arrow {
+  transform: scaleX(-1);
+}
+
+/* Summary: four quiet stats; the two action lists below are the page's hero. */
+.rd-rec-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-block-end: 1rem;
+}
+
+@media (min-width: 992px) {
+  .rd-rec-summary {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.rd-rec .rd-stat .rd-label {
+  font-size: 0.82rem;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--rd-muted);
+}
+
+.rd-rec-stat .rd-stat-value {
+  font-size: clamp(1.3rem, 2.4vw, 1.65rem);
+}
+
+.rd-rec-stat--danger .rd-stat-value {
+  color: var(--rd-danger);
+}
+
+.rd-rec-stat__sub {
+  color: var(--rd-muted);
+  font-size: 0.85rem;
+}
+
+.rd-rec-search {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.85rem 1.25rem 1rem;
+  margin-block-end: 1rem;
+}
+
+.rd-rec-search__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.2rem 1rem;
+}
+
+.rd-rec-search__row .form-label {
+  color: var(--rd-ink);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.rd-rec-search__count {
+  min-height: 1.2em;
+  margin: 0;
+  color: var(--rd-muted);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 991.98px) {
+  .rd-rec-search .form-control {
+    min-height: 3.45rem;
+  }
+}
+
+.rd-rec-nomatch {
+  margin-block-end: 1rem;
+  padding: 1.5rem 1rem;
+  border: 1px dashed var(--bs-border-color);
+  border-radius: var(--rd-radius-lg);
+  color: var(--rd-muted);
+  text-align: center;
+}
+
+/* The two action lists: equal weight, side by side from 992px. */
+.rd-rec-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+  margin-block-end: 1.75rem;
+}
+
+@media (min-width: 992px) {
+  .rd-rec-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.rd-rec-section,
+.rd-rec-block {
+  overflow: hidden;
+}
+
+.rd-rec-block + .rd-rec-block {
+  margin-block-start: 1rem;
+}
+
+.rd-rec-section--missing {
+  box-shadow: var(--rd-shadow-card), inset 0 3px 0 var(--rd-danger);
+}
+
+.rd-rec-section--extra {
+  box-shadow: var(--rd-shadow-card), inset 0 3px 0 var(--rd-warning);
+}
+
+.rd-rec-section__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 1rem 1.25rem 0.85rem;
+  border-block-end: 1px solid var(--bs-border-color);
+}
+
+.rd-rec-section__titles {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.rd-rec-section__title {
+  margin: 0;
+  color: var(--rd-ink);
+  font-family: var(--rd-font-heading);
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.rd-rec-section__hint {
+  margin: 0.2rem 0 0;
+  color: var(--rd-muted);
+  font-size: 0.85rem;
+}
+
+.rd-rec-section__sum {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+
+.rd-rec-section__count {
+  min-width: 1.6rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--rd-surface-2);
+  color: var(--rd-ink);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.rd-rec-total {
+  color: var(--rd-ink);
+  font-family: var(--rd-font-num);
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.rd-rec-total-label {
+  color: var(--rd-muted);
+  font-size: 0.85rem;
+}
+
+.rd-rec-subhead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0;
+  padding: 0.55rem 1.25rem;
+  border-block: 1px solid var(--bs-border-color);
+  background: var(--rd-surface-2);
+  color: var(--rd-ink);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.rd-rec-section__head + [data-rd-rec-group] > .rd-rec-subhead,
+.rd-rec-section__head + .rd-rec-rows {
+  border-block-start: 0;
+}
+
+.rd-rec-none {
+  margin: 0;
+  padding: 1.1rem 1.25rem;
+  color: var(--rd-muted);
+  font-size: 0.9rem;
+}
+
+/* Rows: a stacked card below ~40rem of list width, one aligned line above it. */
+.rd-rec-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  container-type: inline-size;
+}
+
+.rd-rec-row {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.95rem 1.25rem;
+  border-block-start: 1px solid var(--bs-border-color);
+  border-inline-start: 3px solid transparent;
+}
+
+.rd-rec-rows > .rd-rec-row:first-child {
+  border-block-start: 0;
+}
+
+.rd-rec-row--missing,
+.rd-rec-row--higher {
+  border-inline-start-color: var(--rd-danger);
+}
+
+.rd-rec-row--extra {
+  border-inline-start-color: var(--rd-warning);
+}
+
+.rd-rec-row--lower {
+  border-inline-start-color: var(--rd-muted);
+}
+
+.rd-rec-row__id {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  min-width: 0;
+}
+
+.rd-rec-phone {
+  color: var(--rd-ink);
+  font-family: var(--rd-font-num);
+  font-size: 1.02rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.rd-rec-reason {
+  margin: 0;
+  color: var(--rd-ink);
+  font-size: 0.88rem;
+}
+
+.rd-rec-amounts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--rd-radius-sm);
+  background: var(--rd-surface-2);
+}
+
+.rd-rec-amount dt {
+  margin: 0;
+  color: var(--rd-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.rd-rec-amount dd {
+  margin: 0;
+  color: var(--rd-ink);
+  font-family: var(--rd-font-num);
+  font-weight: 700;
+}
+
+.rd-rec-amount--higher dd:not(.rd-rec-gapword) {
+  color: var(--rd-danger);
+}
+
+.rd-rec-amount dd.rd-rec-gapword {
+  color: var(--rd-muted);
+  font-family: var(--rd-font);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.rd-rec-row__act .btn {
+  width: 100%;
+  white-space: nowrap;
+}
+
+@container (min-width: 40rem) {
+  .rd-rec-row {
+    grid-template-columns: minmax(8.5rem, 10.5rem) minmax(0, 1fr) auto auto;
+    align-items: start;
+    column-gap: 1.1rem;
+  }
+
+  .rd-rec-amounts {
+    grid-template-columns: repeat(3, 5.75rem);
+  }
+
+  .rd-rec-row__act .btn {
+    width: auto;
+  }
+}
+
+.rd-rec-compare {
+  margin-block-start: 0.35rem;
+}
+
+.rd-rec-compare > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  color: var(--rd-ink);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--rd-faint);
+  text-underline-offset: 0.25em;
+}
+
+.rd-rec-compare > summary:focus-visible {
+  outline: 2px solid var(--rd-ink);
+  outline-offset: 2px;
+  border-radius: 0.25rem;
+}
+
+@media (max-width: 991.98px) {
+  .rd-rec-compare > summary {
+    min-height: 3.45rem;
+  }
+}
+
+.rd-rec-compare__grid {
+  display: grid;
+  gap: 0.85rem 1.5rem;
+  margin-block-start: 0.4rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@container (min-width: 58rem) {
+  .rd-rec-compare__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.rd-rec-compare__title,
+.rd-rec-breakdown__title {
+  margin: 0 0 0.35rem;
+  color: var(--rd-ink);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.rd-rec-lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+}
+
+.rd-rec-lines > li + li {
+  margin-block-start: 0.4rem;
+}
+
+.rd-rec-amt {
+  font-family: var(--rd-font-num);
+  font-weight: 700;
+}
+
+.rd-rec-pos {
+  color: var(--rd-success);
+}
+
+.rd-rec-neg {
+  color: var(--rd-danger);
+}
+
+.rd-rec-ink {
+  color: var(--rd-ink);
+}
+
+.rd-rec-when,
+.rd-rec-what {
+  color: var(--rd-muted);
+  font-size: 0.82rem;
+}
+
+.rd-rec-breakdown {
+  margin-block-start: 0.6rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--rd-radius-sm);
+  background: var(--rd-surface-2);
+  font-size: 0.85rem;
+}
+
+.rd-rec-breakdown__block {
+  margin-block-end: 0.6rem;
+}
+
+.rd-rec-breakdown__label {
+  color: var(--rd-ink);
+  font-weight: 600;
+}
+
+.rd-rec-breakdown__label--warn {
+  color: var(--rd-warning-ink);
+}
+
+.rd-rec-breakdown__net {
+  color: var(--rd-ink);
+}
+
+/* Tabs below the lists: cost differences, settlements, matched. */
+.rd-rec-detail {
+  margin-block-start: 0.25rem;
+}
+
+.rd-rec .rd-section-tabs {
+  margin-block-end: 1rem;
+}
+
+.rd-rec .rd-section-tabs .nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.rd-rec .rd-section-tabs .nav-link[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (max-width: 991.98px) {
+  .rd-rec .rd-section-tabs .nav-link {
+    min-height: 3.45rem;
+  }
+}
+
+.rd-rec-note {
+  max-width: 46rem;
+  margin: 0 0 0.85rem;
+  color: var(--rd-muted);
+  font-size: 0.88rem;
+}
+
+.rd-rec-balance {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.5rem;
+  margin: 1.5rem 0 0;
+  color: var(--rd-muted);
+  font-size: 0.88rem;
+}
+
+.rd-rec-balance__title {
+  color: var(--rd-ink);
+  font-weight: 600;
+}
+
+.rd-rec-balance strong {
+  color: var(--rd-ink);
+}
+
+/* Sticky save — employee */
+.sticky-save {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--rd-z-sticky);
+  margin-top: 0.5rem;
+  padding: 0.65rem 0 calc(0.65rem + env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, transparent 0%, var(--bs-body-bg) 35%, var(--bs-body-bg) 100%);
+}
+
+/* List group inside cards — management */
+.rd-list-flush .list-group-item {
+  border-color: var(--bs-border-color);
+}
+
+.rd-list-flush .list-group-item-action:hover {
+  background: var(--rd-surface-2);
+}
+
+/* -------------------------------------------------------------------------- */
+/* KPI & numeric semantics                                                    */
+/* -------------------------------------------------------------------------- */
+.kpi-success {
+  color: var(--rd-success);
+}
+
+.kpi-warning {
+  color: var(--rd-warning);
+}
+
+.kpi-danger {
+  color: var(--rd-danger);
+}
+
+.kpi-info {
+  color: var(--rd-info);
+}
+
+.kpi-muted {
+  color: var(--bs-secondary-color);
+}
+
+.kpi-expense {
+  color: color-mix(in srgb, var(--rd-danger) 72%, var(--bs-body-color));
+}
+
+.rd-stat-icon--success {
+  color: var(--rd-success);
+  background: var(--rd-success-soft);
+}
+
+.rd-stat-icon--warning {
+  color: var(--rd-warning);
+  background: var(--rd-warning-soft);
+}
+
+.rd-stat-icon--danger {
+  color: var(--rd-danger);
+  background: var(--rd-danger-soft);
+}
+
+.rd-stat-icon--info {
+  color: var(--rd-info);
+  background: var(--rd-info-soft);
+}
+
+.rd-stat-icon--muted {
+  color: var(--bs-secondary-color);
+  background: color-mix(in srgb, var(--bs-tertiary-bg) 85%, var(--bs-secondary-bg));
+}
+
+/* Default hero icon chip (employee balance). The dashboard sales card
+   overrides this below to identity blue. Glyph stays text-safe on its tint. */
+.rd-stat.rd-stat--hero .rd-stat-icon {
+  background: var(--rd-accent-soft);
+  color: var(--rd-accent-ink);
+}
+
+.rd-dashboard-section--today .rd-stat--hero .rd-stat-icon {
+  background: color-mix(in srgb, var(--rd-tone-1) 14%, transparent);
+  color: var(--rd-tone-1);
+}
+
+/* Employee balance hero ("my balance"): the one inverted card (ink in light,
+   pearl in dark). Scoped so it does not leak to the dashboard hero. */
+.rd-balance-stats .rd-stat--hero {
+  background: var(--rd-primary-bg);
+  border-color: var(--rd-primary-bg);
+  color: var(--rd-primary-fg);
+  box-shadow: var(--rd-shadow-sm);
+}
+
+.rd-balance-stats .rd-stat--hero .rd-stat-value,
+.rd-balance-stats .rd-stat--hero .kpi-info {
+  color: var(--rd-primary-fg);
+}
+
+.rd-balance-stats .rd-stat--hero .rd-label {
+  color: color-mix(in srgb, var(--rd-primary-fg) 66%, transparent);
+}
+
+/* Dashboard KPI card: head row (icon chip + trend chip), label, figure
+   (value + sparkline), then a hairline meta row or a footnote. Heights are
+   equal per row because the column stretches the card and the body fills it. */
+.rd-dashboard-kpi-row > .col {
+  min-width: 0;
+}
+
+.rd-dashboard-kpi-row .rd-stat {
+  display: flex;
+  flex-direction: column;
+}
+
+.rd-stat .rd-stat-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0.65rem 0.85rem;
+}
+
+.rd-stat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 2rem;
+  margin-bottom: 0.4rem;
+}
+
+.rd-stat-head .rd-stat-icon {
+  width: 2rem;
+  height: 2rem;
+  margin-bottom: 0;
+}
+
+.rd-stat-head .rd-stat-icon svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.rd-stat-body .rd-label {
+  margin-bottom: 0.2rem;
+}
+
+/* One row, fixed minimum height: a sparkline appearing beside the value never
+   changes the card (or its row) height. */
+.rd-stat-figure {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+  min-height: 1.75rem;
+  margin-bottom: 0.45rem;
+}
+
+.rd-stat-figure .rd-stat-value {
+  font-size: clamp(1.15rem, 2.1vw, 1.42rem);
+  line-height: 1.05;
+}
+
+/* Pushes the foot (meta / footnote) to the card bottom when a sibling card in
+   the row is taller; the gap only ever appears under the value. */
+.rd-stat-body .rd-stat-meta,
+.rd-stat-body .rd-stat-footnote {
+  margin-top: auto;
+}
+
+.rd-stat-body .rd-stat-meta {
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--bs-border-color-translucent, var(--bs-border-color));
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.rd-stat-body .rd-stat-footnote {
+  padding-top: 0.35rem;
+  font-size: 0.7rem;
+  line-height: 1.3;
+  color: var(--bs-secondary-color);
+}
+
+/* Sparkline: fills the space beside the value (same row, so the card keeps
+   its height); preserveAspectRatio="none" stretches the polyline and the
+   non-scaling 2 px stroke keeps its weight. Mirrored in RTL so the newest
+   bucket sits where the bar chart puts it. */
+.rd-spark {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 1.5rem;
+  overflow: visible;
+  stroke: var(--rd-ink);
+  stroke-width: 2;
+}
+
+[dir="rtl"] .rd-spark {
+  transform: scaleX(-1);
+}
+
+.rd-spark--accent {
+  stroke: var(--rd-accent);
+}
+
+.rd-dashboard-section--today .rd-spark--accent {
+  stroke: var(--rd-tone-1);
+}
+
+.rd-trend--flat {
+  background: var(--rd-surface-2);
+  color: var(--rd-muted);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Data tables — shell, density, zebra, sticky header                        */
+/* -------------------------------------------------------------------------- */
+.rd-data-shell {
+  max-height: min(70vh, 42rem);
+  overflow: auto;
+  border-radius: 0;
+  -webkit-overflow-scrolling: touch;
+}
+
+.rd-table-modern {
+  --rd-table-row-pad-y: 0.72rem;
+  --rd-table-row-pad-x: 0.85rem;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.rd-table-modern thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--rd-muted);
+  background: var(--rd-surface);
+  border-bottom: 1px solid var(--bs-border-color);
+  box-shadow: 0 1px 0 var(--bs-border-color);
+  padding: 0.7rem var(--rd-table-row-pad-x);
+  white-space: nowrap;
+}
+
+/* Row selection. The header checkbox is this page only. Actions replace the
+   header labels (they are out of flow) so the table does not move. When the
+   page is fully checked and more filtered rows exist, the bar offers
+   "select all results". See DESIGN.md. */
+.rd-select {
+  position: relative;
+}
+
+.rd-select-check {
+  width: 2.4rem;
+  text-align: center;
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 3;
+  background: var(--rd-surface);
+}
+
+.rd-select-check input,
+.rd-select-mobile-all input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--rd-accent);
+}
+
+.rd-select-mobile-all {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  margin: 0 0 0.35rem;
+  color: var(--rd-muted);
+  font-size: 0.85rem;
+}
+
+.rd-select-slot {
+  display: none;
+  position: absolute;
+  z-index: 6;
+  top: var(--rd-select-top, 0px);
+  height: var(--rd-select-head, 0px);
+  inset-inline-start: var(--rd-select-check, 2.4rem);
+  inset-inline-end: 0;
+  pointer-events: none;
+}
+
+.rd-select.is-selecting .rd-select-slot {
+  display: block;
+  pointer-events: auto;
+}
+
+/* The lines table scrolls inside .rd-data-shell, so an absolute bar tied to
+   the thead scrolls out of view. Stick the bar to the shell's visible top and
+   pull the table back up so the header does not shift. */
+@media (min-width: 768px) {
+  .rd-data-shell > .rd-select-slot {
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    margin-bottom: calc(-1 * var(--rd-select-head, 0px));
+  }
+}
+
+.rd-select-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 100%;
+  margin: 0;
+  padding: 0 0.75rem;
+  background: var(--rd-surface);
+  border-bottom: 1px solid var(--bs-border-color);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.rd-select.is-selecting thead th:not(.rd-select-check) {
+  color: transparent;
+}
+
+.rd-select.is-selecting thead th:not(.rd-select-check) a {
+  visibility: hidden;
+}
+
+.rd-select-bar__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--rd-muted);
+}
+
+.rd-select-bar__count {
+  font-weight: 700;
+  color: var(--rd-ink);
+}
+
+.rd-select-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-inline-start: auto;
+  flex: 0 0 auto;
+}
+
+.rd-select-bar__match {
+  padding: 0;
+  font-size: inherit;
+  white-space: nowrap;
+}
+
+.rd-select [data-rd-select-item].is-selected {
+  background: var(--rd-accent-soft);
+}
+
+@media (max-width: 767.98px) {
+  .rd-select.is-selecting .rd-select-slot {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    inset-inline: 0;
+    height: auto;
+    z-index: 40;
+  }
+
+  .rd-select.is-selecting .rd-select-bar {
+    height: auto;
+    padding: 0.55rem 0.75rem;
+    border-bottom: 0;
+    border-top: 1px solid var(--bs-border-color);
+    box-shadow: var(--rd-shadow-md);
+  }
+}
+
+.rd-table-modern tbody td {
+  padding: var(--rd-table-row-pad-y) var(--rd-table-row-pad-x);
+  border-bottom: 1px solid var(--bs-border-color);
+  vertical-align: middle;
+}
+
+.rd-table-modern tbody tr:last-child > td {
+  border-bottom: 0;
+}
+
+.rd-table-modern tbody tr:hover {
+  background: var(--rd-surface-2);
+}
+
+.rd-table-modern .tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pair with `.text-truncate` on a table cell to clamp a long value (e.g. a
+   payer name) to a sensible column width instead of an inline `max-width`. */
+.rd-truncate-10rem {
+  max-width: 12rem;
+}
+
+tr.rd-row-pending {
+  box-shadow: inset 0.1875rem 0 0 0 var(--rd-warning);
+}
+
+.rd-mobile-row-card.is-pending {
+  box-shadow: inset 0.1875rem 0 0 0 var(--rd-warning);
+}
+
+/* Smooth fade-out for in-place htmx removals (Mark paid / Delete). */
+.rd-pending-group.htmx-swapping {
+  opacity: 0;
+  transition: opacity 200ms ease-out;
+}
+
+/* Collapsible filter cards — uses native <details>, zero JS for the toggle. */
+.rd-filter-card > summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  padding: 0.625rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-weight: 600;
+  color: var(--rd-ink);
+  border-radius: var(--rd-radius-lg);
+}
+.rd-filter-card > summary::-webkit-details-marker {
+  display: none;
+}
+.rd-filter-card > summary::marker {
+  content: "";
+}
+.rd-filter-card > summary:hover {
+  background: var(--rd-surface-2);
+}
+.rd-filter-card > summary:focus-visible {
+  outline: 2px solid var(--rd-ink);
+  outline-offset: 2px;
+}
+.rd-filter-summary-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.rd-filter-chevron {
+  flex-shrink: 0;
+  transition: transform 200ms ease;
+  color: var(--rd-muted);
+}
+.rd-filter-card[open] .rd-filter-chevron {
+  transform: rotate(180deg);
+}
+.rd-filter-card[open] > summary {
+  border-bottom: 1px solid var(--bs-border-color);
+  border-radius: var(--rd-radius-lg) var(--rd-radius-lg) 0 0;
+}
+.rd-filter-active-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 999px;
+  font-family: var(--rd-font-num);
+  background: var(--rd-primary-bg);
+  color: var(--rd-primary-fg);
+  line-height: 1;
+}
+
+.rd-row-high-value {
+  background: color-mix(in srgb, var(--rd-success-soft) 40%, transparent) !important;
+}
+
+.rd-sort-link {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px dashed color-mix(in srgb, var(--bs-secondary-color) 45%, transparent);
+}
+
+.rd-sort-link:hover {
+  color: var(--bs-link-color);
+  border-bottom-color: var(--bs-link-color);
+}
+
+.rd-sort-link.is-active {
+  font-weight: 700;
+  border-bottom-style: solid;
+  border-bottom-color: var(--bs-link-color);
+}
+
+.rd-table-dual {
+  margin-bottom: 0;
+}
+
+.rd-mobile-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.rd-mobile-row-card {
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--rd-radius-lg);
+  padding: 0.8rem 0.9rem;
+  background: var(--rd-surface);
+  box-shadow: var(--rd-shadow-card);
+}
+
+.rd-stock-check-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.rd-stock-check-lines__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.35rem 0.45rem;
+  border-radius: var(--rd-radius-sm);
+  background: color-mix(in srgb, var(--bs-body-bg) 70%, transparent);
+}
+
+.rd-stock-check-lines__name {
+  min-width: 0;
+  font-size: 0.86rem;
+  color: var(--bs-body-color);
+}
+
+.rd-stock-check-lines__qty {
+  flex-shrink: 0;
+  font-size: 0.95rem;
+}
+
+/* Inventory: customer SIM stock grouped cards */
+.rd-customer-stock-list {
+  gap: 0.65rem;
+}
+
+.rd-customer-stock-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.65rem;
+  padding-bottom: 0.55rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--bs-border-color) 85%, transparent);
+}
+
+.rd-customer-stock-card__total {
+  font-size: 1.1rem;
+  line-height: 1.2;
+  color: var(--bs-body-color);
+}
+
+.rd-customer-stock-card__line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  flex-wrap: nowrap;
+}
+
+.rd-customer-stock-card__line-main {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.rd-customer-stock-card__line-main .rd-stock-check-lines__name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.rd-customer-stock-card__line-main .rd-stock-check-lines__qty {
+  flex-shrink: 0;
+}
+
+.rd-customer-stock-card__actions {
+  flex-shrink: 0;
+}
+
+.rd-mobile-kv {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.rd-mobile-kv__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.rd-mobile-kv__row .rd-mobile-k {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--bs-secondary-color);
+}
+
+.rd-mobile-kv__row .rd-mobile-v {
+  min-width: 0;
+  text-align: end;
+  font-weight: 600;
+}
+
+.rd-allocate-panel > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+}
+
+.rd-allocate-panel > summary::-webkit-details-marker {
+  display: none;
+}
+
+.rd-allocate-panel__summary-text {
+  min-width: 0;
+}
+
+.rd-allocate-panel__chevron {
+  flex-shrink: 0;
+  margin-top: 0.2rem;
+  color: var(--bs-secondary-color);
+  transition: transform 0.15s ease;
+}
+
+.rd-allocate-panel[open] > summary .rd-allocate-panel__chevron {
+  transform: rotate(180deg);
+}
+
+#rd-customer-stock-indicator .htmx-indicator {
+  display: none;
+}
+.htmx-request #rd-customer-stock-indicator .htmx-indicator,
+#rd-customer-stock-indicator.htmx-request .htmx-indicator {
+  display: inline;
+}
+
+#rd-stock-check-indicator .htmx-indicator {
+  display: none;
+}
+.htmx-request #rd-stock-check-indicator .htmx-indicator,
+#rd-stock-check-indicator.htmx-request .htmx-indicator {
+  display: inline;
+}
+
+/* Product lines — grouped by company, collapsible packages */
+.rd-product-lines {
+  display: flex;
+  flex-direction: column;
+}
+
+.rd-product-company {
+  border-bottom: 1px solid var(--bs-border-color);
+}
+
+.rd-product-company:last-child {
+  border-bottom: 0;
+}
+
+.rd-product-company__summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 0.85rem;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  background: color-mix(in srgb, var(--bs-tertiary-bg) 55%, var(--bs-secondary-bg));
+}
+
+.rd-product-company__summary::-webkit-details-marker {
+  display: none;
+}
+
+.rd-product-company__summary::marker {
+  content: "";
+}
+
+.rd-product-company__chevron {
+  display: inline-flex;
+  color: var(--bs-secondary-color);
+  transition: transform 160ms ease;
+  flex-shrink: 0;
+}
+
+.rd-product-company[open] > .rd-product-company__summary .rd-product-company__chevron {
+  transform: rotate(180deg);
+}
+
+.rd-product-company__name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  min-width: 0;
+}
+
+.rd-product-company__summary .rd-badge {
+  margin-inline-start: auto;
+}
+
+.rd-product-company__body {
+  border-top: 1px solid var(--bs-border-color);
+}
+
+.rd-product-line {
+  border-bottom: 1px solid color-mix(in srgb, var(--bs-border-color) 70%, transparent);
+}
+
+.rd-product-company__body .rd-product-line:last-child {
+  border-bottom: 0;
+}
+
+.rd-product-line__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.65rem;
+  padding: 0.45rem 0.75rem 0.45rem 1rem;
+}
+
+.rd-product-line__details {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.rd-product-line__summary {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.4rem 0.55rem;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  min-width: 0;
+}
+
+.rd-product-line__summary::-webkit-details-marker {
+  display: none;
+}
+
+.rd-product-line__summary::marker {
+  content: "";
+}
+
+.rd-product-line__chevron {
+  display: inline-flex;
+  color: var(--bs-secondary-color);
+  transition: transform 160ms ease;
+  flex-shrink: 0;
+}
+
+.rd-product-line__details[open] > .rd-product-line__summary .rd-product-line__chevron {
+  transform: rotate(180deg);
+}
+
+.rd-product-line__name {
+  font-weight: 650;
+  line-height: 1.25;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rd-product-line__count {
+  flex-shrink: 0;
+  margin-inline-start: auto;
+}
+
+.rd-product-line__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.rd-product-line__packages {
+  margin: 0.35rem 0.75rem 0.55rem 1rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--rd-radius-md);
+  background: color-mix(in srgb, var(--bs-tertiary-bg) 40%, var(--bs-secondary-bg));
+  overflow: hidden;
+}
+
+.rd-product-line__table thead th {
+  position: static;
+  box-shadow: none;
+}
+
+.rd-product-line__mobile-packages {
+  padding: 0.4rem;
+  gap: 0.35rem;
+}
+
+.rd-product-pkg-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--rd-radius-sm, 0.4rem);
+  background: var(--bs-secondary-bg);
+}
+
+.rd-product-pkg-row__main {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.rd-product-pkg-row__prices {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.rd-product-pkg-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+@media (max-width: 767.98px) {
+  .rd-product-company__summary {
+    padding: 0.55rem 0.7rem;
+  }
+
+  .rd-product-line__bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.3rem;
+    padding: 0.4rem 0.65rem 0.45rem 0.75rem;
+  }
+
+  .rd-product-line__details {
+    flex: 0 1 auto;
+  }
+
+  .rd-product-line__packages {
+    margin: 0.3rem 0.5rem 0.4rem 0.75rem;
+  }
+
+  .rd-product-line__actions {
+    padding-top: 0;
+  }
+
+  .rd-product-line__actions .btn {
+    padding: 0.2rem 0.45rem;
+    font-size: 0.75rem;
+  }
+}
+
+.rd-mobile-row-card .rd-mobile-k {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--bs-secondary-color);
+}
+
+.rd-mobile-row-card .rd-mobile-v {
+  font-weight: 600;
+}
+
+/* Equal-width primary/secondary actions on narrow cards (approve + reject). */
+.rd-mobile-action-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.rd-mobile-action-pair > form {
+  min-width: 0;
+}
+
+.rd-copy-ref {
+  cursor: pointer;
+}
+
+/* Filter bar above tables */
+.rd-filter-bar {
+  border-bottom: 1px solid var(--bs-border-color);
+}
+
+[data-bs-theme="dark"] .rd-filter-bar {
+  border-color: var(--bs-border-color);
+}
+
+/* Pagination — borderless pages, active page is an ink pill */
+.pagination {
+  --bs-pagination-color: var(--rd-ink);
+  --bs-pagination-bg: transparent;
+  --bs-pagination-border-color: transparent;
+  --bs-pagination-hover-color: var(--rd-ink);
+  --bs-pagination-hover-bg: var(--rd-surface-2);
+  --bs-pagination-hover-border-color: transparent;
+  --bs-pagination-focus-color: var(--rd-ink);
+  --bs-pagination-focus-bg: var(--rd-surface-2);
+  --bs-pagination-focus-box-shadow: 0 0 0 0.25rem color-mix(in srgb, var(--rd-ink) 7%, transparent);
+  --bs-pagination-active-color: var(--rd-primary-fg);
+  --bs-pagination-active-bg: var(--rd-primary-bg);
+  --bs-pagination-active-border-color: var(--rd-primary-bg);
+  --bs-pagination-disabled-color: var(--rd-muted);
+  --bs-pagination-disabled-bg: transparent;
+  --bs-pagination-disabled-border-color: transparent;
+  gap: 0.25rem;
+}
+
+.pagination .page-item .page-link {
+  margin: 0;
+  min-width: 2.1em;
+  text-align: center;
+  border-radius: 999px;
+  font-family: var(--rd-font-num);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.rd-pagination {
+  background: var(--rd-surface);
+}
+
+/* -------------------------------------------------------------------------- */
+/* DataGrid shell — SaaS-style data regions                                   */
+/* -------------------------------------------------------------------------- */
+.rd-datagrid {
+  position: relative;
+}
+
+.rd-datagrid.is-loading {
+  pointer-events: none;
+  opacity: 0.62;
+  transition: opacity var(--rd-transition);
+}
+
+.rd-datagrid-toolbar {
+  background: var(--rd-surface);
+}
+
+.rd-datagrid-sort {
+  color: inherit;
+  text-decoration: none;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: var(--rd-radius-xs);
+  padding: 0.1rem 0.2rem;
+  margin: -0.1rem -0.2rem;
+}
+
+.rd-datagrid-sort:hover {
+  color: var(--rd-ink);
+  background: var(--rd-surface-2);
+}
+
+.rd-datagrid-sort.is-active {
+  color: var(--rd-ink);
+}
+
+.rd-datagrid-sort.is-asc::after {
+  content: "↑";
+  font-size: 0.65rem;
+  opacity: 0.85;
+}
+
+.rd-datagrid-sort.is-desc::after {
+  content: "↓";
+  font-size: 0.65rem;
+  opacity: 0.85;
+}
+
+.rd-datagrid-pagination__bar {
+  background: var(--rd-surface);
+}
+
+.rd-datagrid-pagination__pages .page-item.active .page-link {
+  background: var(--rd-primary-bg);
+  border-color: var(--rd-primary-bg);
+  color: var(--rd-primary-fg);
+}
+
+.rd-datagrid-per-page__link {
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  text-decoration: none;
+  color: var(--rd-muted);
+  font-family: var(--rd-font-num);
+  font-weight: 600;
+}
+
+.rd-datagrid-per-page__link:hover {
+  background: var(--rd-surface-2);
+  color: var(--rd-ink);
+}
+
+.rd-datagrid-per-page__link.is-active {
+  background: var(--rd-surface-2);
+  color: var(--rd-ink);
+}
+
+.rd-actions-details summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.rd-actions-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.rd-actions-details__panel {
+  min-width: 10rem;
+  /* position set via JS to fixed — escapes overflow:auto on .rd-data-shell */
+  box-shadow: var(--rd-shadow-md);
+}
+
+.rd-actions-details[open] summary {
+  box-shadow: 0 0 0 0.25rem color-mix(in srgb, var(--rd-ink) 7%, transparent);
+  border-radius: 0.75rem;
+}
+
+/* SIM inventory — receive form, table, dialogs, autocomplete */
+.rd-inventory-receive-form .form-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.rd-inventory-receive-form__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 0.75rem;
+  align-items: flex-end;
+}
+
+.rd-inventory-receive-form.row {
+  --bs-gutter-y: 0.75rem;
+}
+
+.rd-inventory-receive-form .form-text {
+  font-size: 0.72rem;
+}
+
+.rd-inv-field {
+  min-width: 0;
+}
+
+.rd-inv-field .form-control,
+.rd-inv-field .form-select,
+.rd-inv-field .rd-payer-ac-anchor,
+.rd-inv-field .rd-payer-field-wrap,
+.rd-inv-field .rd-inv-serials-paste {
+  width: 100%;
+  max-width: 100%;
+}
+
+.rd-inv-field--line {
+  flex: 0 0 auto;
+  width: min(100%, 10.5rem);
+}
+
+.rd-inv-field--customer {
+  flex: 0 0 auto;
+  width: min(100%, 12rem);
+}
+
+.rd-inv-field--qty {
+  flex: 0 0 auto;
+  width: min(100%, 4.75rem);
+}
+
+.rd-inv-field--notes {
+  flex: 1 1 8rem;
+  min-width: 7rem;
+  max-width: 14rem;
+}
+
+.rd-inv-field--serials {
+  flex: 0 0 auto;
+  width: min(100%, 7.5rem);
+}
+
+.rd-inv-serials-paste {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.rd-inv-serials-paste__trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  width: 100%;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rd-inv-serials-paste__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rd-inv-serials-paste__count {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+}
+
+.rd-inv-serials-paste.is-mismatch .rd-inv-serials-paste__trigger {
+  border-color: var(--bs-warning);
+  color: var(--bs-warning-text-emphasis, var(--bs-warning));
+}
+
+.rd-inv-dialog--serials-paste .rd-inv-dialog__panel {
+  width: min(100%, 28rem);
+}
+
+.rd-inv-serials-paste__area {
+  resize: vertical;
+  min-height: 10rem;
+}
+
+.rd-inv-serials-input {
+  resize: none;
+  min-height: calc(1.5em + 0.5rem + 2px);
+  field-sizing: content;
+}
+
+.rd-inv-field--submit {
+  flex: 0 0 auto;
+  width: min(100%, 5.5rem);
+}
+
+/* Mobile: stack allocate/receive/return fields full-bleed (must follow desktop widths). */
+@media (max-width: 767.98px) {
+  .rd-inventory-receive-form__row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+    align-items: stretch;
+  }
+
+  .rd-inv-field--line,
+  .rd-inv-field--customer,
+  .rd-inv-field--qty,
+  .rd-inv-field--notes,
+  .rd-inv-field--serials,
+  .rd-inv-field--submit {
+    flex: none;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .rd-inv-field--submit .btn {
+    width: 100%;
+  }
+
+  .rd-page-header .rd-heading-xl {
+    font-size: 1.25rem;
+  }
+
+  .rd-customer-stock-card__line {
+    flex-wrap: wrap;
+  }
+
+  .rd-customer-stock-card__line-main {
+    flex: 1 1 100%;
+    justify-content: space-between;
+  }
+
+  .rd-customer-stock-card__actions {
+    flex: 1 1 100%;
+  }
+
+  .rd-customer-stock-card__actions .btn {
+    width: 100%;
+  }
+}
+
+.rd-inventory-stock-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.rd-inventory-stock-table .rd-col-line {
+  width: 10.5rem;
+}
+
+.rd-inventory-stock-table .rd-col-customer {
+  width: 11rem;
+}
+
+.rd-inventory-stock-table .rd-col-qty {
+  width: 4.75rem;
+}
+
+.rd-inventory-stock-table .rd-col-value {
+  width: 6.5rem;
+}
+
+.rd-inventory-stock-table .rd-col-actions {
+  width: 6.25rem;
+}
+
+.rd-inventory-stock-table .rd-col-when {
+  width: 8.25rem;
+}
+
+.rd-inventory-stock-table .rd-col-serial {
+  width: 12rem;
+}
+
+.rd-inventory-stock-table .rd-col-type {
+  width: 9.5rem;
+}
+
+.rd-inventory-stock-table td.rd-inventory-stock-table__line,
+.rd-inventory-stock-table td.rd-inventory-stock-table__customer {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 0;
+}
+
+.rd-inventory-stock-table__qty {
+  white-space: nowrap;
+}
+
+.rd-inventory-stock-table__actions {
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.rd-data-shell--inventory-actions {
+  max-height: none;
+  overflow: visible;
+}
+
+/* Fixed popover for row actions (escapes table overflow) */
+.rd-inv-actions-popover {
+  position: fixed;
+  z-index: 1065;
+  min-width: 10.5rem;
+  max-width: 14rem;
+}
+
+.rd-inv-actions-popover[hidden] {
+  display: none !important;
+}
+
+.rd-inv-actions-popover__panel {
+  padding: 0.25rem;
+  background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--rd-radius-xs);
+  box-shadow: var(--rd-shadow-md);
+}
+
+.rd-inv-actions-popover__item {
+  display: block;
+  width: 100%;
+  padding: 0.45rem 0.65rem;
+  border: 0;
+  border-radius: var(--rd-radius-xs);
+  background: transparent;
+  color: var(--bs-body-color);
+  font-size: 0.8125rem;
+  text-align: start;
+  cursor: pointer;
+}
+
+.rd-inv-actions-popover__item:hover,
+.rd-inv-actions-popover__item:focus-visible {
+  background: var(--bs-tertiary-bg);
+  outline: none;
+}
+
+.rd-inv-actions-popover__item--danger {
+  color: var(--bs-danger);
+}
+
+.rd-inv-actions-popover form {
+  margin: 0;
+}
+
+.rd-inventory-row-actions {
+  max-width: 100%;
+}
+
+/* Inventory action dialog */
+.rd-inv-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 1085;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 1.25rem;
+  overflow-y: auto;
+}
+
+.rd-inv-dialog[hidden] {
+  display: none !important;
+}
+
+/* Bootstrap's `.d-grid`/`.d-flex` utilities carry `!important`, which beats
+ * the browser's default (non-important) `[hidden] { display: none }` rule.
+ * Without this, JS-toggled field groups inside the action dialog stay
+ * visually visible even when marked `hidden`, showing every field at once. */
+.rd-inv-dialog [hidden] {
+  display: none !important;
+}
+
+.rd-inv-dialog__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 0;
+}
+
+.rd-inv-dialog__panel {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 22rem);
+  margin-top: min(12vh, 4rem);
+  padding: 1rem;
+  opacity: 0;
+  transform: translateY(0.35rem);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.rd-inv-dialog.is-open .rd-inv-dialog__panel {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+body.rd-inv-dialog-open {
+  overflow: hidden;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Toasts (static/js/toast.js)                                                */
+/* -------------------------------------------------------------------------- */
+/* Stacked under the topbar on the inline-end side: top-left in Arabic,
+   top-right in English. The card follows the theme; status is the icon dot
+   and the draining timer. */
+.rd-toast-region {
+  position: fixed;
+  top: calc(4.35rem + env(safe-area-inset-top));
+  inset-inline-end: 1.1rem;
+  z-index: 1090;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: min(23.5rem, calc(100vw - 2rem));
+  pointer-events: none;
+}
+
+.rd-toast {
+  --rd-toast-tone: var(--rd-ink);
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
+  gap: 0.7rem;
+  padding: 0.7rem 0.65rem 0.85rem;
+  padding-inline-start: 0.75rem;
+  border-radius: 0.95rem;
+  border: 1px solid var(--bs-border-color);
+  background: var(--rd-surface);
+  box-shadow: var(--rd-shadow-lg);
+  color: var(--rd-ink);
+  overflow: hidden;
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateY(-0.6rem) scale(0.97);
+  transition:
+    opacity 0.22s ease,
+    transform 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.15);
+}
+
+.rd-toast.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+.rd-toast.is-leaving {
+  opacity: 0;
+  transform: translateY(-0.35rem) scale(0.97);
+  transition-duration: 0.2s;
+}
+
+.rd-toast--success { --rd-toast-tone: var(--rd-success); }
+.rd-toast--error { --rd-toast-tone: var(--rd-danger); }
+.rd-toast--warning { --rd-toast-tone: var(--rd-warning); }
+.rd-toast--info { --rd-toast-tone: var(--rd-ink); }
+
+.rd-toast__icon {
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  margin-top: 0.1rem;
+  border-radius: 999px;
+  color: var(--rd-surface);
+  background: var(--rd-toast-tone);
+}
+
+.rd-toast__icon svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.rd-toast__text {
+  margin: 0;
+  padding-top: 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.rd-toast__close {
+  display: grid;
+  place-items: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  margin-top: 0.05rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--rd-muted);
+  transition: background var(--rd-transition-fast), color var(--rd-transition-fast);
+}
+
+.rd-toast__close:hover,
+.rd-toast__close:focus-visible {
+  background: color-mix(in srgb, var(--rd-ink) 8%, transparent);
+  color: var(--rd-ink);
+  outline: none;
+}
+
+/* Draining countdown; its animationend dismisses the toast (toast.js).
+   Hovering or focusing the toast pauses it so long messages can be read. */
+.rd-toast__timer {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--rd-toast-tone);
+  opacity: 0.7;
+  transform-origin: left center;
+}
+
+[dir="rtl"] .rd-toast__timer {
+  transform-origin: right center;
+}
+
+.rd-toast.is-visible .rd-toast__timer {
+  animation: rd-toast-timer var(--rd-toast-duration, 4s) linear forwards;
+}
+
+.rd-toast:hover .rd-toast__timer,
+.rd-toast:focus-within .rd-toast__timer {
+  animation-play-state: paused;
+}
+
+@keyframes rd-toast-timer {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+@media (max-width: 575.98px) {
+  .rd-toast-region {
+    top: calc(3.9rem + env(safe-area-inset-top));
+    inset-inline: 0.75rem;
+    width: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rd-toast,
+  .rd-toast.is-leaving {
+    transform: none;
+  }
+}
+
+/* Confirm dialog (static/js/rd-confirm.js). Appended to <body>, above shells. */
+.rd-confirm {
+  width: min(100% - 2rem, 24rem);
+  margin: auto;
+  padding: 1.15rem 1.15rem 1rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--rd-radius-lg);
+  background: var(--rd-surface);
+  color: var(--rd-ink);
+  box-shadow: var(--rd-shadow-lg);
+}
+
+.rd-confirm::backdrop {
+  background: var(--rd-scrim);
+}
+
+.rd-confirm__icon {
+  display: grid;
+  place-items: center;
+  margin: 0.15rem auto 0.85rem;
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 999px;
+  color: var(--rd-danger);
+  background: var(--rd-danger-soft);
+}
+
+.rd-confirm__icon svg {
+  display: block;
+}
+
+.rd-confirm__text {
+  margin: 0;
+  color: var(--rd-ink);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.rd-confirm.is-error .rd-confirm__text {
+  text-align: center;
+  font-weight: 600;
+  font-size: 1.02rem;
+}
+
+.rd-confirm.is-loading .rd-confirm__icon {
+  color: var(--rd-ink);
+  background: color-mix(in srgb, var(--rd-ink) 8%, transparent);
+}
+
+.rd-confirm.is-loading .rd-confirm__text {
+  text-align: center;
+}
+
+.rd-confirm.is-loading .rd-confirm__actions {
+  display: none;
+}
+
+/* Charging wait: glass over the page, spinner and text only. No card.
+   Size and display apply only while the dialog is open. A closed dialog
+   that still has .is-loading must stay display:none, or it covers the
+   page and swallows every tap. */
+.rd-confirm.is-loading {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+}
+
+.rd-confirm[open].is-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.rd-confirm.is-loading::backdrop {
+  background: color-mix(in srgb, var(--rd-ink) 8%, transparent);
+  -webkit-backdrop-filter: blur(2px) saturate(1.2);
+  backdrop-filter: blur(2px) saturate(1.2);
+}
+
+.rd-confirm.is-loading .rd-confirm__icon {
+  width: 1.05rem;
+  height: 1.05rem;
+  margin: 0 0 0.45rem;
+  border-radius: 0;
+  background: transparent;
+}
+
+.rd-confirm.is-loading .rd-confirm__text {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.rd-confirm__spinner {
+  display: block;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 3px solid color-mix(in srgb, var(--rd-ink) 18%, transparent);
+  border-top-color: var(--rd-ink);
+  border-radius: 999px;
+  animation: rd-confirm-spin 0.7s linear infinite;
+}
+
+.rd-confirm.is-loading .rd-confirm__spinner {
+  width: 1.05rem;
+  height: 1.05rem;
+  border: 0;
+  background: conic-gradient(from 0deg, transparent 0 70%, var(--rd-ink) 92% 100%);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), black calc(100% - 1.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2px), black calc(100% - 1.5px));
+}
+
+@keyframes rd-confirm-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rd-confirm__spinner {
+    animation: none;
+    border-top-color: color-mix(in srgb, var(--rd-ink) 18%, transparent);
+    border-color: var(--rd-ink);
+  }
+
+  .rd-confirm.is-loading .rd-confirm__spinner {
+    border: 0;
+    opacity: 0.85;
+    background: conic-gradient(from 0deg, transparent 0 70%, var(--rd-ink) 92% 100%);
+  }
+}
+
+.rd-confirm__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-top: 1.1rem;
+}
+
+.rd-confirm__actions .btn {
+  min-height: 2.75rem;
+  padding-inline: 1rem;
+}
+
+.rd-confirm.is-notice .rd-confirm__actions {
+  grid-template-columns: 1fr;
+}
+
+body.rd-confirm-open {
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rd-confirm__panel {
+    transform: none;
+    transition: none;
+  }
+}
+
+/* Boosted navigation progress (static/js/nav.js). Lives on <html> so body
+   swaps never remove it. The bar grows with transform only: 0 -> 80% over
+   2.5s while loading (.is-active), then runs to 100% and fades (.is-done).
+   Idle state is scaleX(0) with no transitions so a new run always restarts
+   from zero. */
+.rd-nav-progress {
+  position: fixed;
+  inset-inline: 0;
+  top: 0;
+  z-index: 1100;
+  height: 2px;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.rd-nav-progress::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--rd-accent);
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+[dir="rtl"] .rd-nav-progress::before {
+  transform-origin: right center;
+}
+
+.rd-nav-progress.is-active {
+  opacity: 1;
+  transition: opacity 0.15s ease;
+}
+
+.rd-nav-progress.is-active::before {
+  transform: scaleX(0.8);
+  transition: transform 2.5s cubic-bezier(0.1, 0.7, 0.3, 1);
+}
+
+.rd-nav-progress.is-done {
+  opacity: 0;
+  transition: opacity 0.3s ease 0.15s;
+}
+
+.rd-nav-progress.is-done::before {
+  transform: scaleX(1);
+  transition: transform 0.2s ease-out;
+}
+
+/* Content of the swapped region while the next page loads. */
+[data-rd-live].is-live-loading {
+  opacity: 0.55;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+
+/* -------------------------------------------------------------------------- */
+/* iOS auto-zoom prevention on input focus                                    */
+/* -------------------------------------------------------------------------- */
+/*
+ * iOS Safari/WebKit zooms the viewport whenever a focused form control has a
+ * computed font-size below 16px. Because the root font-size here is scaled to
+ * 80% (~12.8px), every Bootstrap input falls under that threshold and triggers
+ * the zoom on every focus, which never reverts on blur. Force form controls to
+ * at least 16px on small screens so iOS leaves the viewport alone, while
+ * keeping the compact desktop sizing untouched. `pinch-to-zoom` stays enabled.
+ *
+ * `!important` is used because Bootstrap's `.input-group-sm > .form-control`
+ * and `.form-control-sm` selectors otherwise outrank a plain `.form-control`
+ * rule by specificity / load order, leaving the inputs at ~11px.
+ */
+@media (max-width: 768px) {
+  .form-control,
+  .form-control-sm,
+  .form-select,
+  .form-select-sm,
+  .input-group-sm > .form-control,
+  .input-group-sm > .form-select,
+  .input-group-sm > .input-group-text,
+  .input-group > .form-control,
+  .input-group > .form-select,
+  input[type="text"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  input[type="url"],
+  input[type="date"],
+  input[type="datetime-local"],
+  input[type="time"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Avatar + topbar profile menu                                               */
+/* -------------------------------------------------------------------------- */
+/* The avatar component is shared between the topbar trigger, the dropdown
+ * header, and the standalone settings page. Sizes follow a small/md/lg
+ * scale so the same markup works in every context. */
+.rd-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--rd-primary-bg);
+  color: var(--rd-primary-fg);
+  font-weight: 700;
+  font-size: 0.78rem;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+
+.rd-avatar img {
+  width: 100%;
+  height: 100%;
+  /* Flex item: without min/max an uploaded photo's intrinsic size wins. */
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+}
+
+.rd-avatar-sm { width: 2rem;   height: 2rem;   font-size: 0.78rem; }
+.rd-avatar-md { width: 2.6rem; height: 2.6rem; font-size: 0.95rem; }
+.rd-avatar-lg { width: 4rem;   height: 4rem;   font-size: 1.4rem;  }
+
+/* Trigger: a clean pill with avatar + name + caret. <details>/<summary>
+ * gives us a native click toggle, keyboard support and aria-expanded for
+ * free without pulling in Bootstrap's dropdown JS. */
+.rd-user-menu {
+  position: relative;
+}
+
+.rd-user-menu > summary {
+  list-style: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.375rem;
+  padding-block: 0.15rem;
+  padding-inline: 0.15rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--bs-border-color);
+  background: var(--rd-surface);
+  color: var(--rd-ink);
+  transition: background var(--rd-transition-fast), border-color var(--rd-transition-fast);
+  user-select: none;
+}
+
+.rd-user-menu > summary::-webkit-details-marker { display: none; }
+.rd-user-menu > summary::marker { content: ""; }
+
+.rd-user-menu > summary:hover {
+  background: var(--rd-surface-2);
+}
+
+.rd-user-menu > summary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 0.25rem color-mix(in srgb, var(--rd-ink) 7%, transparent);
+}
+
+.rd-user-menu[open] > summary {
+  border-color: color-mix(in srgb, var(--rd-ink) 22%, var(--bs-border-color));
+  background: var(--rd-surface-2);
+}
+
+.rd-user-menu-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  max-width: 9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rd-user-menu-caret {
+  opacity: 0.65;
+  transition: transform var(--rd-transition-fast);
+}
+
+.rd-user-menu[open] .rd-user-menu-caret {
+  transform: rotate(180deg);
+}
+
+/* Panel: drops out of the trigger flush to the inline-end edge so it
+ * works in both LTR and RTL without a separate ruleset. The fixed
+ * z-index keeps it above the sticky topbar and any sibling content. */
+.rd-user-menu-panel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  inset-inline-end: 0;
+  z-index: 1080;
+  min-width: 16rem;
+  max-width: calc(100vw - 1rem);
+  background: var(--rd-surface-raised);
+  color: var(--bs-body-color);
+  border: 1px solid color-mix(in srgb, var(--rd-ink) 14%, var(--bs-border-color));
+  border-radius: var(--rd-radius-lg);
+  box-shadow: var(--rd-shadow-pop);
+  padding: 0.45rem;
+  animation: rd-user-menu-in 140ms ease-out;
+}
+
+@keyframes rd-user-menu-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.rd-user-menu-header {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.6rem;
+  border-radius: 0.75rem;
+  background: var(--rd-surface-2);
+  margin-bottom: 0.35rem;
+}
+
+.rd-user-menu-identity {
+  min-width: 0;
+}
+
+.rd-user-menu-display {
+  font-weight: 700;
+  font-size: 0.95rem;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rd-user-menu-handle {
+  font-size: 0.75rem;
+  color: var(--rd-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rd-user-menu-divider {
+  height: 1px;
+  background: var(--bs-border-color);
+  margin: 0.35rem 0.25rem;
+}
+
+/* Items are styled identically whether they are <a> or <button> so the
+ * "Log out" form button visually matches the "Settings" link. */
+.rd-user-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--rd-radius-sm);
+  background: transparent;
+  border: 0;
+  color: inherit;
+  text-align: start;
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--rd-transition-fast), color var(--rd-transition-fast);
+}
+
+.rd-user-menu-item:hover,
+.rd-user-menu-item:focus-visible {
+  background: var(--rd-surface-2);
+  color: var(--rd-ink);
+  text-decoration: none;
+  outline: none;
+}
+
+.rd-user-menu-panel .rd-user-menu-item:not(.rd-user-menu-item--danger):hover,
+.rd-user-menu-panel .rd-user-menu-item:not(.rd-user-menu-item--danger):focus-visible,
+.rd-search-panel .rd-search-item:hover,
+.rd-search-panel .rd-search-item[aria-selected="true"] {
+  background: color-mix(in srgb, var(--rd-ink) 8%, var(--rd-surface-raised));
+}
+
+.rd-user-menu-item svg {
+  flex: 0 0 auto;
+  opacity: 0.75;
+}
+
+.rd-user-menu-item--danger {
+  color: var(--rd-danger);
+}
+
+.rd-user-menu-item--danger:hover,
+.rd-user-menu-item--danger:focus-visible {
+  background: var(--rd-danger-soft);
+  color: var(--rd-danger);
+}
+
+.rd-user-menu-item--danger svg {
+  opacity: 0.9;
+}
+
+@media (max-width: 480px) {
+  .rd-user-menu > summary { padding: 0.2rem; }
+  .rd-user-menu-panel { min-width: 14rem; }
+}
+
+/* Management topbar: the trigger is just the ink avatar circle. */
+.rd-user-menu--ava > summary {
+  min-height: 0;
+  padding: 0;
+  gap: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.rd-user-menu--ava > summary:hover,
+.rd-user-menu--ava[open] > summary {
+  background: transparent;
+}
+
+.rd-user-menu--ava .rd-avatar {
+  width: 2.375rem;
+  height: 2.375rem;
+  font-size: 0.95rem;
+  transition: box-shadow var(--rd-transition-fast);
+}
+
+html[lang="ar"] .rd-user-menu--ava .rd-avatar {
+  font-family: var(--rd-font-heading);
+}
+
+.rd-user-menu--ava > summary:hover .rd-avatar,
+.rd-user-menu--ava[open] .rd-avatar {
+  box-shadow: 0 0 0 3px var(--bs-border-color);
+}
+
+/* ---------------- Topbar notification bell ---------------- */
+/* Same square as the other topbar icon buttons (beats the summary pill). */
+.rd-notif-trigger {
+  position: relative;
+  justify-content: center;
+  width: 2.375rem;
+  height: 2.375rem;
+  min-height: 0;
+  padding: 0 !important;
+  gap: 0 !important;
+}
+
+.rd-user-menu > summary.rd-notif-trigger {
+  border-radius: 0.75rem;
+}
+
+.rd-notif-trigger svg { display: block; transform-origin: 50% 4px; }
+
+@keyframes rd-bell-ring {
+  0%   { transform: rotate(0deg); }
+  3%   { transform: rotate(-14deg); }
+  6%   { transform: rotate(12deg); }
+  9%   { transform: rotate(-10deg); }
+  12%  { transform: rotate(8deg); }
+  15%  { transform: rotate(-6deg); }
+  18%  { transform: rotate(4deg); }
+  21%  { transform: rotate(-2deg); }
+  24%, 100% { transform: rotate(0deg); }
+}
+
+.rd-notif-trigger.is-active svg {
+  animation: rd-bell-ring 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rd-notif-trigger.is-active svg {
+    animation: none;
+  }
+}
+
+.rd-notif-badge {
+  position: absolute;
+  top: -3px;
+  inset-inline-end: -3px;
+  min-width: 1.05rem;
+  height: 1.05rem;
+  padding: 0 0.32rem;
+  border-radius: 999px;
+  background: var(--rd-danger);
+  color: var(--rd-on-danger);
+  font-family: var(--rd-font-num);
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1.05rem;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--bs-body-bg);
+}
+
+.rd-notif-panel { min-width: 19rem; }
+
+.rd-notif-header {
+  display: block;
+  padding: 0.35rem 0.6rem 0.5rem;
+}
+
+.rd-notif-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.rd-notif-count {
+  flex: 0 0 auto;
+  min-width: 1.5rem;
+  padding: 0 0.45rem;
+  border-radius: 999px;
+  background: var(--rd-surface-2);
+  color: var(--rd-muted);
+  font-family: var(--rd-font-num);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.4rem;
+}
+
+.rd-notif-count.is-active {
+  background: var(--rd-danger-soft);
+  color: var(--rd-danger);
+}
+
+.rd-notif-empty {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 0.7rem;
+  margin-top: 0.25rem;
+  border-radius: 0.75rem;
+  background: var(--rd-surface-2);
+  color: var(--rd-muted);
+  font-size: 0.85rem;
+}
+
+.rd-notif-empty svg {
+  color: var(--rd-success);
+  opacity: 0.95;
+}
+
+/* Rows with nothing waiting stay visible (text + count) but read as muted. */
+.rd-notif-item:has(.rd-notif-count:not(.is-active)) {
+  color: var(--rd-muted);
+}
+
+.rd-notif-item:has(.rd-notif-count:not(.is-active)):hover,
+.rd-notif-item:has(.rd-notif-count:not(.is-active)):focus-visible {
+  color: var(--rd-ink);
+}
+
+.rd-notif-item:has(.rd-notif-count:not(.is-active)) svg {
+  opacity: 0.55;
+}
+
+/* Language toggle: the theme button's twin. Same box, border, hover and focus
+ * ring (it carries .rd-theme-btn); only the label differs. It shows the
+ * language you switch TO, in Latin caps. */
+.rd-lang-form {
+  display: inline-flex;
+  margin: 0;
+}
+
+.rd-lang-btn {
+  font-family: var(--rd-font-num);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1;
+}
+
+.rd-lang-btn__label {
+  /* "EN"/"AR" never mirror or shape with the Arabic UI font. */
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* Top bar: same 2.6rem rounded square as the bell and avatar; 3.45rem on touch. */
+.rd-topbar .rd-theme-btn {
+  width: 2.6rem;
+  height: 2.6rem;
+  min-width: 2.6rem;
+  min-height: 2.6rem;
+  border-radius: 0.85rem;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Management top bar controls (mockup C): bell, avatar, popover panels       */
+/* -------------------------------------------------------------------------- */
+/* Same 2.6rem rounded square for every icon button; 3.45rem (44 px) below
+   992 px. Scoped to .rd-topbar so the employee shell keeps its own sizes. */
+.rd-topbar .rd-user-menu > summary.rd-notif-trigger {
+  width: 2.6rem;
+  height: 2.6rem;
+  min-width: 2.6rem;
+  min-height: 2.6rem;
+  border-radius: 0.85rem;
+}
+
+.rd-topbar .rd-user-menu--ava .rd-user-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  min-width: 2.6rem;
+  min-height: 2.6rem;
+}
+
+/* Header avatar = trigger size, photo or initials. */
+.rd-topbar .rd-user-menu--ava .rd-avatar {
+  width: 2.6rem;
+  height: 2.6rem;
+  font-size: 1rem;
+}
+
+.rd-topbar .rd-user-menu--ava .rd-avatar img {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+/* Photo/initials in the open menu header: fixed medium size. */
+.rd-topbar .rd-user-menu-header .rd-avatar {
+  width: 2.6rem;
+  height: 2.6rem;
+}
+
+/* The count stays (information), reduced to a small pill on the bell's
+   corner like the mockup's dot. Ring uses the button surface. */
+.rd-topbar .rd-notif-badge {
+  top: -0.3rem;
+  inset-inline-end: -0.3rem;
+  box-shadow: 0 0 0 2px var(--bs-body-bg);
+}
+
+.rd-topbar .rd-notif-panel {
+  min-width: 21rem;
+}
+
+.rd-topbar .rd-user-menu-panel {
+  top: calc(100% + 0.6rem);
+}
+
+/* The <details> wrapper is a block holding an inline-flex <summary>; baseline
+   alignment adds descender space under the trigger and the flex row then
+   centres a taller box (avatar sat ~3 px high). Top-align the trigger so the
+   wrapper is exactly as tall as the control. */
+.rd-topbar .rd-user-menu > summary {
+  vertical-align: top;
+}
+
+@media (max-width: 991.98px) {
+  .rd-topbar .rd-search-toggle,
+  .rd-topbar .rd-user-menu > summary.rd-notif-trigger,
+  .rd-topbar .rd-user-menu--ava .rd-user-menu-trigger,
+  .rd-topbar .rd-menu-btn {
+    width: 3.45rem;
+    height: 3.45rem;
+    min-width: 3.45rem;
+    min-height: 3.45rem;
+  }
+
+  .rd-topbar .rd-user-menu--ava .rd-user-menu-trigger .rd-avatar {
+    width: 3.45rem;
+    height: 3.45rem;
+  }
+
+  .rd-topbar .rd-topbar-cta {
+    min-height: 3.45rem;
+  }
+
+  /* Touch targets inside the open menus (links, logout). */
+  .rd-user-menu-panel .rd-user-menu-item {
+    min-height: 3.45rem;
+  }
+
+  .rd-topbar .rd-theme-btn {
+    width: 3.45rem;
+    height: 3.45rem;
+    min-width: 3.45rem;
+    min-height: 3.45rem;
+  }
+
+  /* Search results: rows and the "all results" link are touch targets too. */
+  .rd-search-item {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 3.45rem;
+  }
+
+  .rd-search-more {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 3.45rem;
+  }
+}
+
+/* Phones: both popovers become sheets pinned under the bar. The wrappers
+   (.rd-user-menu) drop `position: relative` here, so the panels anchor to the
+   sticky bar itself (a positioned ancestor, independent of backdrop-filter):
+   `top: 100%` is the bar's bottom edge and the inline insets keep them inside
+   the viewport in RTL/LTR. */
+@media (max-width: 575.98px) {
+  .rd-topbar .rd-user-menu {
+    position: static;
+  }
+
+  .rd-topbar .rd-notif-menu .rd-user-menu-panel,
+  .rd-topbar .rd-user-menu--ava .rd-user-menu-panel {
+    position: absolute;
+    inset-inline: 0.5rem;
+    top: calc(100% + 0.4rem);
+    min-width: 0;
+    max-width: none;
+    max-height: calc(100vh - 8rem);
+    max-height: calc(100dvh - 8rem);
+    overflow-y: auto;
+  }
+}
+
+/* Mini-charts on the management dashboard. The bar chart is built with
+   inline DIVs so we avoid any external chart dependency and keep the
+   strict CSP intact. Heights are set inline via {% widthratio %}. */
+.rd-mini-chart {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 220px;
+  padding-top: 0.25rem;
+  /* Hidden tooltips still count for scroll width; keep them from widening
+     the page on phones. `clip` (unlike `hidden`) leaves the y axis visible. */
+  overflow-x: clip;
+}
+
+/* Subtle horizontal grid lines (4 levels) sitting behind the bars. */
+.rd-mini-chart-grid {
+  position: absolute;
+  inset: 0.25rem 0 1.75rem 0;
+  display: grid;
+  grid-template-rows: repeat(4, 1fr);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.rd-mini-chart-grid > span {
+  border-top: 1px solid color-mix(in srgb, var(--bs-border-color) 70%, transparent);
+  display: block;
+}
+
+.rd-mini-chart-bars {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 180px;
+  padding-block: 0.25rem;
+  border-bottom: 1px solid var(--bs-border-color);
+  z-index: 1;
+}
+
+.rd-mini-chart-bar-cell {
+  position: relative;
+  flex: 1 1 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 100%;
+  min-width: 0;
+  cursor: default;
+}
+
+.rd-mini-chart-bar {
+  width: 100%;
+  max-width: 30px;
+  min-height: 3px;
+  /* Pearl: solid ink at 85 %, rounded tops; today's bar is the one accent. */
+  background: color-mix(in srgb, var(--rd-ink) 85%, transparent);
+  border-radius: 6px 6px 0 0;
+  transform-origin: bottom;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.rd-mini-chart-bar-cell:hover .rd-mini-chart-bar,
+.rd-mini-chart-bar-cell:focus-visible .rd-mini-chart-bar {
+  background: var(--rd-ink);
+  transform: scaleY(1.02);
+}
+
+.rd-mini-chart-bar-cell.is-today .rd-mini-chart-bar,
+.rd-mini-chart-bar-cell.is-today:hover .rd-mini-chart-bar {
+  background: var(--rd-accent);
+}
+
+.rd-mini-chart-bar-cell.is-empty .rd-mini-chart-bar {
+  background: var(--bs-border-color);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rd-mini-chart-bar {
+    transition: none;
+  }
+  .rd-mini-chart-bar-cell:hover .rd-mini-chart-bar,
+  .rd-mini-chart-bar-cell:focus-visible .rd-mini-chart-bar {
+    transform: none;
+  }
+}
+
+/* Custom hover tooltip — replaces the native title attribute. */
+.rd-mini-chart-tip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.5rem;
+  background: var(--bs-body-color);
+  color: var(--bs-body-bg);
+  font-size: 0.72rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 5;
+}
+
+.rd-mini-chart-tip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--bs-body-color);
+}
+
+.rd-mini-chart-tip__date {
+  font-weight: 500;
+  opacity: 0.75;
+  font-size: 0.68rem;
+}
+
+.rd-mini-chart-tip__val {
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: -0.01em;
+}
+
+.rd-mini-chart-bar-cell:hover .rd-mini-chart-tip,
+.rd-mini-chart-bar-cell:focus-within .rd-mini-chart-tip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Edge cells (and their neighbours, which clip at 375px): nudge the tooltip
+   inward so it does not clip outside the chart.
+   Logical insets so the first (start) cell works in RTL as well. */
+.rd-mini-chart-bars > .rd-mini-chart-bar-cell:is(:first-child, :nth-child(2)) .rd-mini-chart-tip {
+  left: auto;
+  inset-inline-start: 0;
+  transform: translateY(4px);
+}
+
+.rd-mini-chart-bars > .rd-mini-chart-bar-cell:is(:first-child, :nth-child(2)):hover .rd-mini-chart-tip,
+.rd-mini-chart-bars > .rd-mini-chart-bar-cell:is(:first-child, :nth-child(2)):focus-within .rd-mini-chart-tip {
+  transform: translateY(0);
+}
+
+.rd-mini-chart-bars > .rd-mini-chart-bar-cell:is(:first-child, :nth-child(2)) .rd-mini-chart-tip::after {
+  left: auto;
+  inset-inline-start: 12px;
+  transform: none;
+}
+
+.rd-mini-chart-bars > .rd-mini-chart-bar-cell:is(:last-child, :nth-last-child(2)) .rd-mini-chart-tip {
+  left: auto;
+  inset-inline-end: 0;
+  transform: translateY(4px);
+}
+
+.rd-mini-chart-bars > .rd-mini-chart-bar-cell:is(:last-child, :nth-last-child(2)):hover .rd-mini-chart-tip,
+.rd-mini-chart-bars > .rd-mini-chart-bar-cell:is(:last-child, :nth-last-child(2)):focus-within .rd-mini-chart-tip {
+  transform: translateY(0);
+}
+
+.rd-mini-chart-bars > .rd-mini-chart-bar-cell:is(:last-child, :nth-last-child(2)) .rd-mini-chart-tip::after {
+  left: auto;
+  inset-inline-end: 12px;
+  transform: none;
+}
+
+.rd-mini-chart-weekdays {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  margin-top: 0.15rem;
+  padding-bottom: 0.15rem;
+}
+
+.rd-mini-chart-wd {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--bs-secondary-color);
+  line-height: 1;
+}
+
+.rd-mini-chart-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.rd-mini-chart-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--bs-body-color);
+  line-height: 1.25;
+}
+
+/* Mockup C header: big total, average beside it, hairline between. */
+.rd-mini-chart-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.25rem 1.1rem;
+  margin-block-start: 0.15rem;
+  font-size: 0.78rem;
+  color: var(--bs-secondary-color);
+}
+
+.rd-mini-chart-summary__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.rd-mini-chart-summary__lbl {
+  font-weight: 500;
+  font-size: 0.72rem;
+}
+
+/* The "·" stays in the DOM (decorative); it is drawn as a hairline. */
+.rd-mini-chart-summary__sep {
+  align-self: stretch;
+  width: 1px;
+  font-size: 0;
+  background: var(--bs-border-color);
+  user-select: none;
+}
+
+.rd-mini-chart-summary__item .tabular-nums {
+  font-family: var(--rd-font-num);
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: -0.02em;
+  color: var(--rd-ink);
+}
+
+.rd-mini-chart-summary__item--total .tabular-nums {
+  font-weight: 800;
+  font-size: 1.65rem;
+  line-height: 1.1;
+  letter-spacing: -0.035em;
+}
+
+.rd-mini-chart--empty {
+  min-height: 0;
+  gap: 0.75rem;
+}
+
+.rd-mini-chart--empty .empty-state {
+  min-height: 0;
+}
+
+.rd-mini-chart-axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: var(--bs-secondary-color);
+  letter-spacing: 0.02em;
+}
+
+.rd-top-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Pearl rows: hairline-separated, no boxes. */
+.rd-top-item {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.65rem 0.25rem;
+  border-radius: 0.7rem;
+  transition: background var(--rd-transition-fast);
+}
+
+.rd-top-item + .rd-top-item {
+  border-top: 1px solid color-mix(in srgb, var(--bs-border-color) 70%, transparent);
+  border-radius: 0 0 0.7rem 0.7rem;
+}
+
+.rd-top-item:hover {
+  background: var(--rd-surface-2);
+}
+
+/* Rank chip — ink / accent / faint for the top 3, neutral for the rest. */
+.rd-top-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 50%;
+  font-size: 0.78rem;
+  font-weight: 800;
+  background: var(--rd-surface-2);
+  color: var(--rd-ink);
+  border: 1px solid var(--bs-border-color);
+  flex: 0 0 auto;
+}
+
+.rd-top-item--rank-1 .rd-top-rank {
+  background: var(--rd-primary-bg);
+  color: var(--rd-primary-fg);
+  border-color: var(--rd-primary-bg);
+}
+
+.rd-profit-rank__item:nth-child(1) .rd-profit-rank__idx {
+  background: var(--rd-primary-bg);
+  color: var(--rd-primary-fg);
+  border-color: var(--rd-primary-bg);
+}
+
+.rd-top-item--rank-2 .rd-top-rank,
+.rd-profit-rank__item:nth-child(2) .rd-profit-rank__idx {
+  background: var(--rd-accent);
+  color: var(--rd-on-accent);
+  border-color: var(--rd-accent);
+}
+
+.rd-top-item--rank-3 .rd-top-rank,
+.rd-profit-rank__item:nth-child(3) .rd-profit-rank__idx {
+  background: var(--rd-faint);
+  color: var(--rd-ink);
+  border-color: var(--rd-faint);
+}
+
+/* Company mark (logo or toned letter): colours in .rd-company-mark. */
+.rd-top-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.6rem;
+  font-weight: 700;
+  font-size: 0.92rem;
+  text-transform: uppercase;
+  flex: 0 0 auto;
+}
+
+/* Company identity: a tone per company (ids cycle, see rd_tone) so neighbours
+   differ; the logo replaces the letter when the company has one. */
+.rd-tone-1 { --rd-tone: var(--rd-tone-1); }
+.rd-tone-2 { --rd-tone: var(--rd-tone-2); }
+.rd-tone-3 { --rd-tone: var(--rd-tone-3); }
+.rd-tone-4 { --rd-tone: var(--rd-tone-4); }
+.rd-tone-5 { --rd-tone: var(--rd-tone-5); }
+.rd-tone-6 { --rd-tone: var(--rd-tone-6); }
+
+.rd-company-mark {
+  overflow: hidden;
+  background: color-mix(in srgb, var(--rd-tone, var(--rd-ink)) 12%, var(--rd-surface));
+  color: var(--rd-tone, var(--rd-ink));
+  border: 1px solid color-mix(in srgb, var(--rd-tone, var(--rd-ink)) 28%, transparent);
+}
+
+/* Logos are mostly wide wordmarks: a landscape tile keeps them legible. */
+.rd-company-mark.has-logo {
+  width: 3.6rem;
+  padding: 0.2rem 0.3rem;
+  background: var(--rd-logo-bg);
+  border-color: var(--bs-border-color);
+}
+
+.rd-company-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.rd-top-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.rd-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.rd-top-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--bs-body-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.rd-top-profit {
+  font-family: var(--rd-font-num);
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: -0.02em;
+  color: var(--rd-ink);
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.rd-top-list-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--rd-surface-2);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bs-border-color) 70%, transparent);
+  overflow: hidden;
+}
+
+.rd-top-list-fill {
+  height: 100%;
+  background: var(--rd-tone, color-mix(in srgb, var(--rd-ink) 85%, transparent));
+  border-radius: inherit;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Profit report — hero KPI + ranked bars                                     */
+/* -------------------------------------------------------------------------- */
+.rd-profit-hero > .rd-card-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem 1.75rem;
+  padding: 0.9rem 1.25rem;
+  background:
+    radial-gradient(
+      120% 140% at 0% 0%,
+      color-mix(in srgb, var(--rd-success) 12%, transparent) 0%,
+      transparent 55%
+    ),
+    var(--bs-body-bg);
+}
+
+.rd-profit-hero__main {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.rd-profit-hero__value {
+  font-size: clamp(1.65rem, 2.2vw, 2.1rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.rd-profit-hero__split {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  flex: 0 1 auto;
+  min-width: min(100%, 16rem);
+  border-radius: var(--rd-radius-md);
+  background: color-mix(in srgb, var(--bs-tertiary-bg) 85%, var(--bs-body-bg));
+  border: 1px solid color-mix(in srgb, var(--bs-border-color) 70%, transparent);
+  overflow: hidden;
+}
+
+.rd-profit-hero__cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.2rem;
+  padding: 0.6rem 1.15rem;
+  min-width: 7rem;
+  flex: 1 1 0;
+}
+
+.rd-profit-hero__divider {
+  width: 1px;
+  background: color-mix(in srgb, var(--bs-border-color) 80%, transparent);
+  align-self: stretch;
+  flex: 0 0 auto;
+}
+
+.rd-profit-hero__lbl {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--bs-secondary-color);
+}
+
+.rd-profit-hero__val {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--bs-body-color);
+}
+
+.rd-profit-rank {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rd-profit-rank__item {
+  min-width: 0;
+}
+
+.rd-profit-rank__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.35rem;
+  min-width: 0;
+}
+
+.rd-profit-rank__name {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: var(--bs-body-color);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rd-profit-rank__idx {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--bs-secondary-color);
+  background: color-mix(in srgb, var(--bs-tertiary-bg) 70%, var(--bs-body-bg));
+  border: 1px solid color-mix(in srgb, var(--bs-border-color) 75%, transparent);
+  flex: 0 0 auto;
+}
+
+.rd-profit-rank__name--stack {
+  align-items: flex-start;
+  white-space: normal;
+}
+
+.rd-profit-rank__name-text {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.rd-profit-rank__name .d-block {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rd-profit-rank__sub {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--bs-secondary-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rd-profit-rank__profit {
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.rd-profit-rank__track {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bs-border-color) 55%, transparent);
+  overflow: hidden;
+}
+
+.rd-profit-rank__fill {
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    var(--rd-success) 0%,
+    color-mix(in srgb, var(--rd-success) 50%, transparent) 100%
+  );
+  transition: width 0.35s ease;
+}
+
+.rd-profit-rank__fill.is-neg {
+  background: linear-gradient(
+    90deg,
+    var(--rd-danger) 0%,
+    color-mix(in srgb, var(--rd-danger) 50%, transparent) 100%
+  );
+}
+
+.rd-profit-rank__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.3rem;
+  font-size: 0.75rem;
+  color: var(--bs-secondary-color);
+}
+
+.rd-profit-rank--compact {
+  gap: 0.55rem;
+}
+
+.rd-profit-rank--compact .rd-profit-rank__row {
+  margin-bottom: 0.25rem;
+}
+
+.rd-profit-rank--compact .rd-profit-rank__name {
+  font-weight: 500;
+  font-size: 0.85rem;
+}
+
+.rd-profit-rank--compact .rd-profit-rank__profit {
+  font-size: 0.88rem;
+}
+
+.rd-profit-rank--compact .rd-profit-rank__track {
+  height: 4px;
+}
+
+/* One line per row: name · bar · count · profit (RTL-aware via grid). */
+.rd-profit-rank--inline {
+  gap: 0.6rem;
+}
+
+.rd-profit-rank--inline .rd-profit-rank__item {
+  display: grid;
+  grid-template-columns:
+    minmax(0, var(--rd-rank-name-w, 9.5rem))
+    minmax(2.5rem, 1fr)
+    auto
+    minmax(4.25rem, auto);
+  align-items: center;
+  column-gap: 0.75rem;
+}
+
+.rd-profit-rank--wide-name {
+  --rd-rank-name-w: 15rem;
+}
+
+.rd-profit-rank--grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
+  gap: 0.6rem 2.5rem;
+}
+
+.rd-profit-rank--expense .rd-profit-rank__fill {
+  background: linear-gradient(
+    90deg,
+    var(--rd-danger) 0%,
+    color-mix(in srgb, var(--rd-danger) 45%, transparent) 100%
+  );
+}
+
+.rd-profit-rank--inline .rd-profit-rank__row {
+  display: contents;
+}
+
+.rd-profit-rank--inline .rd-profit-rank__name {
+  grid-column: 1;
+  grid-row: 1;
+  align-items: center;
+}
+
+.rd-profit-rank--inline .rd-profit-rank__track {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.rd-profit-rank--inline .rd-profit-rank__meta {
+  grid-column: 3;
+  grid-row: 1;
+  margin-top: 0;
+  white-space: nowrap;
+}
+
+.rd-profit-rank--inline .rd-profit-rank__profit {
+  grid-column: 4;
+  grid-row: 1;
+  text-align: end;
+}
+
+.rd-profit-rank--inline .rd-profit-rank__name--stack {
+  align-items: center;
+}
+
+.rd-profit-rank--inline .rd-profit-rank__name-text {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.rd-profit-rank--inline .rd-profit-rank__name-text .d-block {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.rd-profit-rank--inline .rd-profit-rank__sub {
+  margin-top: 0;
+  flex: 0 0 auto;
+}
+
+/* Inline date filter in the page header. The label+input markup (`__field`, `__lbl`)
+   is still used by the unmigrated profit and employee reports; the expense report
+   uses `.rd-field` children (label above, kit controls). */
+.rd-report-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.rd-report-filter:has(> .rd-field) {
+  align-items: flex-end;
+  gap: 0.5rem 0.75rem;
+}
+
+.rd-report-filter__field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+}
+
+.rd-report-filter__lbl {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--bs-secondary-color);
+  white-space: nowrap;
+}
+
+.rd-report-filter .form-control {
+  width: auto;
+  min-width: 9.5rem;
+  padding-block: 0.3rem;
+  font-size: 0.85rem;
+}
+
+.rd-report-filter .rd-field {
+  flex: 0 1 auto;
+  min-width: 9.5rem;
+  margin: 0;
+}
+
+.rd-report-filter .rd-field .form-control {
+  width: 100%;
+}
+
+.rd-report-filter .rd-field .form-label {
+  margin-bottom: 0.2rem;
+  font-size: 0.82rem;
+}
+
+/* Report totals: one slim card split into labelled cells. */
+.rd-stat-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  overflow: hidden;
+}
+
+.rd-stat-strip__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+  padding: 0.75rem 1.15rem;
+  border-inline-start: 1px solid color-mix(in srgb, var(--bs-border-color) 80%, transparent);
+}
+
+.rd-stat-strip__cell:first-child {
+  border-inline-start: 0;
+}
+
+.rd-stat-strip__lbl {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--bs-secondary-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rd-stat-strip__val {
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.rd-mini-chart--profit .rd-mini-chart-bar {
+  background: color-mix(in srgb, var(--rd-success) 85%, transparent);
+}
+
+.rd-mini-chart--profit .rd-mini-chart-bar-cell:hover .rd-mini-chart-bar {
+  background: var(--rd-success);
+}
+
+.rd-mini-chart--profit .rd-mini-chart-bar-cell.is-empty .rd-mini-chart-bar {
+  background: var(--bs-border-color);
+}
+
+@media (max-width: 575.98px) {
+  .rd-profit-hero > .rd-card-body {
+    padding: 1.1rem 1rem;
+  }
+
+  .rd-profit-hero__split {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .rd-profit-hero__cell {
+    padding: 0.75rem 0.9rem;
+    min-width: 0;
+  }
+
+  .rd-profit-rank--inline .rd-profit-rank__item {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 0.3rem;
+  }
+
+  .rd-profit-rank--inline .rd-profit-rank__profit {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .rd-profit-rank--inline .rd-profit-rank__track {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .rd-profit-rank--inline .rd-profit-rank__meta {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .rd-report-filter {
+    width: 100%;
+  }
+
+  .rd-stat-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .rd-stat-strip__cell {
+    padding: 0.65rem 0.9rem;
+  }
+
+  .rd-stat-strip__cell:nth-child(odd) {
+    border-inline-start: 0;
+  }
+
+  .rd-stat-strip__cell:nth-child(n + 3) {
+    border-top: 1px solid color-mix(in srgb, var(--bs-border-color) 80%, transparent);
+  }
+
+  .rd-stat-strip__val {
+    font-size: 1.2rem;
+  }
+
+  .rd-report-filter__field {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .rd-report-filter .form-control {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .rd-report-filter .rd-field {
+    flex: 1 1 9rem;
+  }
+}
+
+/* Phone disconnect lifecycle — donut + legend on the dashboard. */
+.rd-phone-lifecycle__layout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1.25rem 1.75rem;
+}
+
+.rd-phone-lifecycle,
+.rd-phone-donut,
+.rd-phone-status {
+  --donut-active: var(--rd-success);
+  --donut-due: var(--rd-tone-5);
+  --donut-grace: var(--rd-muted);
+  --donut-overdue: var(--rd-accent);
+}
+
+.rd-phone-donut {
+  --donut-empty: var(--bs-border-color);
+  --donut-active-end: 0%;
+  --donut-due-end: 0%;
+  --donut-grace-end: 0%;
+  position: relative;
+  width: 9.5rem;
+  height: 9.5rem;
+  flex: 0 0 auto;
+  margin-inline: auto;
+}
+
+/* The dark hairline border is ~1.3:1 on surface; the empty ring needs more. */
+[data-bs-theme="dark"] .rd-phone-donut {
+  --donut-empty: color-mix(in srgb, var(--rd-ink) 28%, var(--rd-surface));
+}
+
+.rd-phone-donut__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from -90deg,
+    var(--donut-active) 0 var(--donut-active-end),
+    var(--donut-due) var(--donut-active-end) var(--donut-due-end),
+    var(--donut-grace) var(--donut-due-end) var(--donut-grace-end),
+    var(--donut-overdue) var(--donut-grace-end) 100%
+  );
+  -webkit-mask: radial-gradient(circle at center, transparent 56%, black 57.5%);
+  mask: radial-gradient(circle at center, transparent 56%, black 57.5%);
+  animation: rd-phone-donut-in 520ms ease-out both;
+}
+
+.rd-phone-donut.is-empty .rd-phone-donut__ring {
+  background: var(--donut-empty);
+}
+
+@keyframes rd-phone-donut-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92) rotate(-8deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+
+.rd-phone-donut__center {
+  position: absolute;
+  inset: 22%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 0.1rem;
+  animation: rd-phone-center-in 480ms 80ms ease-out both;
+}
+
+@keyframes rd-phone-center-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rd-phone-donut__total {
+  font-size: 1.55rem;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--bs-body-color);
+}
+
+.rd-phone-donut__total-lbl {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--bs-secondary-color);
+  letter-spacing: 0.02em;
+}
+
+.rd-phone-lifecycle__legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.rd-phone-lifecycle__item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.4rem;
+  border-radius: 0.6rem;
+  transition: background var(--rd-transition-fast);
+  animation: rd-phone-legend-in 420ms ease-out both;
+}
+
+.rd-phone-lifecycle__item + .rd-phone-lifecycle__item {
+  border-top: 1px solid color-mix(in srgb, var(--bs-border-color) 70%, transparent);
+  border-radius: 0 0 0.6rem 0.6rem;
+}
+
+.rd-phone-lifecycle__item:nth-child(1) { animation-delay: 40ms; }
+.rd-phone-lifecycle__item:nth-child(2) { animation-delay: 100ms; }
+.rd-phone-lifecycle__item:nth-child(3) { animation-delay: 160ms; }
+.rd-phone-lifecycle__item:nth-child(4) { animation-delay: 220ms; }
+@keyframes rd-phone-legend-in {
+  from {
+    opacity: 0;
+    transform: translateX(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+[dir="rtl"] .rd-phone-lifecycle__item {
+  animation-name: rd-phone-legend-in-rtl;
+}
+
+@keyframes rd-phone-legend-in-rtl {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.rd-phone-lifecycle__item:hover {
+  background: var(--rd-surface-2);
+}
+
+.rd-phone-lifecycle__swatch {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 16%, transparent);
+}
+
+.rd-phone-lifecycle__item--active .rd-phone-lifecycle__swatch {
+  background: var(--donut-active);
+  color: var(--donut-active);
+}
+.rd-phone-lifecycle__item--due .rd-phone-lifecycle__swatch {
+  background: var(--donut-due);
+  color: var(--donut-due);
+}
+.rd-phone-lifecycle__item--grace .rd-phone-lifecycle__swatch {
+  background: var(--donut-grace);
+  color: var(--donut-grace);
+}
+.rd-phone-lifecycle__item--overdue .rd-phone-lifecycle__swatch {
+  background: var(--donut-overdue);
+  color: var(--donut-overdue);
+}
+
+.rd-phone-lifecycle__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 0;
+}
+
+.rd-phone-lifecycle__lbl {
+  font-size: 0.82rem;
+  font-weight: 650;
+  line-height: 1.25;
+  color: var(--bs-body-color);
+}
+
+.rd-phone-lifecycle__hint {
+  font-size: 0.68rem;
+  line-height: 1.3;
+  color: var(--bs-secondary-color);
+}
+a.rd-phone-lifecycle__hint--link {
+  text-decoration: none;
+  width: fit-content;
+}
+a.rd-phone-lifecycle__hint--link:hover,
+a.rd-phone-lifecycle__hint--link:focus-visible {
+  color: var(--rd-ink);
+  text-decoration: underline;
+}
+
+a.rd-phone-lifecycle__hint--esim {
+  color: var(--rd-tone-1);
+}
+
+/* Owner ruling U3: each number takes its swatch's hue (the dot + text label
+   still carry the status, never colour alone). Every colour is >= 4.5:1 on the
+   card surface in both themes (tests_design_tokens.PhoneLegendContrastTests). */
+.rd-phone-lifecycle__val {
+  font-family: var(--rd-font-num);
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--rd-ink);
+  text-decoration: none;
+}
+
+.rd-phone-lifecycle__item--active .rd-phone-lifecycle__val {
+  color: var(--donut-active);
+}
+.rd-phone-lifecycle__item--due .rd-phone-lifecycle__val {
+  color: var(--donut-due);
+}
+.rd-phone-lifecycle__item--grace .rd-phone-lifecycle__val {
+  color: var(--donut-grace);
+}
+.rd-phone-lifecycle__item--overdue .rd-phone-lifecycle__val {
+  color: var(--donut-overdue);
+}
+
+/* The count link keeps its hue; the dotted underline is its resting
+   affordance, solid on hover / keyboard focus. */
+a.rd-phone-lifecycle__val {
+  text-decoration: underline dotted;
+  text-underline-offset: 0.2em;
+}
+
+a.rd-phone-lifecycle__val:hover,
+a.rd-phone-lifecycle__val:focus-visible {
+  text-decoration: underline solid;
+  text-underline-offset: 0.2em;
+}
+
+@media (max-width: 575.98px) {
+  .rd-phone-donut {
+    width: 8.25rem;
+    height: 8.25rem;
+  }
+  .rd-phone-donut__total {
+    font-size: 1.35rem;
+  }
+}
+
+/* Status chips on the phone-lines statement report. */
+.rd-phone-status {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 0.18rem 0.45rem;
+  border-radius: 0.4rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.01em;
+  white-space: normal;
+  vertical-align: middle;
+}
+.rd-phone-status + .rd-phone-status {
+  margin-inline-start: 0.25rem;
+}
+.rd-phone-status--active {
+  background: var(--rd-success-soft);
+  color: var(--rd-success);
+  border: 1px solid color-mix(in srgb, var(--rd-success) 28%, transparent);
+}
+.rd-phone-status--due {
+  background: color-mix(in srgb, var(--donut-due) 10%, transparent);
+  color: var(--donut-due);
+  border: 1px solid color-mix(in srgb, var(--donut-due) 28%, transparent);
+}
+.rd-phone-status--grace {
+  background: color-mix(in srgb, var(--donut-grace) 10%, transparent);
+  color: var(--donut-grace);
+  border: 1px solid color-mix(in srgb, var(--donut-grace) 28%, transparent);
+}
+.rd-phone-status--overdue {
+  background: color-mix(in srgb, var(--donut-overdue) 10%, transparent);
+  color: var(--donut-overdue);
+  border: 1px solid color-mix(in srgb, var(--donut-overdue) 28%, transparent);
+}
+.rd-phone-status--esim {
+  background: color-mix(in srgb, var(--rd-tone-1) 14%, transparent);
+  color: var(--rd-tone-1);
+  border: 1px solid color-mix(in srgb, var(--rd-tone-1) 28%, transparent);
+}
+
+/* ---------------- Customer invoice / statement layout ---------------
+ * A unified letterhead + compact summary strip + inline signature
+ * trio shared by customer_statement.html and
+ * customer_detailed_invoice.html. Replaces the previous mix of
+ * stacked Bootstrap rows + tall KPI cards that wasted ~25% of every
+ * printed page on whitespace and oversized boxes. */
+
+.rd-invoice-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--rd-radius-md);
+  padding: 0.85rem 1rem 0.7rem;
+  background: var(--bs-body-bg);
+}
+
+/* Three-column grid so the logo can sit visually centred while the
+ * document type / issue date hug the start edge (right in RTL, left
+ * in LTR) on the SAME baseline. The empty spacer balances the start
+ * column so the centre column stays geometrically centred regardless
+ * of how long the doc label gets. */
+.rd-invoice-head-top {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.rd-invoice-head-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.5rem;
+}
+
+.rd-invoice-head-logo {
+  max-height: 64px;
+  max-width: 240px;
+  object-fit: contain;
+}
+
+.rd-invoice-head-title {
+  font-weight: 700;
+  font-size: 1.2rem;
+  letter-spacing: 0.01em;
+}
+
+.rd-invoice-head-doc-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start; /* "start" of the writing direction —
+                              right in Arabic (RTL), left in English (LTR) */
+  gap: 0.05rem;
+  text-align: start;
+  min-width: 0;
+}
+
+.rd-invoice-head-spacer {
+  /* invisible, just balances the grid so the brand stays centred */
+}
+
+.rd-invoice-head-doc {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--bs-body-color);
+}
+
+.rd-invoice-head-issued {
+  font-size: 0.78rem;
+}
+
+.rd-invoice-head-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem 1.5rem;
+  flex-wrap: wrap;
+  padding-top: 0.5rem;
+  margin-top: 0.15rem;
+  border-top: 1px solid var(--bs-border-color);
+  text-align: start;
+}
+
+.rd-invoice-head-customer,
+.rd-invoice-head-period {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.rd-invoice-head-period {
+  text-align: end;
+}
+
+/* Compact summary strip — one row of label/value pairs with the
+ * closing balance set apart by a left border so the headline number
+ * still reads as a "total". */
+.rd-invoice-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  align-items: stretch;
+  padding: 0.65rem 1rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--rd-radius-md);
+  background: var(--bs-body-bg);
+}
+
+.rd-invoice-summary--secondary {
+  background: var(--bs-tertiary-bg);
+}
+
+.rd-invoice-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 7.5rem;
+}
+
+.rd-invoice-summary-item .rd-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--bs-secondary-color);
+}
+
+.rd-invoice-summary-value {
+  font-weight: 700;
+  font-size: 1.1rem;
+  line-height: 1.2;
+}
+
+.rd-invoice-summary-hint {
+  font-size: 0.72rem;
+  color: var(--bs-secondary-color);
+}
+
+.rd-invoice-summary-item--total {
+  margin-inline-start: auto;
+  padding-inline-start: 1rem;
+  border-inline-start: 2px solid var(--bs-border-color);
+  min-width: 9rem;
+}
+
+.rd-invoice-summary-item--total .rd-invoice-summary-value {
+  font-size: 1.25rem;
+}
+
+/* Compact signature block — two columns separated by gap, each just
+ * tall enough to write a name above a thin rule. */
+.rd-invoice-sig {
+  display: flex;
+  gap: 2rem;
+  margin-top: 1.5rem;
+  padding-inline: 0.25rem;
+}
+
+.rd-invoice-sig-block {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.rd-invoice-sig-rule {
+  display: block;
+  height: 1.6rem; /* leaves room for a real signature above the rule */
+  border-bottom: 1px solid var(--bs-body-color);
+}
+
+.rd-invoice-sig-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  min-height: 1.1em;
+}
+
+.rd-invoice-sig-block .rd-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--bs-secondary-color);
+}
+
+@media (max-width: 575.98px) {
+  /* Stack the three columns: logo on top, doc info under it, spacer
+   * collapses. Keeps the layout readable on narrow phones. */
+  .rd-invoice-head-top {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+  .rd-invoice-head-doc-row {
+    align-items: center;
+    text-align: center;
+    order: 2;
+  }
+  .rd-invoice-head-brand { order: 1; }
+  .rd-invoice-head-spacer { display: none; }
+  .rd-invoice-head-bottom { flex-direction: column; align-items: flex-start; }
+  .rd-invoice-head-period { text-align: start; }
+  .rd-invoice-summary-item--total {
+    margin-inline-start: 0;
+    padding-inline-start: 0;
+    border-inline-start: 0;
+    border-top: 1px solid var(--bs-border-color);
+    padding-top: 0.4rem;
+  }
+  .rd-invoice-sig { flex-direction: column; gap: 1.25rem; }
+}
+
+/* ---------------- Print mode (customer statement, future receipts) -----
+ * @page { margin: 0 } is the key trick: in Chrome / Edge it removes
+ * the auto-injected URL + page-number footer and the document-title
+ * header. We then re-add visual margins via body padding so content
+ * is not glued to the paper edge. Firefox / Safari still respect
+ * the @page block but their default headers/footers are also
+ * controllable from the print dialog. */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+  html, body {
+    background: var(--rd-print-paper) !important;
+    color: var(--rd-print-ink) !important;
+  }
+  /* Trimmed from 1.5cm/1.2cm. The previous values were chosen to look
+   * "safe" but they reserved nearly 2cm of dead space above the
+   * letterhead. Modern home / office printers handle 0.8cm comfortably
+   * and we still keep slightly larger top margin so the logo doesn't
+   * touch the paper edge. */
+  body {
+    padding: 1cm 0.9cm 0.8cm !important;
+    font-size: 11pt;
+  }
+  /* Hide app chrome the customer doesn't need on paper. */
+  .rd-sidebar,
+  .rd-topbar,
+  .rd-mobile-tabbar,
+  .rd-app::before,
+  .d-print-none {
+    display: none !important;
+  }
+  .rd-app {
+    background-image: none !important;
+  }
+  .rd-main, .rd-page, .rd-content {
+    background: var(--rd-print-paper) !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .rd-card {
+    border: 1px solid var(--rd-print-rule) !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+  /* Cards that contain long paginated content (e.g. the detailed
+   * invoice table) must be allowed to split across pages, otherwise
+   * they push the whole table to the next page and leave page 1
+   * nearly empty. */
+  .rd-card.rd-print-flow {
+    break-inside: auto;
+  }
+  .rd-card.rd-print-flow table {
+    break-inside: auto;
+  }
+  .rd-card.rd-print-flow thead {
+    display: table-header-group; /* repeat header on each page */
+  }
+  .rd-card.rd-print-flow tfoot {
+    display: table-footer-group;
+  }
+  .rd-card.rd-print-flow tr {
+    break-inside: avoid;
+  }
+  .table { color: var(--rd-print-ink) !important; }
+  a { color: inherit !important; text-decoration: none !important; }
+
+  /* Legacy print-only logo header. The current customer statement /
+   * detailed invoice render the logo through .rd-invoice-head, which
+   * keeps the brand, customer and period together; this rule is kept
+   * for any other template still using the older partial. */
+  .rd-print-brand {
+    text-align: center;
+    margin-bottom: 0.6rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid var(--rd-print-rule-soft);
+  }
+  .rd-print-brand-logo {
+    max-height: 64px;
+    max-width: 200px;
+    object-fit: contain;
+  }
+
+  /* Tighter borders + ink-friendly background for invoice bands. */
+  .rd-invoice-head,
+  .rd-invoice-summary {
+    border: 1px solid var(--rd-print-rule) !important;
+    background: var(--rd-print-paper) !important;
+    padding: 0.55rem 0.75rem !important;
+    break-inside: avoid;
+  }
+  .rd-invoice-head { margin-bottom: 0.5rem !important; }
+  .rd-invoice-summary { margin-bottom: 0.5rem !important; }
+
+  .rd-invoice-summary-item--total {
+    border-inline-start-color: var(--rd-print-rule) !important;
+  }
+
+  .rd-invoice-sig {
+    margin-top: 1.25rem !important;
+    break-inside: avoid;
+  }
+  .rd-invoice-sig-rule {
+    border-bottom-color: var(--rd-print-ink) !important;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Chrome keyboard focus                                                      */
+/* -------------------------------------------------------------------------- */
+/* The soft rings above are decoration; this ink outline is the visible
+   indicator (ink on page/surface is well over 3:1 in both themes). Kept last
+   so it overrides the per-component `outline: none`. */
+.rd-search-toggle:focus-visible,
+.rd-menu-btn:focus-visible,
+.rd-theme-btn:focus-visible,
+.rd-user-menu > summary:focus-visible,
+.rd-user-menu-item:focus-visible,
+.rd-sidebar-nav--accordion .rd-nav-group-toggle:focus-visible,
+.rd-sidebar-nav--accordion .rd-nav-link:focus-visible,
+.rd-sidebar-brand:focus-visible,
+.rd-employee-wallet:focus-visible,
+.rd-employee-title__link:focus-visible,
+.rd-toast__close:focus-visible,
+.rd-mobile-tabbar__item:focus-visible,
+.rd-mobile-tabbar__item--sales:focus-visible .rd-mobile-tabbar__bubble,
+.btn:focus-visible,
+.page-link:focus-visible {
+  outline: 2px solid var(--rd-ink);
+  outline-offset: 2px;
+}
+
+/* Scroll / clip containers (overflow auto|hidden) would cut a 2px-offset outline:
+   draw it inside the button instead. */
+.table-responsive .btn:focus-visible,
+.rd-table-wrap .btn:focus-visible,
+.rd-card.overflow-hidden .btn:focus-visible {
+  outline-offset: -2px;
+}
+
+/* Tab items fill the rail height: draw the outline inside them. */
+.rd-mobile-tabbar__item:focus-visible {
+  outline-offset: -2px;
+  border-radius: 0.9rem;
+}
+
+/* On the FAB the outline goes around the bubble, not the tall link. */
+.rd-mobile-tabbar .rd-mobile-tabbar__item--sales:focus-visible {
+  outline: none;
+}
+
+/* Toasts and the employee balance hero are inverted (ink) surfaces, so an ink
+   outline would vanish there: use the on-ink foreground. */
+.rd-toast__close:focus-visible,
+.rd-toast :is(.btn, .page-link):focus-visible,
+.rd-balance-stats .rd-stat--hero :is(.btn, .page-link):focus-visible {
+  outline-color: var(--rd-primary-fg);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Arabic: no tracking, no heading face on controls                           */
+/* -------------------------------------------------------------------------- */
+/* Positive letter-spacing breaks Arabic joining. These are the uppercase-label
+   style rules whose text can be Arabic (digit-only or Latin-only marks such as
+   rank indexes are left alone). */
+html[lang="ar"] .rd-label,
+html[lang="ar"] .rd-nav-section,
+html[lang="ar"] .rd-sidebar-nav--accordion .rd-nav-group-label,
+html[lang="ar"] .rd-search-group-label,
+html[lang="ar"] .rd-charge-tag,
+html[lang="ar"] .rd-field-label,
+html[lang="ar"] .app-shell .rd-card > .table-responsive:not(.rd-table-wrap) .table thead th,
+html[lang="ar"] .app-shell .card > .table-responsive:not(.rd-table-wrap) .table thead th,
+html[lang="ar"] .rd-mobile-row-card .rd-mobile-k,
+html[lang="ar"] .rd-top-avatar,
+html[lang="ar"] .rd-profit-hero__lbl,
+html[lang="ar"] .rd-phone-donut__total-lbl,
+html[lang="ar"] .rd-phone-status,
+html[lang="ar"] .rd-invoice-head-title,
+html[lang="ar"] .rd-invoice-head-doc,
+html[lang="ar"] .rd-invoice-summary-item .rd-label,
+html[lang="ar"] .rd-invoice-sig-block .rd-label {
+  letter-spacing: 0;
+}
+
+/* Controls inside an Arabic card header keep the body face, not Noto Kufi. */
+html[lang="ar"] .rd-card-header :is(.btn, .form-select, .form-control, input, select, button) {
+  font-family: var(--rd-font-ar);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Page kit                                                                   */
+/* -------------------------------------------------------------------------- */
+/* Forms: `rd_field` / `rd_fields` (core/templatetags/kit.py). */
+.rd-form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.1rem 1.25rem;
+}
+
+@media (min-width: 768px) {
+  .rd-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.rd-field--full {
+  grid-column: 1 / -1;
+}
+
+.rd-field .form-label {
+  margin-bottom: 0.35rem;
+  color: var(--rd-ink);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.rd-field__req {
+  margin-inline-start: 0.2rem;
+  color: var(--rd-danger);
+}
+
+.rd-field__error,
+.rd-field .errorlist {
+  margin: 0.35rem 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--rd-danger);
+  font-size: 0.82rem;
+}
+
+.rd-field .form-text,
+.rd-help {
+  color: var(--rd-muted);
+  font-size: 0.82rem;
+}
+
+.rd-help ul {
+  margin: 0.3rem 0 0;
+  padding-inline-start: 1.1rem;
+}
+
+.rd-help li + li {
+  margin-top: 0.1rem;
+}
+
+.rd-field textarea.form-control {
+  resize: vertical;
+}
+
+/* RadioSelect / CheckboxSelectMultiple: a vertical list of check rows. */
+.rd-field__choices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.rd-field__choices label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.6rem;
+  color: var(--rd-ink);
+  cursor: pointer;
+}
+
+.rd-field__choices .form-check-input {
+  flex: 0 0 auto;
+  float: none;
+  margin: 0;
+}
+
+.rd-field__check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.6rem;
+}
+
+.rd-field__check .form-check-input,
+.rd-field__check.form-switch .form-check-input {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.rd-field__check.form-switch {
+  padding-inline-start: 0;
+}
+
+.rd-field__check .form-check-label {
+  flex: 1;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+}
+
+.rd-file-current {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 1rem;
+  margin-top: 0.5rem;
+  font-size: 0.88rem;
+}
+
+.rd-file-current__label {
+  color: var(--rd-muted);
+}
+
+.rd-file-current__name {
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
+.rd-file-current__clear {
+  margin: 0;
+}
+
+@media (max-width: 991.98px) {
+  .rd-field__check,
+  .rd-field__choices label,
+  .rd-file-current__clear {
+    min-height: 3.45rem;
+  }
+
+  .rd-file-current__clear {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-inline-start: 0;
+  }
+
+  .rd-file-current__clear .form-check-input {
+    float: none;
+    margin: 0;
+  }
+}
+
+/* Page header and widths: `rd_page_header` (core/templatetags/kit.py). */
+.rd-page--form {
+  max-width: 56rem;
+  margin-inline: auto;
+}
+
+.rd-page--settings {
+  max-width: 76rem;
+  margin-inline: auto;
+}
+
+.rd-page-head {
+  margin-bottom: 1.25rem;
+}
+
+.rd-page-head__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2.2rem;
+  color: var(--rd-muted);
+  font-size: 0.88rem;
+  text-decoration: none;
+}
+
+.rd-page-head__back:hover {
+  color: var(--rd-ink);
+}
+
+.rd-page-head__back:focus-visible {
+  outline: 2px solid var(--rd-ink);
+  outline-offset: 2px;
+  border-radius: 0.35rem;
+}
+
+[dir="rtl"] .rd-page-head__arrow {
+  transform: scaleX(-1);
+}
+
+.rd-page-head__row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 0.75rem 1.5rem;
+}
+
+.rd-page-head__titles {
+  min-width: 0;
+}
+
+.rd-page-head__titles .rd-heading-xl {
+  margin: 0;
+  color: var(--rd-ink);
+}
+
+.rd-page-head__sub {
+  margin: 0.25rem 0 0;
+  color: var(--rd-muted);
+  font-size: 0.92rem;
+}
+
+.rd-page-head__aside {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.rd-page-head__meta {
+  color: var(--rd-muted);
+  font-size: 0.88rem;
+}
+
+@media (max-width: 991.98px) {
+  .rd-page-head__back {
+    min-height: 3.45rem;
+  }
+}
+
+@media (max-width: 991.98px) {
+  .rd-page .btn:not(.rd-copy-ref) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 3.45rem;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .rd-page-head__aside {
+    flex: 1 1 100%;
+  }
+
+  .rd-page-head__aside > .btn,
+  .rd-page-head__aside > form,
+  .rd-page-head__aside > a {
+    flex: 1 1 auto;
+  }
+
+  .rd-page-head__aside > form .btn {
+    width: 100%;
+  }
+}
+
+/* Filters, tables, row actions: `rd_filter_card`, `rd_sort_link`, `row_actions.html`, `empty_row.html`. */
+.rd-filter-grid {
+  display: grid;
+  column-gap: 1rem;
+  row-gap: 0;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 11.5rem), 1fr));
+  align-items: start;
+}
+
+/* Each field occupies label / control / help tracks shared with its neighbours,
+   so help text under one field cannot push the others up or down. */
+.rd-filter-grid > .rd-field,
+.rd-filter-grid > .rd-filter-grid__actions {
+  grid-row: span 3;
+  margin-bottom: 0.85rem;
+}
+
+.rd-filter-grid > .rd-field {
+  display: grid;
+  grid-template-rows: subgrid;
+  margin-bottom: 0.85rem;
+}
+
+.rd-filter-grid > .rd-field > .form-label {
+  align-self: end;
+  margin-bottom: 0.35rem;
+}
+
+.rd-filter-grid > .rd-field > .form-text {
+  align-self: start;
+  margin: 0.35rem 0 0;
+}
+
+.rd-field--wide {
+  grid-column: span 2;
+}
+
+.rd-filter-grid__errors {
+  grid-column: 1 / -1;
+}
+
+.rd-grid-error {
+  margin: 0;
+  padding: 0.6rem 1.15rem;
+  border-bottom: 1px solid var(--bs-border-color);
+}
+
+.rd-filter-grid__actions {
+  display: grid;
+  grid-template-rows: subgrid;
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
+  justify-content: start;
+  align-items: center;
+  column-gap: 0.5rem;
+  grid-column: span 2;
+  white-space: nowrap;
+}
+
+.rd-filter-grid__actions > * {
+  grid-row: 2;
+  align-self: center;
+}
+
+.rd-empty-row > td {
+  padding: 0;
+  border-bottom: 0;
+}
+
+.rd-empty-row {
+  --bs-table-hover-bg: transparent;
+}
+
+@media (max-width: 575.98px) {
+  .rd-field--wide,
+  .rd-filter-grid__actions {
+    grid-column: span 1;
+  }
+}
+
+/* Form footer: `.rd-form-actions` holds the submit and cancel buttons under a form. */
+.rd-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-start;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--bs-border-color);
+}
+
+/* Search box with a clear link: the link shows only while the input has text. */
+.rd-filter-search__clear {
+  inset-inline-end: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.2rem;
+  min-height: 2.2rem;
+  color: var(--rd-muted);
+}
+
+.rd-filter-search__clear:hover {
+  color: var(--rd-ink);
+}
+
+.rd-filter-search__clear:focus-visible {
+  outline: 2px solid var(--rd-ink);
+  outline-offset: -2px;
+  border-radius: 0.35rem;
+}
+
+.rd-filter-search input:placeholder-shown ~ .rd-filter-search__clear {
+  display: none;
+}
+
+.rd-filter-search .form-control:not(:placeholder-shown) {
+  padding-inline-end: 2.7rem;
+}
+
+.rd-filter-search:has(input:not(:placeholder-shown)) .rd-filter-search__spin {
+  inset-inline-end: 2.6rem;
+}
+
+@media (max-width: 991.98px) {
+  .rd-filter-search__clear {
+    min-width: 3.45rem;
+    min-height: 3.45rem;
+  }
+
+  .rd-filter-search .form-control:not(:placeholder-shown) {
+    padding-inline-end: 3.8rem;
+  }
+
+  .rd-filter-search:has(input:not(:placeholder-shown)) .rd-filter-search__spin {
+    inset-inline-end: 3.9rem;
+  }
+}

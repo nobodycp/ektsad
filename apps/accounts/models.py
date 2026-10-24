@@ -23,6 +23,7 @@ class User(AbstractUser):
     can_publish_prices = models.BooleanField(default=False)
     can_publish_crossings = models.BooleanField(default=False)
     can_view_all_complaints = models.BooleanField(default=False)
+    can_login_web = models.BooleanField(default=True)
 
     def clean(self):
         super().clean()

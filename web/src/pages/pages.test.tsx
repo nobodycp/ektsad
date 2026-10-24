@@ -222,8 +222,12 @@ describe("complaint page", () => {
       </Routes>,
       "/complaints/7/",
     )
+    expect(await screen.findByRole("region", { name: "نص الشكوى" })).toHaveTextContent("التفاصيل")
+    expect(screen.getByText("لم تُستلم بعد")).toBeInTheDocument()
+    expect(screen.getByText("محافظة تجريبية، المنطقة الأولى")).toBeInTheDocument()
     const timeline = await screen.findByRole("list", { name: "خط تقدم الشكوى" })
     expect(within(timeline).getByText("تم الكشف")).toBeInTheDocument()
+    expect(within(timeline).getByText("التفاصيل")).toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "قبول الشكوى" }))
     expect(await screen.findByRole("alert")).toHaveTextContent("استلم هذه الشكوى مفتش آخر.")
   })
@@ -240,6 +244,7 @@ describe("users", () => {
     can_publish_prices: false,
     can_publish_crossings: false,
     can_view_all_complaints: false,
+    can_login_web: true,
     is_active: true,
   }
 

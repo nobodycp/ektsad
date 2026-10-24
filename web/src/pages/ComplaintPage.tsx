@@ -1,6 +1,6 @@
-import { useEffect, useState, type FormEvent } from "react"
+import { useEffect, useState, type FormEvent, type ReactNode } from "react"
 import { Link, useParams } from "react-router-dom"
-import { Button, FileField, Select, StatusChip, TextArea, TextField, Timeline, type TimelineEvent } from "../design-system"
+import { Button, Dialog, FileField, Select, StatusChip, TextArea, TextField, Timeline, type TimelineEvent } from "../design-system"
 import {
   apiRequest,
   apiUpload,
@@ -87,7 +87,6 @@ function AssignAction({ complaint, onDone }: ActionProps) {
   }
 
   return (
-    <Section title="التوجيه لمفتش" note={`المفتشون المفعّلون في ${complaint.region_name} فقط.`}>
       <form className="sheet__form" onSubmit={onSubmit} noValidate>
         {choices ? (
           <Select
@@ -120,7 +119,6 @@ function AssignAction({ complaint, onDone }: ActionProps) {
           </Button>
         </div>
       </form>
-    </Section>
   )
 }
 
@@ -161,7 +159,6 @@ function FieldReportAction({ complaint, onDone }: ActionProps) {
   }
 
   return (
-    <Section title="نتيجة الكشف" note="التفاصيل مطلوبة. المرفقات اختيارية وبحد خمسة ملفات.">
       <form className="sheet__form" onSubmit={onSubmit} noValidate>
         <TextArea
           label="تفاصيل الكشف"
@@ -201,7 +198,6 @@ function FieldReportAction({ complaint, onDone }: ActionProps) {
           </Button>
         </div>
       </form>
-    </Section>
   )
 }
 
@@ -220,7 +216,6 @@ function LegalCloseAction({ complaint, onDone }: ActionProps) {
     onDone(result.ok ? { tone: "ok", text: "تم الانجاز وأُغلقت الشكوى." } : { tone: "error", text: failureText(result) })
   }
   return (
-    <Section title="رد الشؤون القانونية" note="الملاحظات اختيارية.">
       <form className="sheet__form" onSubmit={onSubmit} noValidate>
         <TextArea label="الملاحظات" name="notes" rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} />
         <div className="sheet__actions">
@@ -229,7 +224,28 @@ function LegalCloseAction({ complaint, onDone }: ActionProps) {
           </Button>
         </div>
       </form>
-    </Section>
+  )
+}
+
+function ActionLauncher({
+  label,
+  title,
+  children,
+}: {
+  label: string
+  title: string
+  children: (close: () => void) => ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Button onClick={() => setOpen(true)}>{label}</Button>
+      {open && (
+        <Dialog title={title} onClose={() => setOpen(false)}>
+          {children(() => setOpen(false))}
+        </Dialog>
+      )}
+    </>
   )
 }
 
@@ -250,9 +266,26 @@ function FlagAction({ complaint, onDone }: ActionProps) {
 }
 
 function timelineFor(complaint: ComplaintDetail): TimelineEvent[] {
-  const submitted: TimelineEvent = { id: "submitted", title: "تقديم الشكوى", at: formatDateTime(complaint.created_at) }
+  const submitted: TimelineEvent = {
+    id: "submitted",
+    title: "تقديم الشكوى",
+    at: formatDateTime(complaint.created_at),
+    body: <p className="app-prose">{complaint.body}</p>,
+  }
+  const received: TimelineEvent[] = complaint.inspector_name
+    ? [
+        {
+          id: "received",
+          title: "استلام الشكوى",
+          at: formatDateTime(complaint.accepted_at || complaint.created_at),
+          actor: complaint.inspector_name,
+          body: complaint.assigned_by_name ? <p className="app-prose">وجّهها {complaint.assigned_by_name}</p> : undefined,
+        },
+      ]
+    : []
   return [
     submitted,
+    ...received,
     ...complaint.follow_ups.map((line) => ({
       id: `follow-${line.id}`,
       title: line.place === "legal" ? "الشؤون القانونية" : "المتابعة الميدانية",
@@ -295,13 +328,37 @@ function ComplaintView({ complaint, user, reload }: { complaint: ComplaintDetail
   const status = complaint.status
   const props = { complaint, onDone }
   const canFlag = user.role === "admin" || (user.role === "governor" && user.governorate === complaint.governorate)
+  const place = [complaint.governorate_name, complaint.region_name].filter(Boolean).join("، ")
+  const channel = complaint.source === "telegram" ? "تلغرام" : "الموقع"
+  const submitter = complaint.telegram_user_id || complaint.submitter_ip || ""
+  const facts: { label: string; value: string; ltr?: boolean }[] = [
+    { label: "المكان", value: place || "غير محدد" },
+    { label: "وقت التقديم", value: `${formatDateTime(complaint.created_at)} · ${channel}` },
+    { label: "الاستلام", value: complaint.inspector_name || "لم تُستلم بعد" },
+  ]
+  if (complaint.accepted_at) facts.push({ label: "وقت الاستلام", value: formatDateTime(complaint.accepted_at) })
+  if (complaint.assigned_by_name) facts.push({ label: "وجّهها", value: complaint.assigned_by_name })
+  if (complaint.field_replied_at) facts.push({ label: "وقت الرد الميداني", value: formatDateTime(complaint.field_replied_at) })
+  if (complaint.legal_referred_at) facts.push({ label: "إحالة الشؤون القانونية", value: formatDateTime(complaint.legal_referred_at) })
+  if (complaint.closed_at) facts.push({ label: "وقت الإغلاق", value: formatDateTime(complaint.closed_at) })
+  if (submitter) facts.push({ label: "مقدّم الشكوى", value: submitter, ltr: true })
   const actions = [
     user.role === "inspector" && status === "واردة" && <AcceptAction key="accept" {...props} />,
-    user.role === "governor" && status === "واردة" && <AssignAction key="assign" {...props} />,
-    user.role === "inspector" && status === "قيد المتابعة الميدانية" && complaint.inspector === user.id && (
-      <FieldReportAction key="field" {...props} />
+    user.role === "governor" && status === "واردة" && (
+      <ActionLauncher key="assign" label="توجيه لمفتش" title="توجيه لمفتش">
+        {(close) => <AssignAction {...props} onDone={(notice) => { close(); props.onDone(notice) }} />}
+      </ActionLauncher>
     ),
-    user.role === "legal" && status === "قيد المتابعة في الشؤون القانونية" && <LegalCloseAction key="legal" {...props} />,
+    user.role === "inspector" && status === "قيد المتابعة الميدانية" && complaint.inspector === user.id && (
+      <ActionLauncher key="field" label="نتيجة الكشف" title="نتيجة الكشف">
+        {(close) => <FieldReportAction {...props} onDone={(notice) => { close(); props.onDone(notice) }} />}
+      </ActionLauncher>
+    ),
+    user.role === "legal" && status === "قيد المتابعة في الشؤون القانونية" && (
+      <ActionLauncher key="legal" label="تم الانجاز" title="رد الشؤون القانونية">
+        {(close) => <LegalCloseAction {...props} onDone={(notice) => { close(); props.onDone(notice) }} />}
+      </ActionLauncher>
+    ),
   ].filter(Boolean)
 
   return (
@@ -311,50 +368,29 @@ function ComplaintView({ complaint, user, reload }: { complaint: ComplaintDetail
           العودة إلى الشكاوى
         </Link>
       </p>
-      <article className="dossier" aria-label={`الشكوى رقم ${complaint.id}`}>
+      <article className="dossier" aria-label={`شكوى ${complaint.id}`}>
         <header className="dossier__head">
-          <span className="dossier__number">رقم {complaint.id}</span>
+          <div className="dossier__idline">
+            <StatusChip status={status} />
+            {complaint.is_flagged && <span className="app-flag">عليها علامة المتابعة</span>}
+            <span className="dossier__number">شكوى {complaint.id}</span>
+            {canFlag && <FlagAction {...props} />}
+          </div>
           <h2 className="dossier__title">{complaint.title}</h2>
-          <StatusChip status={status} />
-          {complaint.is_flagged && <span className="app-flag">عليها علامة المتابعة</span>}
-          {canFlag && <FlagAction {...props} />}
         </header>
-        <dl className="dossier__meta">
-          <div>
-            <dt>المحافظة</dt>
-            <dd>{complaint.governorate_name}</dd>
-          </div>
-          <div>
-            <dt>المنطقة</dt>
-            <dd>{complaint.region_name}</dd>
-          </div>
-          <div>
-            <dt>المفتش المستلم</dt>
-            <dd>{complaint.inspector_name || "—"}</dd>
-          </div>
-          <div>
-            <dt>وقت التقديم</dt>
-            <dd>{formatDateTime(complaint.created_at)}</dd>
-          </div>
-          <div>
-            <dt>القناة</dt>
-            <dd>{complaint.source === "telegram" ? "تلغرام" : "الموقع"}</dd>
-          </div>
-          <div>
-            <dt>مقدّم الشكوى</dt>
-            <dd>{complaint.telegram_user_id || complaint.submitter_ip || "—"}</dd>
-          </div>
-          <div>
-            <dt>وقت القبول</dt>
-            <dd>{formatDateTime(complaint.accepted_at)}</dd>
-          </div>
-          <div>
-            <dt>وقت الرد الميداني</dt>
-            <dd>{formatDateTime(complaint.field_replied_at)}</dd>
-          </div>
+        <section className="dossier__story" aria-label="نص الشكوى">
+          <h3 className="dossier__kicker">نص الشكوى</h3>
+          <p className="app-prose dossier__body">{complaint.body}</p>
+          {complaint.has_image !== false && <ComplaintImage id={complaint.id} />}
+        </section>
+        <dl className="dossier__facts" aria-label="بيانات الشكوى">
+          {facts.map((fact) => (
+            <div key={fact.label}>
+              <dt>{fact.label}</dt>
+              <dd>{fact.ltr ? <bdi dir="ltr">{fact.value}</bdi> : fact.value}</dd>
+            </div>
+          ))}
         </dl>
-        <p className="app-prose dossier__body">{complaint.body}</p>
-        {complaint.has_image !== false && <ComplaintImage id={complaint.id} />}
       </article>
       <NoticeLine notice={notice} />
       {actions}

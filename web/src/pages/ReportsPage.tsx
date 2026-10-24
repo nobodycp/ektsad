@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import {
+  BarChart,
   DataTable,
   FilterBar,
   STATUS_LABELS,
@@ -38,7 +39,7 @@ const DONE_COLUMNS: Column<DoneRow>[] = [
   { key: "count", header: "المنجز", render: (row) => <span className="app-num">{row.count}</span> },
 ]
 
-export function GovernorReportPage() {
+export function GovernorReportPage({ part = "all" }: { part?: "all" | "overview" | "complaints" | "staff" }) {
   const [day, setDay] = useState(todayInHebron)
   const { state, reload } = useLoad(
     () => apiRequest<GovernorReport>(withQuery("/api/governor/report/", { date: day })),
@@ -53,6 +54,7 @@ export function GovernorReportPage() {
       <Loaded state={state} onRetry={reload}>
         {(report) => (
           <>
+            {(part === "all" || part === "overview" || part === "complaints") && (
             <Ledger
               label="ملخص اليوم"
               figures={[
@@ -60,6 +62,8 @@ export function GovernorReportPage() {
                 { key: "pending", label: "المعلق", value: report.pending },
               ]}
             />
+            )}
+            {(part === "all" || part === "staff") && (
             <Section title="المنجز لكل مفتش">
               <DataTable
                 caption="المنجز لكل مفتش"
@@ -69,6 +73,7 @@ export function GovernorReportPage() {
                 emptyTitle="لا يوجد منجز في هذا اليوم."
               />
             </Section>
+            )}
           </>
         )}
       </Loaded>
@@ -100,7 +105,7 @@ function useInspectorOptions() {
   return options
 }
 
-export function AdminReportsPage() {
+export function AdminReportsPage({ part = "all" }: { part?: "all" | "overview" | "complaints" | "staff" }) {
   const [filters, setFilters] = useState<FilterValues>({})
   const geo = useAdminGeography()
   const inspectors = useInspectorOptions()
@@ -135,12 +140,25 @@ export function AdminReportsPage() {
 
   return (
     <div className="page">
-      <FilterBar schema={schema} onChange={setFilters} />
-      <p className="app-muted">الفترة الفارغة تعني اليوم فقط. فلتر الحالة يخص بلوك الشكاوى وحده، وبلوك النشر يتأثر بالفترة فقط.</p>
+      {part !== "overview" && <FilterBar schema={schema} onChange={setFilters} />}
+      {part !== "overview" && (
+        <p className="app-muted">الفترة الفارغة تعني اليوم فقط. فلتر الحالة يخص بلوك الشكاوى وحده، وبلوك النشر يتأثر بالفترة فقط.</p>
+      )}
       <Loaded state={state} onRetry={reload}>
         {(report) => (
           <>
+            {(part === "all" || part === "overview" || part === "complaints") && (
             <Section title="الشكاوى" note="المقدّمة داخل الفترة، موزعة حسب الحالة الحالية.">
+              {part === "overview" && (
+                <BarChart
+                  label="الشكاوى حسب الحالة"
+                  rows={STATUS_LABELS.map((status) => ({
+                    key: status,
+                    label: status,
+                    value: report.complaints.by_status[status] ?? 0,
+                  }))}
+                />
+              )}
               <Ledger
                 label="الشكاوى حسب الحالة"
                 figures={[
@@ -153,7 +171,19 @@ export function AdminReportsPage() {
                 ]}
               />
             </Section>
+            )}
+            {(part === "all" || part === "overview" || part === "staff") && (
             <Section title="أداء المفتشين" note="المتوسط من القبول حتى سطر المتابعة الميدانية.">
+              {part === "overview" && (
+                <BarChart
+                  label="منجز كل مفتش"
+                  rows={report.inspectors.map((inspector) => ({
+                    key: String(inspector.id),
+                    label: inspector.name,
+                    value: inspector.done,
+                  }))}
+                />
+              )}
               <DataTable
                 caption="أداء المفتشين"
                 columns={INSPECTOR_COLUMNS}
@@ -162,6 +192,8 @@ export function AdminReportsPage() {
                 emptyTitle="لا يوجد مفتشون مطابقون."
               />
             </Section>
+            )}
+            {(part === "all" || part === "complaints") && (
             <Section title="الشؤون القانونية">
               <Ledger
                 label="أداء الشؤون القانونية"
@@ -172,6 +204,8 @@ export function AdminReportsPage() {
                 ]}
               />
             </Section>
+            )}
+            {(part === "all" || part === "overview") && (
             <Section title="النشر">
               <Ledger
                 label="النشر في الفترة"
@@ -181,6 +215,7 @@ export function AdminReportsPage() {
                 ]}
               />
             </Section>
+            )}
           </>
         )}
       </Loaded>

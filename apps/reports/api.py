@@ -4,7 +4,7 @@ from django.views.decorators.http import require_GET
 
 from apps.accounts.models import User
 from apps.geography.models import Governorate
-from apps.reports.queries import _date_value, _optional_id, _today, governor_daily, admin_report
+from apps.reports.queries import _date_value, _optional_id, _today, governor_daily, admin_report, overview
 
 
 def _forbidden(request):
@@ -32,6 +32,21 @@ def governor_report(request):
     except ValidationError as error:
         return JsonResponse({"detail": error.messages[0]}, status=400)
     return JsonResponse(governor_daily(governorate, day))
+
+
+@require_GET
+def overview_report(request):
+    if _forbidden(request) or request.user.role not in {
+        User.Role.ADMIN,
+        User.Role.GOVERNOR,
+        User.Role.INSPECTOR,
+        User.Role.LEGAL,
+    }:
+        return JsonResponse({"detail": "Forbidden"}, status=403)
+    try:
+        return JsonResponse(overview(request.user, request.GET))
+    except ValidationError as error:
+        return JsonResponse({"detail": error.messages[0]}, status=400)
 
 
 @require_GET

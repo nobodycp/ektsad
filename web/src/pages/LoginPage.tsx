@@ -84,6 +84,11 @@ export function LoginPage() {
           </Button>
         </form>
       </section>
+      <aside className="login__hero" aria-hidden="true">
+        <span className="login__mark">ح</span>
+        <p className="login__hero-title">حماية المستهلك</p>
+        <p className="login__hero-note">وزارة الاقتصاد الوطني</p>
+      </aside>
     </div>
   )
 }

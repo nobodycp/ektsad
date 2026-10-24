@@ -1,0 +1,13 @@
+.git
+.venv
+node_modules
+web/node_modules
+web/dist
+db.sqlite3
+.env
+media
+staticfiles
+__pycache__
+*.pem
+.cursor
+design-reference

@@ -40,6 +40,8 @@ def login_view(request):
     user = authenticate(request, username=username, password=password)
     if user is None or not user.is_active:
         return JsonResponse({"detail": INVALID_CREDENTIALS}, status=400)
+    if not user.can_login_web:
+        return JsonResponse({"detail": "هذا الحساب لا يدخل من الموقع."}, status=400)
     login(request, user)
     return JsonResponse(_me_payload(user))
 
@@ -57,6 +59,7 @@ def _me_payload(user):
         "can_publish_prices": user.can_publish_prices,
         "can_publish_crossings": user.can_publish_crossings,
         "can_view_all_complaints": user.can_view_all_complaints,
+        "can_login_web": user.can_login_web,
     }
 
 
@@ -71,6 +74,7 @@ def _user_payload(user):
         "can_publish_prices": user.can_publish_prices,
         "can_publish_crossings": user.can_publish_crossings,
         "can_view_all_complaints": user.can_view_all_complaints,
+        "can_login_web": user.can_login_web,
         "is_active": user.is_active,
     }
 
@@ -152,6 +156,7 @@ def users(request):
             can_publish_prices=payload.get("can_publish_prices", False),
             can_publish_crossings=payload.get("can_publish_crossings", False),
             can_view_all_complaints=payload.get("can_view_all_complaints", False),
+            can_login_web=payload.get("can_login_web", True),
         )
         _apply_user_fields(user, payload, ("governorate", "region"))
         if len(payload["password"]) < 12:
@@ -206,6 +211,7 @@ def user_detail(request, pk):
             "can_publish_prices",
             "can_publish_crossings",
             "can_view_all_complaints",
+            "can_login_web",
             "is_active",
         )
     try:

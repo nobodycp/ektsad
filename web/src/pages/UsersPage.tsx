@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react"
 import {
   Button,
   DataTable,
+  Dialog,
   FilterBar,
   Select,
   TextField,
@@ -28,6 +29,7 @@ const FLAGS = [
   { key: "can_publish_prices", label: "نشر قائمة الأسعار" },
   { key: "can_publish_crossings", label: "نشر حركة المعابر" },
   { key: "can_view_all_complaints", label: "رؤية كل الشكاوى" },
+  { key: "can_login_web", label: "الدخول من الموقع" },
 ] as const
 
 type FlagKey = (typeof FLAGS)[number]["key"]
@@ -81,6 +83,7 @@ function draftFrom(user?: UserRow): Draft {
     can_publish_prices: user?.can_publish_prices ?? false,
     can_publish_crossings: user?.can_publish_crossings ?? false,
     can_view_all_complaints: user?.can_view_all_complaints ?? false,
+    can_login_web: user?.can_login_web ?? true,
   }
 }
 
@@ -127,6 +130,7 @@ function UserForm({
       can_publish_prices: draft.can_publish_prices,
       can_publish_crossings: draft.can_publish_crossings,
       can_view_all_complaints: draft.can_view_all_complaints,
+      can_login_web: draft.can_login_web,
     }
     if (creating) {
       body.username = draft.username.trim()
@@ -477,14 +481,30 @@ export function UsersPage() {
           إضافة مستخدم
         </Button>
       </div>
-      {panel?.kind === "create" && <UserForm geo={geo} onSaved={finish} onCancel={() => setPanel(null)} />}
-      {panel?.kind === "edit" && (
-        <UserForm key={panel.user.id} user={panel.user} geo={geo} onSaved={finish} onCancel={() => setPanel(null)} />
+      {panel?.kind === "create" && (
+        <Dialog title="مستخدم جديد" onClose={() => setPanel(null)}>
+          <UserForm geo={geo} onSaved={finish} onCancel={() => setPanel(null)} />
+        </Dialog>
       )}
-      {panel?.kind === "password" && <PasswordPanel key={panel.user.id} user={panel.user} onClose={() => setPanel(null)} />}
-      {panel?.kind === "telegram" && <TelegramPanel key={panel.user.id} user={panel.user} onClose={() => setPanel(null)} />}
+      {panel?.kind === "edit" && (
+        <Dialog title={`تعديل ${panel.user.username}`} onClose={() => setPanel(null)}>
+          <UserForm key={panel.user.id} user={panel.user} geo={geo} onSaved={finish} onCancel={() => setPanel(null)} />
+        </Dialog>
+      )}
+      {panel?.kind === "password" && (
+        <Dialog title="كلمة المرور" onClose={() => setPanel(null)}>
+          <PasswordPanel key={panel.user.id} user={panel.user} onClose={() => setPanel(null)} />
+        </Dialog>
+      )}
+      {panel?.kind === "telegram" && (
+        <Dialog title="ربط تلغرام" onClose={() => setPanel(null)}>
+          <TelegramPanel key={panel.user.id} user={panel.user} onClose={() => setPanel(null)} />
+        </Dialog>
+      )}
       {panel?.kind === "delete" && (
-        <DeletePanel key={panel.user.id} user={panel.user} onDone={finish} onCancel={() => setPanel(null)} />
+        <Dialog title="حذف الحساب" onClose={() => setPanel(null)}>
+          <DeletePanel key={panel.user.id} user={panel.user} onDone={finish} onCancel={() => setPanel(null)} />
+        </Dialog>
       )}
       <FilterBar
         schema={SCHEMA}

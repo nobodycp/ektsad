@@ -3,6 +3,7 @@ from django.http import HttpResponse, HttpResponseServerError
 from django.urls import include, path, re_path
 
 from apps.accounts.api import login_view, logout_view, me_view, user_detail
+from apps.common.api import public_settings, system_settings
 from apps.complaints.api import (
     assign, complaint_actions, complaint_detail, complaint_media, complaints, field_report,
     followup_media, legal_close, public_complaint,
@@ -25,6 +26,8 @@ urlpatterns = [
     path("api/auth/login/", login_view),
     path("api/auth/logout/", logout_view),
     path("api/auth/me/", me_view),
+    path("api/settings/public/", public_settings),
+    path("api/system-settings/", system_settings),
     path("api/users/<int:pk>/", user_detail),
     path("api/governorates/public/", public_governorates),
     path("api/regions/public/", public_regions),

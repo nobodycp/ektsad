@@ -8,7 +8,7 @@ from apps.accounts.models import User
 from apps.complaints.models import Complaint, FollowUp
 from apps.geography.models import Governorate, Region
 from apps.publications.models import CrossingReport, PriceReport
-from apps.reports.queries import admin_report, governor_daily
+from apps.reports.queries import admin_report, governor_daily, overview
 
 
 HEBRON = ZoneInfo("Asia/Hebron")
@@ -182,3 +182,78 @@ class ReportTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json(), {"detail": "المنطقة لا تتبع المحافظة."})
+
+
+class OverviewTests(ReportTests):
+    def test_period_done_matches_same_day_close_and_skips_percent_from_zero(self):
+        self.complaint(
+            status=Complaint.Status.FINISHED,
+            accepted_at=at(self.day, 9),
+            closed_at=at(self.day, 15),
+            created_at=at(self.day, 8),
+        )
+        self.complaint(created_at=at(self.previous_day, 11))
+
+        report = overview(self.admin, {"date_from": self.day.isoformat(), "date_to": self.day.isoformat()})
+
+        self.assertEqual(report["period_metrics"]["done"], 1)
+        self.assertEqual(report["period_metrics"]["done_previous"], 0)
+        self.assertIsNone(report["period_metrics"]["done_percent"])
+        self.assertEqual(report["period_metrics"]["created"], 1)
+        self.assertEqual(report["period_metrics"]["created_previous"], 1)
+        self.assertEqual(report["period_metrics"]["created_percent"], 0)
+        self.assertEqual(report["trend"], [{"date": "2026-10-24", "created": 1, "done": 1}])
+        self.assertEqual(report["current"]["by_status"]["واردة"], 1)
+        self.assertEqual(report["current"]["by_status"]["منتهية"], 1)
+        self.assertEqual(report["period_metrics"]["pending_at_end"], 0)
+
+    def test_unaccepted_incoming_is_attention_but_not_pending(self):
+        self.complaint(created_at=at(self.day, 9))
+
+        report = overview(self.governor, {"date_from": self.day.isoformat(), "date_to": self.day.isoformat()})
+
+        self.assertEqual(report["period_metrics"]["pending_at_end"], 0)
+        self.assertEqual(report["attention"][0], {"kind": "status", "status": "واردة", "count": 1})
+
+    def test_governor_scope_excludes_another_governorate(self):
+        self.complaint(created_at=at(self.day, 9))
+        Complaint.objects.create(
+            governorate=self.other_governorate,
+            region=self.other_region,
+            title="خارج النطاق",
+            body="تفاصيل",
+        )
+
+        report = overview(self.governor, {"date_from": self.day.isoformat(), "date_to": self.day.isoformat()})
+
+        self.assertEqual(report["current"]["total"], 1)
+        self.assertIsNone(report["publications"])
+
+    def test_long_range_keeps_totals_and_drops_the_daily_chart(self):
+        self.complaint(created_at=at(self.day, 9))
+
+        report = overview(
+            self.admin,
+            {"date_from": "2026-01-01", "date_to": self.day.isoformat()},
+        )
+
+        self.assertIsNone(report["trend"])
+        self.assertEqual(report["trend_note"], "الرسم اليومي متاح حتى 92 يوماً.")
+        self.assertEqual(report["period_metrics"]["created"], 1)
+
+    def test_reversed_dates_and_anonymous_are_refused(self):
+        response = self.client.get("/api/reports/overview/", {"date_from": "2026-10-24", "date_to": "2026-10-01"})
+        self.assertEqual(response.status_code, 403)
+
+        self.client.force_login(self.inspector)
+        response = self.client.get("/api/reports/overview/", {"date_from": "2026-10-24", "date_to": "2026-10-01"})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "تاريخ البداية بعد تاريخ النهاية.")
+
+        ok = self.client.get(
+            "/api/reports/overview/",
+            {"date_from": self.day.isoformat(), "date_to": self.day.isoformat()},
+        )
+        self.assertEqual(ok.status_code, 200)
+        self.assertIsNone(ok.json()["inspectors"])
+        self.assertIsNone(ok.json()["publications"])

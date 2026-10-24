@@ -1,4 +1,6 @@
 import json
+from datetime import datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 from django.core.cache import cache
 from django.db import transaction
@@ -83,6 +85,37 @@ def _complaint_data(complaint, detail=False):
     return result
 
 
+def _iso_day(value):
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError as error:
+        raise ValidationError("تاريخ غير صالح.") from error
+
+
+def _apply_day_filters(queryset, params):
+    hebron = ZoneInfo("Asia/Hebron")
+
+    def bounds(day):
+        start = datetime.combine(day, time.min, tzinfo=hebron)
+        return start, start + timedelta(days=1)
+
+    created_from = _iso_day(params.get("created_from"))
+    created_to = _iso_day(params.get("created_to"))
+    closed_from = _iso_day(params.get("closed_from"))
+    closed_to = _iso_day(params.get("closed_to"))
+    if created_from:
+        queryset = queryset.filter(created_at__gte=bounds(created_from)[0])
+    if created_to:
+        queryset = queryset.filter(created_at__lt=bounds(created_to)[1])
+    if closed_from:
+        queryset = queryset.filter(closed_at__gte=bounds(closed_from)[0], status__in=("منتهية", "تم المعالجه خلص"))
+    if closed_to:
+        queryset = queryset.filter(closed_at__lt=bounds(closed_to)[1], status__in=("منتهية", "تم المعالجه خلص"))
+    return queryset
+
+
 @require_http_methods(["GET"])
 def complaints(request):
     if _forbidden(request):
@@ -92,6 +125,12 @@ def complaints(request):
     ).order_by("-created_at")
     if request.GET.get("status"):
         queryset = queryset.filter(status=request.GET["status"])
+    if request.GET.get("flagged") == "1":
+        queryset = queryset.filter(is_flagged=True)
+    try:
+        queryset = _apply_day_filters(queryset, request.GET)
+    except ValidationError as error:
+        return JsonResponse({"detail": error.messages[0]}, status=400)
     if request.user.role in {User.Role.ADMIN, User.Role.GOVERNOR} and request.GET.get("region"):
         queryset = queryset.filter(region_id=request.GET["region"])
     page = paginate(queryset, request.GET)
@@ -223,6 +262,10 @@ def followup_media(request, pk, file_id):
 
 @require_http_methods(["POST"])
 def public_complaint(request):
+    from apps.common.models import SystemSettings
+
+    if not SystemSettings.current().web_complaints_enabled:
+        return JsonResponse({"detail": "تقديم الشكاوى عبر الموقع متوقف حالياً."}, status=403)
     payload = _payload(request)
     try:
         region = Region.objects.get(pk=payload.get("region"))

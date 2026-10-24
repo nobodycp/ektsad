@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { Link } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 import {
   DataTable,
   FilterBar,
@@ -70,7 +70,8 @@ function useRegionOptions(user: SessionUser) {
 }
 
 export function ComplaintsPage({ user }: { user: SessionUser }) {
-  const [filters, setFilters] = useState<FilterValues>({})
+  const [params] = useSearchParams()
+  const [filters, setFilters] = useState<FilterValues>({ status: params.get("status") || undefined })
   const [page, setPage] = useState(1)
   const [notice, setNotice] = useState<Notice>(null)
   const canFlag = user.role === "admin" || user.role === "governor"
@@ -83,11 +84,16 @@ export function ComplaintsPage({ user }: { user: SessionUser }) {
         withQuery("/api/complaints/", {
           status: filters.status,
           region: canFlag ? filters.region : undefined,
+          flagged: params.get("flagged") === "1" ? "1" : undefined,
+          created_from: params.get("created_from") || undefined,
+          created_to: params.get("created_to") || undefined,
+          closed_from: params.get("closed_from") || undefined,
+          closed_to: params.get("closed_to") || undefined,
           page,
           page_size: PAGE_SIZE,
         }),
       ),
-    [filters.status, filters.region, page],
+    [filters.status, filters.region, page, params],
   )
 
   const schema = useMemo<FilterField[]>(() => {
@@ -170,11 +176,19 @@ export function ComplaintsPage({ user }: { user: SessionUser }) {
       )}
       <FilterBar
         schema={schema}
+        initialValues={{ status: params.get("status") || undefined }}
         onChange={(values) => {
           setFilters(values)
           setPage(1)
         }}
       />
+      {(params.get("created_from") || params.get("closed_from") || params.get("flagged") === "1") && (
+        <p className="ov-range">
+          {params.get("flagged") === "1" && "المعلّمة فقط. "}
+          {params.get("created_from") && `تاريخ التقديم ${params.get("created_from")} → ${params.get("created_to")}. `}
+          {params.get("closed_from") && `تاريخ الإغلاق ${params.get("closed_from")} → ${params.get("closed_to")}.`}
+        </p>
+      )}
       <NoticeLine notice={notice} />
       <Loaded state={state} onRetry={reload}>
         {(data) => (

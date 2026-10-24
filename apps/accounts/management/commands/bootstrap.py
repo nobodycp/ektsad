@@ -8,11 +8,11 @@ from apps.geography.models import Governorate, Region
 
 TRIAL_GOVERNORATE = "محافظة تجريبية"
 TRIAL_REGIONS = ("المنطقة الأولى", "المنطقة الثانية")
-USER_CONFIGS = (
-    ("ADMIN", User.Role.ADMIN),
-    ("GOVERNOR", User.Role.GOVERNOR),
-    ("INSPECTOR", User.Role.INSPECTOR),
-    ("LEGAL", User.Role.LEGAL),
+DEMO_USERS = (
+    ("admin", "admin-password-12", "مدير النظام", User.Role.ADMIN),
+    ("governor", "governor-password-12", "مدير المحافظة", User.Role.GOVERNOR),
+    ("inspector", "inspector-password-12", "المفتش", User.Role.INSPECTOR),
+    ("legal", "legal-password-12", "الشؤون القانونية", User.Role.LEGAL),
 )
 REQUIRED_KEYS = (
     "DJANGO_SECRET_KEY",
@@ -36,17 +36,9 @@ class Command(BaseCommand):
         keys = list(REQUIRED_KEYS)
         if os.environ.get("BEHIND_PROXY") == "1":
             keys.append("CSRF_TRUSTED_ORIGINS")
-        for prefix, _role in USER_CONFIGS:
-            keys.extend(
-                (f"{prefix}_USERNAME", f"{prefix}_PASSWORD", f"{prefix}_DISPLAY_NAME")
-            )
         for key in keys:
             if not os.environ.get(key):
                 raise CommandError(f"Missing required environment variable: {key}")
-        for prefix, _role in USER_CONFIGS:
-            key = f"{prefix}_PASSWORD"
-            if len(os.environ[key]) < 12:
-                raise CommandError(f"{key} must be at least 12 characters.")
 
     def _ensure_trial_geography(self):
         if Governorate.objects.exists():
@@ -57,13 +49,12 @@ class Command(BaseCommand):
 
     def _ensure_users(self):
         governorate = Governorate.objects.filter(name=TRIAL_GOVERNORATE).first()
-        for prefix, role in USER_CONFIGS:
-            username = os.environ[f"{prefix}_USERNAME"]
+        for username, password, display_name, role in DEMO_USERS:
             if User.objects.filter(username=username).exists():
                 continue
             fields = {
                 "username": username,
-                "display_name": os.environ[f"{prefix}_DISPLAY_NAME"],
+                "display_name": display_name,
                 "role": role,
             }
             if role in {User.Role.GOVERNOR, User.Role.INSPECTOR}:
@@ -78,6 +69,6 @@ class Command(BaseCommand):
                     raise CommandError(f"Missing required geography: {TRIAL_REGIONS[0]}")
                 fields["region"] = region
             user = User(**fields)
-            user.set_password(os.environ[f"{prefix}_PASSWORD"])
+            user.set_password(password)
             user.full_clean()
             user.save()

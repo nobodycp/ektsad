@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react"
-import { Button, DataTable, Select, TextField, type Column, type RowAction } from "../design-system"
+import { Button, DataTable, Dialog, Select, TextField, type Column, type RowAction } from "../design-system"
 import { apiRequest, withQuery, type Page, type RegionPlace } from "../api"
-import { Loaded, NoticeLine, PAGE_SIZE, Section, failureText, useLoad, type Notice } from "./common"
+import { Loaded, NoticeLine, PAGE_SIZE, failureText, useLoad, type Notice } from "./common"
 import { nameOf, optionsOf, useAdminGeography } from "./geo"
 
 type Kind = "governorates" | "regions"
@@ -23,8 +23,10 @@ export function GeographyPage({ kind }: { kind: Kind }) {
   const [notice, setNotice] = useState<Notice>(null)
   const [busy, setBusy] = useState(false)
   const [version, setVersion] = useState(0)
+  const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<Row | null>(null)
   const [editName, setEditName] = useState("")
+  const [removing, setRemoving] = useState<Row | null>(null)
   const geo = useAdminGeography(version)
 
   const { state, reload } = useLoad(
@@ -47,6 +49,7 @@ export function GeographyPage({ kind }: { kind: Kind }) {
     if (result.ok) {
       setNotice({ tone: "ok", text: `تمت إضافة ${copy.noun} ${name.trim()}.` })
       setName("")
+      setCreating(false)
       setVersion((v) => v + 1)
       reload()
     } else {
@@ -86,38 +89,72 @@ export function GeographyPage({ kind }: { kind: Kind }) {
 
   return (
     <div className="page">
-      <Section title={copy.create}>
-        <form className="sheet__form sheet__form--inline" onSubmit={onSubmit} noValidate>
-          {kind === "regions" && (
-            <Select
-              label="المحافظة"
-              name="governorate"
-              placeholder="اختر المحافظة"
-              options={optionsOf(geo.governorates)}
-              value={governorate}
-              onChange={(e) => setGovernorate(e.target.value)}
-              error={errors.governorate}
-              required
-            />
-          )}
-          <TextField label="الاسم" name="name" value={name} onChange={(e) => setName(e.target.value)} error={errors.name} required />
-          <Button type="submit" loading={busy}>
-            إضافة
-          </Button>
-        </form>
-        <NoticeLine notice={notice} />
-        {editing && (
-          <form className="sheet__form sheet__form--inline" onSubmit={rename} noValidate>
-            <TextField label={`اسم ${copy.noun} الجديد`} name="edit_name" value={editName} onChange={(e) => setEditName(e.target.value)} required />
-            <Button type="submit" loading={busy}>
-              حفظ الاسم
+      <div className="page__bar">
+        <Button onClick={() => setCreating(true)}>{copy.create}</Button>
+      </div>
+      <NoticeLine notice={notice} />
+      {creating && (
+        <Dialog title={copy.create} onClose={() => setCreating(false)}>
+          <form className="sheet__form" onSubmit={onSubmit} noValidate>
+            {kind === "regions" && (
+              <Select
+                label="المحافظة"
+                name="governorate"
+                placeholder="اختر المحافظة"
+                options={optionsOf(geo.governorates)}
+                value={governorate}
+                onChange={(e) => setGovernorate(e.target.value)}
+                error={errors.governorate}
+                required
+              />
+            )}
+            <TextField label="الاسم" name="name" value={name} onChange={(e) => setName(e.target.value)} error={errors.name} required />
+            <div className="sheet__actions">
+              <Button type="submit" loading={busy}>
+                إضافة
+              </Button>
+              <Button variant="ghost" onClick={() => setCreating(false)}>
+                إلغاء
+              </Button>
+            </div>
+          </form>
+        </Dialog>
+      )}
+      {editing && (
+        <Dialog title={`تعديل ${copy.noun}`} onClose={() => setEditing(null)}>
+          <form className="sheet__form" onSubmit={rename} noValidate>
+            <TextField label="الاسم" name="edit_name" value={editName} onChange={(e) => setEditName(e.target.value)} required />
+            <div className="sheet__actions">
+              <Button type="submit" loading={busy}>
+                حفظ الاسم
+              </Button>
+              <Button variant="ghost" onClick={() => setEditing(null)}>
+                إلغاء
+              </Button>
+            </div>
+          </form>
+        </Dialog>
+      )}
+      {removing && (
+        <Dialog title={`حذف ${copy.noun}`} onClose={() => setRemoving(null)}>
+          <p>سيُحذف {removing.name}. السجل المرتبط بشكاوى لا يُحذف.</p>
+          <div className="sheet__actions">
+            <Button
+              variant="danger"
+              loading={busy}
+              onClick={async () => {
+                await remove(removing)
+                setRemoving(null)
+              }}
+            >
+              تأكيد الحذف
             </Button>
-            <Button variant="ghost" onClick={() => setEditing(null)}>
+            <Button variant="ghost" onClick={() => setRemoving(null)}>
               إلغاء
             </Button>
-          </form>
-        )}
-      </Section>
+          </div>
+        </Dialog>
+      )}
       <Loaded state={state} onRetry={reload}>
         {(data) => (
           <DataTable
@@ -128,7 +165,7 @@ export function GeographyPage({ kind }: { kind: Kind }) {
             emptyTitle={copy.empty}
             rowActions={(row): RowAction[] => [
               { id: "rename", label: "تعديل الاسم", onSelect: () => { setEditing(row); setEditName(row.name) } },
-              { id: "delete", label: "حذف", tone: "danger", onSelect: () => remove(row) },
+              { id: "delete", label: "حذف", tone: "danger", onSelect: () => setRemoving(row) },
             ]}
             pagination={{ page: data.page, pageSize: data.page_size, total: data.count, onPageChange: setPage }}
           />

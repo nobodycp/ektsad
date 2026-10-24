@@ -65,12 +65,14 @@ afterEach(() => {
 
 it("moves from complaints to account without a document navigation", async () => {
   render(<MemoryRouter initialEntries={["/complaints/"]}><App /></MemoryRouter>)
+  await user.click(screen.getByRole("button", { name: "حساب المستخدم" }))
   await user.click(screen.getByRole("link", { name: "الإعدادات" }))
   expect(screen.getByRole("heading", { name: "الإعدادات" })).toBeInTheDocument()
 })
 
 it("prevents the browser default on sidebar links", async () => {
   renderAt("/complaints/")
+  await user.click(screen.getByRole("button", { name: "حساب المستخدم" }))
   const link = screen.getByRole("link", { name: "الإعدادات" })
   const event = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 })
   act(() => {
@@ -107,7 +109,7 @@ it("signs in and lands on complaints", async () => {
   await user.type(field("اسم المستخدم"), "admin")
   await user.type(field("كلمة المرور"), "correct-horse-battery")
   await user.click(screen.getByRole("button", { name: "دخول" }))
-  expect(await screen.findByRole("heading", { name: "الشكاوى" })).toBeInTheDocument()
+  expect(await screen.findByRole("heading", { name: "نظرة عامة" })).toBeInTheDocument()
 })
 
 it("sends anonymous visitors to the login page", async () => {
@@ -127,20 +129,20 @@ it("serves the public page at / without signing in", () => {
 it("adds the publication items only when the flag is granted", () => {
   primeSession({ ...admin, role: "governor", can_publish_prices: true })
   const { unmount } = renderAt("/complaints/")
-  expect(sidebarLabels()).toEqual(["الشكاوى", "التقرير اليومي", "الأسعار", "الإعدادات"])
+  expect(sidebarLabels()).toEqual(["نظرة عامة", "الشكاوى", "أداء الموظفين", "تقرير الشكاوى", "الأسعار"])
   unmount()
   primeSession({ ...admin, role: "inspector", can_publish_crossings: true })
   renderAt("/prices/")
-  expect(sidebarLabels()).toEqual(["الشكاوى", "المعابر", "الإعدادات"])
+  expect(sidebarLabels()).toEqual(["نظرة عامة", "الشكاوى", "المعابر"])
   expect(screen.getByText("لا تملك صلاحية الوصول إلى هذه الصفحة.")).toBeInTheDocument()
 })
 
 it("builds the sidebar for each role", () => {
   const expected: Record<SessionUser["role"], string[]> = {
-    admin: ["المحافظات", "المناطق", "المستخدمون", "الشكاوى", "التقارير", "صحة تلغرام", "الأسعار", "المعابر", "الإعدادات"],
-    governor: ["الشكاوى", "التقرير اليومي", "الإعدادات"],
-    inspector: ["الشكاوى", "الإعدادات"],
-    legal: ["الشكاوى", "الإعدادات"],
+    admin: ["نظرة عامة", "الشكاوى", "أداء الموظفين", "تقرير الشكاوى", "الأسعار", "المعابر", "المستخدمون", "المحافظات", "المناطق", "إعدادات النظام", "إعدادات تلغرام", "حالة تلغرام"],
+    governor: ["نظرة عامة", "الشكاوى", "أداء الموظفين", "تقرير الشكاوى"],
+    inspector: ["نظرة عامة", "الشكاوى"],
+    legal: ["نظرة عامة", "الشكاوى"],
   }
   for (const role of Object.keys(expected) as SessionUser["role"][]) {
     primeSession({ ...admin, role })
@@ -152,7 +154,7 @@ it("builds the sidebar for each role", () => {
 
 it("navigates to every sidebar page for admin", async () => {
   renderAt("/complaints/")
-  for (const label of ["المحافظات", "المناطق", "المستخدمون", "التقارير", "صحة تلغرام", "الأسعار", "المعابر"]) {
+  for (const label of ["نظرة عامة", "أداء الموظفين", "تقرير الشكاوى", "الأسعار", "المعابر", "المستخدمون", "المحافظات", "المناطق", "إعدادات النظام", "إعدادات تلغرام", "حالة تلغرام"]) {
     await user.click(screen.getByRole("link", { name: label }))
     expect(screen.getByRole("heading", { level: 1, name: label })).toBeInTheDocument()
   }

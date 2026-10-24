@@ -1,5 +1,4 @@
 import { useEffect, useState, type FormEvent } from "react"
-import { Link } from "react-router-dom"
 import { Button, FileField, LoadingState, Select, TextArea, TextField } from "../design-system"
 import {
   apiRequest,
@@ -11,7 +10,6 @@ import {
   type Publication,
   type RegionPlace,
 } from "../api"
-import { LOGIN_PATH } from "../routes"
 import { ALL_ROWS, NoticeLine, failureText, formatDateTime, type Notice } from "./common"
 
 export const COMPLAINT_RECEIVED = "تم استلام الشكوى."
@@ -185,51 +183,60 @@ function Bulletin({ latest, mediaPath, alt }: { latest: Latest; mediaPath: strin
 export function PublicPage() {
   const price = useLatest("/api/prices/latest/", NO_PRICES)
   const crossing = useLatest("/api/crossings/latest/", NO_CROSSINGS)
+  const [webComplaints, setWebComplaints] = useState(true)
+  useEffect(() => {
+    apiRequest<{ web_complaints_enabled?: boolean }>("/api/settings/public/").then((result) => {
+      if (result.ok && result.data && result.data.web_complaints_enabled === false) setWebComplaints(false)
+    })
+  }, [])
 
   return (
-    <div className="public" dir="rtl" lang="ar">
-      <header className="public__masthead">
-        <div className="public__brand">
-          <p className="public__eyebrow">وزارة الاقتصاد الوطني</p>
-          <h1 className="public__title">حماية المستهلك</h1>
-        </div>
-        <nav className="public__nav" aria-label="أقسام الصفحة">
+    <div className="portal" dir="rtl" lang="ar">
+      <header className="portal__bar">
+        <p className="portal__ministry">وزارة الاقتصاد الوطني</p>
+        <nav className="portal__nav" aria-label="أقسام الصفحة">
           <a href="#complaint">تقديم شكوى</a>
-          <a href="#prices">قائمة الأسعار</a>
-          <a href="#crossings">حركة المعابر</a>
-          <Link className="public__staff" to={LOGIN_PATH}>
-            دخول الموظفين
-          </Link>
+          <a href="#prices">الأسعار</a>
+          <a href="#crossings">المعابر</a>
         </nav>
       </header>
-      <main className="public__body">
-        <section className="public__section public__section--form" id="complaint" aria-labelledby="complaint-title">
-          <span className="public__index" aria-hidden="true">
-            ١
-          </span>
-          <h2 className="public__heading" id="complaint-title">
-            تقديم شكوى
-          </h2>
-          <p className="public__lede">اختر المحافظة ثم المنطقة، واكتب ما حدث. لا نطلب اسمك ولا وسيلة للتواصل معك.</p>
-          <ComplaintForm />
+      <main>
+        <section className="portal__hero">
+          <p className="portal__kicker">خدمة عامة</p>
+          <h1>حماية المستهلك</h1>
+          <p className="portal__lead">
+            قدّم شكواك مباشرة. نكتفي بمكان الواقعة وما حدث، من غير اسم ومن غير متابعة لاحقة.
+          </p>
+          <a className="portal__cta" href="#complaint">
+            ابدأ الشكوى
+          </a>
         </section>
-        <div className="public__bulletins">
-          <section className="public__section" id="prices" aria-labelledby="prices-title">
-            <span className="public__index" aria-hidden="true">
-              ٢
-            </span>
-            <h2 className="public__heading" id="prices-title">
-              قائمة الأسعار
-            </h2>
+        <ol className="portal__steps">
+          <li>
+            <strong>١</strong>
+            <span>حدد المحافظة والمنطقة</span>
+          </li>
+          <li>
+            <strong>٢</strong>
+            <span>صف ما حدث بعنوان وتفاصيل</span>
+          </li>
+          <li>
+            <strong>٣</strong>
+            <span>نحوّلها للجهة المختصة</span>
+          </li>
+        </ol>
+        <section className="portal__card" id="complaint" aria-labelledby="complaint-title">
+          <h2 id="complaint-title">تقديم شكوى</h2>
+          <p className="portal__note">الصورة اختيارية. بعد الإرسال تظهر جملة الاستلام فقط.</p>
+          {webComplaints ? <ComplaintForm /> : <p className="public__empty">تقديم الشكاوى عبر الموقع متوقف حالياً.</p>}
+        </section>
+        <div className="portal__side">
+          <section className="portal__card" id="prices" aria-labelledby="prices-title">
+            <h2 id="prices-title">قائمة الأسعار</h2>
             <Bulletin latest={price} mediaPath="/api/media/prices/latest/" alt="قائمة الأسعار الحالية" />
           </section>
-          <section className="public__section" id="crossings" aria-labelledby="crossings-title">
-            <span className="public__index" aria-hidden="true">
-              ٣
-            </span>
-            <h2 className="public__heading" id="crossings-title">
-              حركة المعابر
-            </h2>
+          <section className="portal__card" id="crossings" aria-labelledby="crossings-title">
+            <h2 id="crossings-title">حركة المعابر</h2>
             <Bulletin latest={crossing} mediaPath="/api/media/crossings/latest/" alt="حركة المعابر الحالية" />
           </section>
         </div>

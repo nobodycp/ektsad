@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react"
-import { Button, DataTable, FileField, TextArea, type Column } from "../design-system"
+import { Button, DataTable, Dialog, FileField, TextArea, type Column } from "../design-system"
 import { apiRequest, apiUpload, withQuery, type Page, type Publication, type SessionUser } from "../api"
 import { Loaded, NoticeLine, PAGE_SIZE, Section, failureText, formatDateTime, useLoad, type Notice } from "./common"
 import { NO_CROSSINGS, NO_PRICES } from "./PublicPage"
@@ -61,8 +61,7 @@ function PublishForm({ kind, onDone }: { kind: Kind; onDone: (notice: Notice) =>
   }
 
   return (
-    <Section title={copy.form} note={copy.formNote}>
-      <form className="sheet__form" onSubmit={onSubmit} noValidate>
+    <form className="sheet__form" onSubmit={onSubmit} noValidate>
         {kind === "crossings" && (
           <TextArea label="نص الحركة" name="body" rows={4} value={body} onChange={(e) => setBody(e.target.value)} />
         )}
@@ -83,7 +82,6 @@ function PublishForm({ kind, onDone }: { kind: Kind; onDone: (notice: Notice) =>
           </Button>
         </div>
       </form>
-    </Section>
   )
 }
 
@@ -91,6 +89,7 @@ export function PublicationsPage({ kind, user }: { kind: Kind; user: SessionUser
   const copy = COPY[kind]
   const [page, setPage] = useState(1)
   const [notice, setNotice] = useState<Notice>(null)
+  const [publishing, setPublishing] = useState(false)
   const canPublish = Boolean(user[copy.flag])
 
   const { state, reload } = useLoad(
@@ -108,14 +107,23 @@ export function PublicationsPage({ kind, user }: { kind: Kind; user: SessionUser
   return (
     <div className="page">
       {canPublish && (
-        <PublishForm
-          kind={kind}
-          onDone={(next) => {
-            setNotice(next)
-            setPage(1)
-            reload()
-          }}
-        />
+        <div className="page__bar">
+          <Button onClick={() => setPublishing(true)}>{copy.form}</Button>
+        </div>
+      )}
+      {publishing && (
+        <Dialog title={copy.form} onClose={() => setPublishing(false)}>
+          <p className="account__note">{copy.formNote}</p>
+          <PublishForm
+            kind={kind}
+            onDone={(next) => {
+              setNotice(next)
+              setPublishing(false)
+              setPage(1)
+              reload()
+            }}
+          />
+        </Dialog>
       )}
       <NoticeLine notice={notice} />
       <Loaded state={state} onRetry={reload}>
