@@ -175,6 +175,36 @@ class TelegramWebhookTests(TestCase):
             f"وصلت شكوى في {self.region.name} بعنوان محل.",
         ])
 
+    def test_inspector_arrival_message_has_accept_button(self):
+        from apps.telegram.models import TelegramLink, TelegramOutbox
+        from apps.telegram.webhook import handle_update
+
+        TelegramLink.objects.create(user=self.inspector, telegram_id="811")
+        TelegramLink.objects.create(user=self.governor, telegram_id="812")
+        self.client.post("/api/complaints/public/", {
+            "governorate": self.governorate.pk, "region": self.region.pk, "title": "محل", "body": "النص",
+        })
+        complaint = Complaint.objects.get()
+        inspector_message = TelegramOutbox.objects.get(chat_id="811")
+        governor_message = TelegramOutbox.objects.get(chat_id="812")
+
+        self.assertEqual(inspector_message.markup, {
+            "inline_keyboard": [[{"text": "قبول", "callback_data": f"/accept {complaint.pk}"}]],
+        })
+        self.assertFalse(governor_message.markup)
+
+        handle_update({
+            "callback_query": {
+                "id": "cb-1",
+                "from": {"id": 811},
+                "data": f"/accept {complaint.pk}",
+                "message": {"chat": {"id": 811}, "message_id": 4},
+            }
+        })
+        complaint.refresh_from_db()
+        self.assertEqual(complaint.status, Complaint.Status.FIELD)
+        self.assertEqual(complaint.inspector, self.inspector)
+
     def test_price_button_queues_the_image(self):
         from django.core.files.uploadedfile import SimpleUploadedFile
 

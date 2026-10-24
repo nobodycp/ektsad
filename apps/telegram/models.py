@@ -29,6 +29,7 @@ class TelegramOutbox(models.Model):
     chat_id = models.CharField(max_length=255)
     text = models.TextField(blank=True)
     photo = models.CharField(max_length=255, blank=True)
+    markup = models.JSONField(null=True, blank=True)
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
     attempts = models.PositiveIntegerField(default=0)
     next_attempt_at = models.DateTimeField(default=timezone.now)

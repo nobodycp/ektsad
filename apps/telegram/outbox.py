@@ -18,8 +18,8 @@ def _retry(operation):
                 raise
 
 
-def enqueue(chat_id, text="", photo=""):
-    return _retry(lambda: TelegramOutbox.objects.create(chat_id=str(chat_id), text=text, photo=photo))
+def enqueue(chat_id, text="", photo="", markup=None):
+    return _retry(lambda: TelegramOutbox.objects.create(chat_id=str(chat_id), text=text, photo=photo, markup=markup))
 
 
 def next_delay(attempts):
@@ -44,6 +44,12 @@ def keyboard_for(chat_id):
     return {"keyboard": rows, "resize_keyboard": True}
 
 
+def _reply_markup(item):
+    if item.markup:
+        return item.markup
+    return keyboard_for(item.chat_id)
+
+
 def send_telegram_outbox():
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     if not token:
@@ -63,7 +69,7 @@ def send_telegram_outbox():
                         data={
                             "chat_id": item.chat_id,
                             "caption": item.text,
-                            "reply_markup": json.dumps(keyboard_for(item.chat_id), ensure_ascii=False),
+                            "reply_markup": json.dumps(_reply_markup(item), ensure_ascii=False),
                         },
                         files={"photo": photo},
                         timeout=10,
@@ -74,7 +80,7 @@ def send_telegram_outbox():
                     json={
                         "chat_id": item.chat_id,
                         "text": item.text,
-                        "reply_markup": keyboard_for(item.chat_id),
+                        "reply_markup": _reply_markup(item),
                     },
                     timeout=10,
                 )

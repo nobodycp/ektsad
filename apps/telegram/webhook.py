@@ -109,7 +109,10 @@ def notify_new_complaint(complaint):
         telegram_link__isnull=False,
     ).select_related("telegram_link")
     message = f"وصلت شكوى في {complaint.region.name} بعنوان {complaint.title}."
-    for user in list(inspectors) + list(governors):
+    accept = {"inline_keyboard": [[{"text": "قبول", "callback_data": f"/accept {complaint.pk}"}]]}
+    for user in inspectors:
+        enqueue(user.telegram_link.telegram_id, message, markup=accept)
+    for user in governors:
         enqueue(user.telegram_link.telegram_id, message)
 
 
@@ -366,8 +369,24 @@ def _download_photo(photo):
     }
 
 
+def _answer_callback(callback):
+    callback_id = callback.get("id")
+    token = _value("TELEGRAM_BOT_TOKEN")
+    if not callback_id or not token:
+        return
+    try:
+        httpx.post(
+            f"https://api.telegram.org/bot{token}/answerCallbackQuery",
+            json={"callback_query_id": callback_id},
+            timeout=10,
+        )
+    except Exception:
+        return
+
+
 def handle_update(update):
     callback = update.get("callback_query") or {}
+    _answer_callback(callback)
     message = update.get("message") or callback.get("message") or {}
     chat_id = (message.get("chat") or {}).get("id")
     sender = (update.get("message") or {}).get("from") or callback.get("from") or {}
