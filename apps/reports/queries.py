@@ -208,7 +208,8 @@ def _counts_by_day(queryset, field, start, end):
 
 def _overview_scope(user, params):
     queryset = visible_complaints(user)
-    if user.role == User.Role.ADMIN:
+    from apps.accounts.permissions import allows
+    if user.role == User.Role.ADMIN or (user.role == User.Role.CUSTOM and allows(user, "can_view_reports")):
         return queryset.filter(**_geo_filters(params))
     if user.role == User.Role.GOVERNOR:
         filters = _geo_filters({"governorate": user.governorate_id, "region": params.get("region")})
@@ -302,9 +303,10 @@ def overview(user, params):
         ]
 
     publications = {}
-    if user.role == User.Role.ADMIN or user.can_publish_prices:
+    from apps.accounts.permissions import allows as _allows
+    if _allows(user, "can_publish_prices"):
         publications["prices"] = PriceReport.objects.filter(published_at__gte=start, published_at__lt=end).count()
-    if user.role == User.Role.ADMIN or user.can_publish_crossings:
+    if _allows(user, "can_publish_crossings"):
         publications["crossings"] = CrossingReport.objects.filter(published_at__gte=start, published_at__lt=end).count()
 
     recent = [

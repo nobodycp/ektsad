@@ -9,12 +9,18 @@ export function useAdminGeography(version = 0): Geography {
   const [geo, setGeo] = useState<Geography>({ governorates: [], regions: [] })
   useEffect(() => {
     let cancelled = false
+    const load = async <T,>(staffPath: string, publicPath: string) => {
+      const staff = await apiRequest<Page<T>>(withQuery(staffPath, { page_size: ALL_ROWS }))
+      if (staff.ok && staff.data) return staff.data.results
+      const open = await apiRequest<Page<T>>(withQuery(publicPath, { page_size: ALL_ROWS }))
+      return open.data?.results ?? []
+    }
     Promise.all([
-      apiRequest<Page<Place>>(withQuery("/api/governorates/", { page_size: ALL_ROWS })),
-      apiRequest<Page<RegionPlace>>(withQuery("/api/regions/", { page_size: ALL_ROWS })),
+      load<Place>("/api/governorates/", "/api/governorates/public/"),
+      load<RegionPlace>("/api/regions/", "/api/regions/public/"),
     ]).then(([governorates, regions]) => {
       if (cancelled) return
-      setGeo({ governorates: governorates.data?.results ?? [], regions: regions.data?.results ?? [] })
+      setGeo({ governorates, regions })
     })
     return () => {
       cancelled = true

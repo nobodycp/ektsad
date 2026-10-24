@@ -13,7 +13,8 @@ from apps.telegram.webhook import _value, _status_update, handle_update, record_
 
 
 def _admin(request):
-    return request.user.is_authenticated and request.user.role == User.Role.ADMIN
+    from apps.accounts.permissions import allows
+    return allows(request.user, "can_manage_settings")
 
 
 @csrf_exempt
@@ -56,7 +57,8 @@ def health(request):
 
 @require_http_methods(["POST", "DELETE"])
 def user_telegram_link(request, pk):
-    if not _admin(request):
+    from apps.accounts.permissions import allows
+    if not allows(request.user, "can_manage_users"):
         return JsonResponse({"detail": "Forbidden"}, status=403)
     user = User.objects.filter(pk=pk).first()
     if user is None:

@@ -115,7 +115,8 @@ def visible_complaints(user):
     queryset = Complaint.objects.all()
     if not user.is_authenticated:
         return queryset.none()
-    if user.can_view_all_complaints or user.role == User.Role.ADMIN:
+    from apps.accounts.permissions import allows
+    if allows(user, "can_view_all_complaints"):
         return queryset
     if user.role == User.Role.INSPECTOR:
         return queryset.filter(

@@ -309,6 +309,56 @@
   gap: var(--ds-space-2);
 }
 
+.page-tabs {
+  display: flex;
+  gap: var(--ds-space-2);
+  border-bottom: 1px solid var(--ds-line);
+  margin-bottom: var(--ds-space-4);
+}
+
+.page-tabs a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  padding-inline: var(--ds-space-3);
+  color: var(--ds-ink-soft);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.page-tabs a[aria-current="page"] {
+  color: var(--ds-ink);
+  border-bottom-color: var(--ds-ink);
+  font-weight: 700;
+}
+
+.role-perms {
+  display: grid;
+  gap: var(--ds-space-1);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.role-perms legend {
+  font-weight: 700;
+  margin-bottom: var(--ds-space-2);
+}
+
+.role-perms label {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  min-height: 44px;
+}
+
+.role-perms input {
+  accent-color: var(--ds-ink);
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
 .sheet__image {
   max-width: 100%;
   max-height: 520px;

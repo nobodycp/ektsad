@@ -1,4 +1,4 @@
-export type Role = "admin" | "governor" | "inspector" | "legal"
+export type Role = "admin" | "governor" | "inspector" | "legal" | "custom"
 
 export type SessionUser = {
   id: number
@@ -14,6 +14,13 @@ export type SessionUser = {
   can_view_all_complaints: boolean
   can_open_field_missions: boolean
   can_view_field_missions: boolean
+  role_id?: number | null
+  role_name?: string
+  can_view_reports?: boolean
+  can_manage_users?: boolean
+  can_manage_geography?: boolean
+  can_manage_settings?: boolean
+  can_impersonate?: boolean
   impersonator?: { id: number; username: string; display_name: string } | null
 }
 
@@ -67,6 +74,8 @@ export type UserRow = {
   username: string
   display_name: string
   role: Role
+  role_id?: number | null
+  role_name?: string
   governorate: number | null
   region: number | null
   can_publish_prices: boolean
@@ -76,6 +85,22 @@ export type UserRow = {
   can_open_field_missions: boolean
   can_view_field_missions: boolean
   is_active: boolean
+}
+
+export type StaffRole = {
+  id: number
+  name: string
+  kind: Exclude<Role, "admin">
+  built_in: boolean
+  can_view_all_complaints: boolean
+  can_view_reports: boolean
+  can_manage_users: boolean
+  can_manage_geography: boolean
+  can_publish: boolean
+  can_field_missions: boolean
+  can_manage_settings: boolean
+  can_impersonate: boolean
+  can_login_web: boolean
 }
 
 export type FieldMission = {

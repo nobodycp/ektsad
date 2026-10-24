@@ -158,6 +158,7 @@ it("builds the sidebar for each role", () => {
     governor: ["نظرة عامة", "الشكاوى", "أداء الموظفين", "تقرير الشكاوى"],
     inspector: ["نظرة عامة", "الشكاوى"],
     legal: ["نظرة عامة", "الشكاوى"],
+    custom: ["نظرة عامة", "الشكاوى"],
   }
   for (const role of Object.keys(expected) as SessionUser["role"][]) {
     primeSession({ ...admin, role })

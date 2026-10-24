@@ -10,6 +10,7 @@ import { AccountPage } from "./pages/AccountPage"
 import { PublicPage } from "./pages/PublicPage"
 import { ComplaintsPage } from "./pages/ComplaintsPage"
 import { ComplaintPage } from "./pages/ComplaintPage"
+import { RolesPage } from "./pages/RolesPage"
 import { UsersPage } from "./pages/UsersPage"
 import { GeographyPage } from "./pages/GeographyPage"
 import { OverviewPage } from "./pages/OverviewPage"
@@ -45,6 +46,8 @@ function pageFor(route: AppRoute, user: SessionUser): ReactNode {
       return <ComplaintPage user={user} />
     case "users":
       return <UsersPage />
+    case "roles":
+      return <RolesPage />
     case "governorates":
       return <GeographyPage kind="governorates" />
     case "regions":

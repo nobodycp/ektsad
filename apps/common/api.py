@@ -3,12 +3,12 @@ import json
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 
-from apps.accounts.models import User
 from apps.common.models import SystemSettings
 
 
 def _admin(request):
-    return request.user.is_authenticated and request.user.role == User.Role.ADMIN
+    from apps.accounts.permissions import allows
+    return allows(request.user, "can_manage_settings")
 
 
 def _public_payload(row):

@@ -167,16 +167,18 @@ class FieldMissionApiTests(TestCase):
         self.client.force_login(self.away)
         self.assertEqual(self.client.get(f"/api/media/field-missions/{opened.json()['id']}/").status_code, 404)
 
-    def test_admin_grants_the_two_permissions(self):
+    def test_admin_grants_field_missions_on_the_inspector_role(self):
         self.client.force_login(self.admin)
+        role = self.client.get("/api/roles/").json()["results"]
+        inspector_role = next(row for row in role if row["kind"] == "inspector")
         response = self.client.patch(
-            f"/api/users/{self.away.pk}/",
-            data=json.dumps({"can_open_field_missions": True, "can_view_field_missions": True}),
+            f"/api/roles/{inspector_role['id']}/",
+            data=json.dumps({"can_field_missions": True}),
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.json()["can_open_field_missions"])
-        self.assertTrue(response.json()["can_view_field_missions"])
+        self.away.staff_role_id = inspector_role["id"]
+        self.away.save(update_fields=["staff_role"])
         self.client.force_login(self.away)
         me = self.client.get("/api/auth/me/").json()
         self.assertTrue(me["can_open_field_missions"])

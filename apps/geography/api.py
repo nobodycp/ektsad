@@ -14,7 +14,8 @@ NAME_TAKEN = "الاسم مستخدم."
 
 
 def _admin_only(request):
-    return request.user.is_authenticated and getattr(request.user, "role", None) == "admin"
+    from apps.accounts.permissions import allows
+    return allows(request.user, "can_manage_geography")
 
 
 @require_http_methods(["GET"])

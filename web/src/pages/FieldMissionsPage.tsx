@@ -34,8 +34,13 @@ const rowId = (row: FieldMission) => row.id
 
 export function canOpenMission(user: SessionUser) {
   if (user.role === "admin") return true
-  if (user.role !== "governor" && user.role !== "inspector") return false
-  return user.can_open_field_missions
+  if (user.role === "legal") return false
+  if (user.role === "custom" || user.role === "governor" || user.role === "inspector") return Boolean(user.can_open_field_missions)
+  return false
+}
+
+function opensNationally(user: SessionUser) {
+  return user.role === "admin" || user.role === "custom"
 }
 
 export function PriorityChip({ priority }: { priority: string }) {
@@ -67,12 +72,13 @@ function MissionForm({ user, onSaved, onCancel }: { user: SessionUser; onSaved: 
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [notice, setNotice] = useState<Notice>(null)
   const [busy, setBusy] = useState(false)
-  const assigns = user.role === "admin" || user.role === "governor"
+  const national = opensNationally(user)
+  const assigns = national || user.role === "governor"
   const governorateId = user.role === "governor" ? user.governorate : Number(governorate) || null
   const scopeOptions = [
     { value: "one", label: "مفتش واحد" },
     { value: "all", label: "كل المفتشين" },
-    ...(user.role === "admin" ? [{ value: "office", label: "إدارة المحافظة" }] : []),
+    ...(national ? [{ value: "office", label: "إدارة المحافظة" }] : []),
   ]
 
   useEffect(() => {
@@ -81,14 +87,14 @@ function MissionForm({ user, onSaved, onCancel }: { user: SessionUser; onSaved: 
       return
     }
     let cancelled = false
-    const query = user.role === "admin" ? { governorate: governorateId } : {}
+    const query = national ? { governorate: governorateId } : {}
     apiRequest<Page<UserRow>>(withQuery("/api/users/", { role: "inspector", is_active: "1", page_size: 100, ...query })).then((result) => {
       if (!cancelled) setInspectors(result.data?.results ?? [])
     })
     return () => {
       cancelled = true
     }
-  }, [assigns, governorateId, scope, user.role])
+  }, [assigns, governorateId, national, scope])
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -98,7 +104,7 @@ function MissionForm({ user, onSaved, onCancel }: { user: SessionUser; onSaved: 
     if (!details.trim()) found.details = "التفاصيل مطلوبة."
     if (!placeName.trim()) found.place_name = "اسم المحل مطلوب."
     if (!phone.trim()) found.phone = "رقم الجوال مطلوب."
-    if (user.role === "admin" && !governorate) found.governorate = "اختر المحافظة."
+    if (national && !governorate) found.governorate = "اختر المحافظة."
     if (assigns && scope === "one" && !inspector) found.inspector = "اختر المفتش."
     setErrors(found)
     if (Object.keys(found).length) return
@@ -109,7 +115,7 @@ function MissionForm({ user, onSaved, onCancel }: { user: SessionUser; onSaved: 
     form.set("place_name", placeName.trim())
     form.set("phone", phone.trim())
     if (image) form.set("image", image)
-    if (user.role === "admin") form.set("governorate", governorate)
+    if (national) form.set("governorate", governorate)
     if (assigns) {
       form.set("scope", scope)
       if (scope === "one") form.set("inspector", inspector)
@@ -130,7 +136,7 @@ function MissionForm({ user, onSaved, onCancel }: { user: SessionUser; onSaved: 
         <TextField label="اسم المحل" name="place_name" value={placeName} onChange={(e) => setPlaceName(e.target.value)} error={errors.place_name} required />
         <TextField label="رقم الجوال" name="phone" value={phone} onChange={(e) => setPhone(e.target.value)} error={errors.phone} required dir="ltr" />
         <FileField label="صورة" name="image" accept="image/jpeg,image/png,image/webp" hint="اختيارية. jpeg أو png أو webp بحد 5 ميغابايت." onChange={(e) => setImage(e.target.files?.[0] ?? null)} />
-        {user.role === "admin" && (
+        {national && (
           <Select
             label="المحافظة"
             name="governorate"

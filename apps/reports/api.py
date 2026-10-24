@@ -41,6 +41,7 @@ def overview_report(request):
         User.Role.GOVERNOR,
         User.Role.INSPECTOR,
         User.Role.LEGAL,
+        User.Role.CUSTOM,
     }:
         return JsonResponse({"detail": "Forbidden"}, status=403)
     try:
@@ -51,7 +52,8 @@ def overview_report(request):
 
 @require_GET
 def reports(request):
-    if _forbidden(request) or request.user.role != User.Role.ADMIN:
+    from apps.accounts.permissions import allows
+    if _forbidden(request) or not allows(request.user, "can_view_reports"):
         return JsonResponse({"detail": "Forbidden"}, status=403)
     try:
         return JsonResponse(admin_report(request.GET))

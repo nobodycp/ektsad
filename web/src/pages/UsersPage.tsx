@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from "react"
-import { useNavigate } from "react-router-dom"
+import { useEffect, useState, type FormEvent } from "react"
+import { Link, useNavigate } from "react-router-dom"
 import {
   Button,
   DataTable,
@@ -12,7 +12,7 @@ import {
   type FilterField,
   type FilterValues,
 } from "../design-system"
-import { apiRequest, withQuery, type ActionResult, type Page, type Role, type SessionUser, type UserRow } from "../api"
+import { apiRequest, withQuery, type ActionResult, type Page, type Role, type SessionUser, type StaffRole, type UserRow } from "../api"
 import { useAuthOptional } from "../auth"
 import { HOME_PATH } from "../routes"
 import { PASSWORD_MIN_LENGTH } from "./AccountPage"
@@ -24,25 +24,28 @@ export const ROLE_NAMES: Record<Role, string> = {
   governor: "مدير المحافظة",
   inspector: "مفتش",
   legal: "الشؤون القانونية",
+  custom: "دور مخصص",
 }
 
 const ROLE_OPTIONS = (Object.keys(ROLE_NAMES) as Role[]).map((role) => ({ value: role, label: ROLE_NAMES[role] }))
 
-const FLAGS = [
-  { key: "can_publish_prices", label: "نشر قائمة الأسعار" },
-  { key: "can_publish_crossings", label: "نشر حركة المعابر" },
-  { key: "can_view_all_complaints", label: "رؤية كل الشكاوى" },
-  { key: "can_login_web", label: "الدخول من الموقع" },
-  { key: "can_open_field_missions", label: "فتح مهمة ميدانية" },
-  { key: "can_view_field_missions", label: "رؤية المهمات الميدانية" },
-] as const
-
-type FlagKey = (typeof FLAGS)[number]["key"]
-
-const YES_NO = [
-  { value: "0", label: "غير ممنوحة" },
-  { value: "1", label: "ممنوحة" },
-]
+export function AreaTabs({ current }: { current: "users" | "roles" }) {
+  const auth = useAuthOptional()
+  const signedIn = auth?.session.status === "signed_in" ? auth.session.user : null
+  const showRoles = !signedIn || signedIn.role === "admin"
+  return (
+    <nav className="page-tabs" aria-label="المستخدمون">
+      <Link to="/users/" aria-current={current === "users" ? "page" : undefined}>
+        المستخدمون
+      </Link>
+      {showRoles && (
+        <Link to="/roles/" aria-current={current === "roles" ? "page" : undefined}>
+          الأدوار
+        </Link>
+      )}
+    </nav>
+  )
+}
 
 const SCHEMA: FilterField[] = [
   { type: "search", key: "q", label: "بحث", placeholder: "اسم المستخدم أو الاسم الظاهر" },
@@ -73,25 +76,22 @@ type Draft = {
   username: string
   display_name: string
   password: string
-  role: Role | ""
+  roleId: string
   governorate: string
   region: string
-} & Record<FlagKey, boolean>
+}
 
-function draftFrom(user?: UserRow): Draft {
+function draftFrom(user: UserRow | undefined, roles: StaffRole[]): Draft {
+  const matched = user?.role_id
+    ? String(user.role_id)
+    : roles.find((role) => role.kind === user?.role && role.built_in)?.id
   return {
     username: user?.username ?? "",
     display_name: user?.display_name ?? "",
     password: "",
-    role: user?.role ?? "",
+    roleId: user?.role === "admin" ? "admin" : matched ? String(matched) : "",
     governorate: user?.governorate ? String(user.governorate) : "",
     region: user?.region ? String(user.region) : "",
-    can_publish_prices: user?.can_publish_prices ?? false,
-    can_publish_crossings: user?.can_publish_crossings ?? false,
-    can_view_all_complaints: user?.can_view_all_complaints ?? false,
-    can_login_web: user?.can_login_web ?? true,
-    can_open_field_missions: user?.can_open_field_missions ?? false,
-    can_view_field_missions: user?.can_view_field_missions ?? false,
   }
 }
 
@@ -106,16 +106,38 @@ function UserForm({
   onSaved: (notice: Notice) => void
   onCancel: () => void
 }) {
+  const auth = useAuthOptional()
+  const signedIn = auth?.session.status === "signed_in" ? auth.session.user : null
+  const canAssignAdmin = !signedIn || signedIn.role === "admin"
   const creating = !user
-  const [draft, setDraft] = useState<Draft>(() => draftFrom(user))
+  const [roles, setRoles] = useState<StaffRole[]>([])
+  const [draft, setDraft] = useState<Draft>(() => draftFrom(user, []))
   const [errors, setErrors] = useState<Partial<Record<keyof Draft, string>>>({})
   const [notice, setNotice] = useState<Notice>(null)
   const [busy, setBusy] = useState(false)
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((d) => ({ ...d, [key]: value }))
 
-  const needsGovernorate = draft.role === "governor" || draft.role === "inspector"
-  const needsRegion = draft.role === "inspector"
+  useEffect(() => {
+    let cancelled = false
+    apiRequest<{ results: StaffRole[] }>("/api/roles/").then((result) => {
+      if (cancelled || !result.data) return
+      setRoles(result.data.results)
+      setDraft((current) => (current.roleId ? current : draftFrom(user, result.data?.results ?? [])))
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [user])
+
+  const selected = roles.find((role) => String(role.id) === draft.roleId)
+  const kind = draft.roleId === "admin" ? "admin" : selected?.kind
+  const needsGovernorate = kind === "governor" || kind === "inspector"
+  const needsRegion = kind === "inspector"
   const regionOptions = optionsOf(geo.regions.filter((r) => String(r.governorate) === draft.governorate))
+  const roleOptions = [
+    ...(canAssignAdmin ? [{ value: "admin", label: "مدير النظام" }] : []),
+    ...roles.map((role) => ({ value: String(role.id), label: role.name })),
+  ]
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -124,7 +146,7 @@ function UserForm({
     if (creating && !draft.username.trim()) found.username = "أدخل اسم المستخدم."
     if (creating && draft.password.length < PASSWORD_MIN_LENGTH)
       found.password = `يجب ألا تقل كلمة المرور عن ${PASSWORD_MIN_LENGTH} حرفاً.`
-    if (!draft.role) found.role = "اختر الدور."
+    if (!draft.roleId) found.roleId = "اختر الدور."
     if (needsGovernorate && !draft.governorate) found.governorate = "اختر المحافظة."
     if (needsRegion && !draft.region) found.region = "اختر المنطقة."
     setErrors(found)
@@ -132,15 +154,9 @@ function UserForm({
 
     const body: Record<string, unknown> = {
       display_name: draft.display_name.trim(),
-      role: draft.role,
       governorate: needsGovernorate ? Number(draft.governorate) : null,
       region: needsRegion ? Number(draft.region) : null,
-      can_publish_prices: draft.can_publish_prices,
-      can_publish_crossings: draft.can_publish_crossings,
-      can_view_all_complaints: draft.can_view_all_complaints,
-      can_login_web: draft.can_login_web,
-      can_open_field_missions: draft.can_open_field_missions,
-      can_view_field_missions: draft.can_view_field_missions,
+      ...(draft.roleId === "admin" ? { role: "admin" } : { role_id: Number(draft.roleId) }),
     }
     if (creating) {
       body.username = draft.username.trim()
@@ -158,7 +174,7 @@ function UserForm({
   return (
     <Section
       title={creating ? "مستخدم جديد" : `تعديل ${user.username}`}
-      note={creating ? "سلّم كلمة المرور الأولى للموظف. يستطيع تغييرها من إعداداته." : "اسم المستخدم ثابت ولا يتغير."}
+      note={creating ? "الصلاحيات تأتي من الدور. سلّم كلمة المرور الأولى للموظف." : "الصلاحيات تأتي من الدور. اسم المستخدم ثابت ولا يتغير."}
     >
       <form className="sheet__form" onSubmit={onSubmit} noValidate>
         <div className="sheet__grid">
@@ -197,10 +213,10 @@ function UserForm({
             label="الدور"
             name="role"
             placeholder="اختر الدور"
-            options={ROLE_OPTIONS}
-            value={draft.role}
-            onChange={(e) => set("role", e.target.value as Role)}
-            error={errors.role}
+            options={roleOptions}
+            value={draft.roleId}
+            onChange={(e) => setDraft((d) => ({ ...d, roleId: e.target.value, governorate: "", region: "" }))}
+            error={errors.roleId}
             required
           />
           {needsGovernorate && (
@@ -228,16 +244,6 @@ function UserForm({
               required
             />
           )}
-          {FLAGS.map((flag) => (
-            <Select
-              key={flag.key}
-              label={flag.label}
-              name={flag.key}
-              options={YES_NO}
-              value={draft[flag.key] ? "1" : "0"}
-              onChange={(e) => set(flag.key, e.target.value === "1")}
-            />
-          ))}
         </div>
         <NoticeLine notice={notice} />
         <div className="sheet__actions">
@@ -476,7 +482,9 @@ function EnterPanel({
 export function UsersPage() {
   const navigate = useNavigate()
   const auth = useAuthOptional()
-  const selfId = auth?.session.status === "signed_in" ? auth.session.user.id : null
+  const signedIn = auth?.session.status === "signed_in" ? auth.session.user : null
+  const selfId = signedIn?.id ?? null
+  const canEnter = !signedIn || signedIn.role === "admin" || Boolean(signedIn.can_impersonate)
   const [filters, setFilters] = useState<FilterValues>({})
   const [page, setPage] = useState(1)
   const [panel, setPanel] = useState<Panel>(null)
@@ -512,14 +520,9 @@ export function UsersPage() {
   const columns: Column<UserRow>[] = [
     { key: "username", header: "اسم المستخدم", render: (row) => <span dir="ltr">{row.username}</span> },
     { key: "display_name", header: "الاسم الظاهر", render: (row) => row.display_name || "—" },
-    { key: "role", header: "الدور", render: (row) => ROLE_NAMES[row.role] ?? row.role },
+    { key: "role", header: "الدور", render: (row) => row.role_name || ROLE_NAMES[row.role] || row.role },
     { key: "governorate", header: "المحافظة", render: (row) => nameOf(geo.governorates, row.governorate) },
     { key: "region", header: "المنطقة", render: (row) => nameOf(geo.regions, row.region) },
-    {
-      key: "flags",
-      header: "صلاحيات إضافية",
-      render: (row) => FLAGS.filter((f) => row[f.key]).map((f) => f.label).join("، ") || "—",
-    },
     {
       key: "is_active",
       header: "الحالة",
@@ -529,6 +532,7 @@ export function UsersPage() {
 
   return (
     <div className="page">
+      <AreaTabs current="users" />
       <div className="page__bar">
         <Button onClick={() => setPanel({ kind: "create" })} disabled={panel?.kind === "create"}>
           إضافة مستخدم
@@ -592,7 +596,7 @@ export function UsersPage() {
             bulkActions={bulkActions}
             emptyTitle="لا يوجد مستخدمون مطابقون."
             rowActions={(row) => [
-              ...(row.is_active && row.id !== selfId
+              ...(canEnter && row.is_active && row.id !== selfId
                 ? [{ id: "enter", label: "دخول بالحساب", onSelect: () => setPanel({ kind: "enter", user: row }) }]
                 : []),
               { id: "edit", label: "تعديل", onSelect: () => setPanel({ kind: "edit", user: row }) },

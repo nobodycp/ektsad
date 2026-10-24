@@ -42,22 +42,22 @@ class PublicationsApiTests(TestCase):
         self.assertIn("detail", response.json())
         self.assertEqual(CrossingReport.objects.count(), 0)
 
-    def test_admin_without_publish_flag_cannot_publish_but_can_read_rows(self):
+    def test_system_admin_can_publish_and_read_rows(self):
         PriceReport.objects.create(
             image=SimpleUploadedFile("price.png", b"image", content_type="image/png"),
             publisher_name="ناشر",
         )
         self.client.force_login(self.admin)
 
-        denied = self.client.post(
+        published = self.client.post(
             "/api/prices/",
             {"image": SimpleUploadedFile("new.png", b"image", content_type="image/png")},
         )
         listing = self.client.get("/api/prices/")
 
-        self.assertEqual(denied.status_code, 403)
+        self.assertEqual(published.status_code, 201)
         self.assertEqual(listing.status_code, 200)
-        self.assertEqual(listing.json()["count"], 1)
+        self.assertEqual(listing.json()["count"], 2)
 
     def test_user_with_publish_flag_can_publish_and_copies_display_name(self):
         self.client.force_login(self.publisher)

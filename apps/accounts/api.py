@@ -8,7 +8,8 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
-from apps.accounts.models import User
+from apps.accounts.models import StaffRole, User
+from apps.accounts.permissions import ROLE_FIELDS, allows
 from apps.accounts.services import delete_user_sessions, reset_password, set_user_password
 from apps.common.listing import paginate
 from apps.geography.models import Governorate, Region
@@ -41,7 +42,7 @@ def login_view(request):
     user = authenticate(request, username=username, password=password)
     if user is None or not user.is_active:
         return JsonResponse({"detail": INVALID_CREDENTIALS}, status=400)
-    if not user.can_login_web:
+    if not allows(user, "can_login_web"):
         return JsonResponse({"detail": "هذا الحساب لا يدخل من الموقع."}, status=400)
     login(request, user)
     return JsonResponse(_me_payload(user, request))
@@ -51,10 +52,23 @@ def _impersonator_payload(request):
     raw = request.session.get(IMPERSONATOR_SESSION_KEY)
     if not raw:
         return None
-    admin = User.objects.filter(pk=raw, role=User.Role.ADMIN, is_active=True).first()
-    if admin is None:
+    person = User.objects.filter(pk=raw, is_active=True).first()
+    if person is None or not allows(person, "can_impersonate"):
         return None
-    return {"id": admin.pk, "username": admin.username, "display_name": admin.display_name}
+    return {"id": person.pk, "username": person.username, "display_name": person.display_name}
+
+
+def _role_name(user):
+    if user.role == User.Role.ADMIN:
+        return "مدير النظام"
+    if user.staff_role_id:
+        return user.staff_role.name
+    return {
+        User.Role.GOVERNOR: "مدير المحافظة",
+        User.Role.INSPECTOR: "مفتش",
+        User.Role.LEGAL: "الشؤون القانونية",
+        User.Role.CUSTOM: "دور مخصص",
+    }.get(user.role, user.role)
 
 
 def _me_payload(user, request):
@@ -63,16 +77,23 @@ def _me_payload(user, request):
         "username": user.username,
         "display_name": user.display_name,
         "role": user.role,
+        "role_id": user.staff_role_id,
+        "role_name": _role_name(user),
         "governorate": user.governorate_id,
         "governorate_name": user.governorate.name if user.governorate_id else None,
         "region": user.region_id,
         "region_name": user.region.name if user.region_id else None,
-        "can_publish_prices": user.can_publish_prices,
-        "can_publish_crossings": user.can_publish_crossings,
-        "can_view_all_complaints": user.can_view_all_complaints,
-        "can_login_web": user.can_login_web,
-        "can_open_field_missions": user.can_open_field_missions,
-        "can_view_field_missions": user.can_view_field_missions,
+        "can_publish_prices": allows(user, "can_publish_prices"),
+        "can_publish_crossings": allows(user, "can_publish_crossings"),
+        "can_view_all_complaints": allows(user, "can_view_all_complaints"),
+        "can_login_web": allows(user, "can_login_web"),
+        "can_open_field_missions": allows(user, "can_open_field_missions"),
+        "can_view_field_missions": allows(user, "can_view_field_missions"),
+        "can_view_reports": allows(user, "can_view_reports"),
+        "can_manage_users": allows(user, "can_manage_users"),
+        "can_manage_geography": allows(user, "can_manage_geography"),
+        "can_manage_settings": allows(user, "can_manage_settings"),
+        "can_impersonate": allows(user, "can_impersonate"),
         "impersonator": _impersonator_payload(request),
     }
 
@@ -83,14 +104,16 @@ def _user_payload(user):
         "username": user.username,
         "display_name": user.display_name,
         "role": user.role,
+        "role_id": user.staff_role_id,
+        "role_name": _role_name(user),
         "governorate": user.governorate_id,
         "region": user.region_id,
-        "can_publish_prices": user.can_publish_prices,
-        "can_publish_crossings": user.can_publish_crossings,
-        "can_view_all_complaints": user.can_view_all_complaints,
-        "can_login_web": user.can_login_web,
-        "can_open_field_missions": user.can_open_field_missions,
-        "can_view_field_missions": user.can_view_field_missions,
+        "can_publish_prices": allows(user, "can_publish_prices"),
+        "can_publish_crossings": allows(user, "can_publish_crossings"),
+        "can_view_all_complaints": allows(user, "can_view_all_complaints"),
+        "can_login_web": allows(user, "can_login_web"),
+        "can_open_field_missions": allows(user, "can_open_field_missions"),
+        "can_view_field_missions": allows(user, "can_view_field_missions"),
         "is_active": user.is_active,
     }
 
@@ -101,6 +124,28 @@ def _forbidden():
 
 def _is_admin(request):
     return request.user.is_authenticated and request.user.role == User.Role.ADMIN
+
+
+def _can_manage_users(request):
+    return request.user.is_authenticated and allows(request.user, "can_manage_users")
+
+
+def _resolve_staff_role(payload):
+    raw = payload.get("role_id")
+    if raw not in (None, ""):
+        role = StaffRole.objects.filter(pk=raw).first()
+        if role is None:
+            raise ValidationError("اختر الدور.")
+        return role
+    kind = payload.get("role")
+    if kind == User.Role.ADMIN:
+        return None
+    if kind:
+        role = StaffRole.objects.filter(kind=kind, built_in=True).first()
+        if role is None:
+            raise ValidationError("اختر الدور.")
+        return role
+    raise ValidationError("اختر الدور.")
 
 
 def _validation_error(error):
@@ -139,7 +184,7 @@ def me_view(request):
 
 @require_http_methods(["POST"])
 def enter_user(request, pk):
-    if not _is_admin(request) or request.session.get(IMPERSONATOR_SESSION_KEY):
+    if not allows(request.user, "can_impersonate") or request.session.get(IMPERSONATOR_SESSION_KEY):
         return _forbidden()
     try:
         target = User.objects.get(pk=pk)
@@ -160,18 +205,18 @@ def return_session(request):
     raw = request.session.get(IMPERSONATOR_SESSION_KEY)
     if not raw:
         return JsonResponse({"detail": "لا توجد جلسة للعودة إليها."}, status=400)
-    admin = User.objects.filter(pk=raw, role=User.Role.ADMIN, is_active=True).first()
-    if admin is None:
+    person = User.objects.filter(pk=raw, is_active=True).first()
+    if person is None or not allows(person, "can_impersonate"):
         logout(request)
         return JsonResponse({"detail": "تعذّرت العودة إلى حساب المدير."}, status=400)
-    login(request, admin)
-    return JsonResponse(_me_payload(admin, request))
+    login(request, person)
+    return JsonResponse(_me_payload(person, request))
 
 
 @require_http_methods(["GET", "POST"])
 def users(request):
     if request.method == "GET" and request.user.is_authenticated and request.user.role == User.Role.GOVERNOR:
-        queryset = User.objects.filter(
+        queryset = User.objects.select_related("staff_role").filter(
             role=User.Role.INSPECTOR, governorate_id=request.user.governorate_id, is_active=True
         )
         if request.GET.get("region"):
@@ -179,10 +224,10 @@ def users(request):
         page = paginate(queryset.order_by("display_name", "username"), request.GET)
         page["results"] = [_user_payload(user) for user in page["results"]]
         return JsonResponse(page)
-    if not _is_admin(request):
+    if not _can_manage_users(request):
         return _forbidden()
     if request.method == "GET":
-        queryset = User.objects.all()
+        queryset = User.objects.select_related("staff_role")
         query = (request.GET.get("q") or "").strip()
         if query:
             queryset = queryset.filter(Q(username__icontains=query) | Q(display_name__icontains=query))
@@ -198,16 +243,14 @@ def users(request):
         return JsonResponse(page)
     payload = _body(request)
     try:
+        staff_role = _resolve_staff_role(payload)
+        if staff_role is None and not _is_admin(request):
+            return _forbidden()
         user = User(
             username=payload["username"],
             display_name=payload.get("display_name", ""),
-            role=payload["role"],
-            can_publish_prices=payload.get("can_publish_prices", False),
-            can_publish_crossings=payload.get("can_publish_crossings", False),
-            can_view_all_complaints=payload.get("can_view_all_complaints", False),
-            can_login_web=payload.get("can_login_web", True),
-            can_open_field_missions=payload.get("can_open_field_missions", False),
-            can_view_field_missions=payload.get("can_view_field_missions", False),
+            role=User.Role.ADMIN if staff_role is None else staff_role.kind,
+            staff_role=staff_role,
         )
         _apply_user_fields(user, payload, ("governorate", "region"))
         if len(payload["password"]) < 12:
@@ -232,7 +275,7 @@ def user_detail(request, pk):
         return JsonResponse({"detail": "Not found"}, status=404)
 
     if request.method == "DELETE":
-        if not _is_admin(request):
+        if not _can_manage_users(request):
             return _forbidden()
         if request.user.pk == user.pk:
             return JsonResponse({"detail": "لا يمكن حذف حسابك."}, status=400)
@@ -248,26 +291,23 @@ def user_detail(request, pk):
         user.delete()
         return JsonResponse({"detail": "ok"})
 
-    if request.user.pk != user.pk and not _is_admin(request):
+    if request.user.pk != user.pk and not _can_manage_users(request):
         return _forbidden()
     payload = json.loads(request.body or "{}")
     if payload.get("is_active") is False and _last_active_admin(user):
         return JsonResponse({"detail": LAST_ADMIN_DEACTIVATE}, status=400)
     allowed = ("display_name",)
-    if _is_admin(request):
-        allowed += (
-            "role",
-            "governorate",
-            "region",
-            "can_publish_prices",
-            "can_publish_crossings",
-            "can_view_all_complaints",
-            "can_login_web",
-            "can_open_field_missions",
-            "can_view_field_missions",
-            "is_active",
-        )
+    if _can_manage_users(request):
+        allowed += ("governorate", "region", "is_active")
     try:
+        if _can_manage_users(request) and ("role_id" in payload or "role" in payload):
+            staff_role = _resolve_staff_role(payload)
+            if staff_role is None and not _is_admin(request):
+                return _forbidden()
+            if staff_role is not None and _last_active_admin(user):
+                return JsonResponse({"detail": "لا يمكن تغيير دور آخر مدير نظام مفعّل."}, status=400)
+            user.staff_role = staff_role
+            user.role = User.Role.ADMIN if staff_role is None else staff_role.kind
         _apply_user_fields(user, payload, allowed)
         user.full_clean()
         user.save()
@@ -292,7 +332,7 @@ def user_password(request, pk):
     mode = payload.get("mode")
 
     if mode == "reset":
-        if not _is_admin(request):
+        if not _can_manage_users(request):
             return _forbidden()
         raw = reset_password(user)
         delete_user_sessions(user)
@@ -300,7 +340,7 @@ def user_password(request, pk):
 
     if mode != "set":
         return JsonResponse({"detail": "Invalid password mode."}, status=400)
-    if request.user.pk != user.pk and not _is_admin(request):
+    if request.user.pk != user.pk and not _can_manage_users(request):
         return _forbidden()
     if payload.get("password") != payload.get("password_confirm"):
         return JsonResponse({"detail": "كلمتا المرور غير متطابقتين."}, status=400)
@@ -319,7 +359,7 @@ def user_password(request, pk):
 
 @require_http_methods(["POST"])
 def user_actions(request):
-    if not _is_admin(request):
+    if not _can_manage_users(request):
         return _forbidden()
     payload = _body(request)
     action = payload.get("action")

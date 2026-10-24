@@ -21,11 +21,13 @@ def _publisher_name(user):
 
 
 def _can_list(user, flag):
-    return user.is_authenticated and (user.role == User.Role.ADMIN or getattr(user, flag))
+    from apps.accounts.permissions import allows
+    return allows(user, flag)
 
 
 def _can_publish(user, flag):
-    return user.is_authenticated and getattr(user, flag)
+    from apps.accounts.permissions import allows
+    return allows(user, flag)
 
 
 def _price_data(report):

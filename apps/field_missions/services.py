@@ -21,17 +21,14 @@ class MissionError(Exception):
 
 
 def may_view(user):
-    if not getattr(user, "is_authenticated", False):
-        return False
-    if user.role == User.Role.ADMIN:
-        return True
-    return bool(user.can_view_field_missions)
+    from apps.accounts.permissions import allows
+    return allows(user, "can_view_field_missions")
 
 
 def visible_missions(user):
     if not may_view(user):
         return FieldMission.objects.none()
-    if user.role in {User.Role.ADMIN, User.Role.LEGAL}:
+    if user.role in {User.Role.ADMIN, User.Role.LEGAL, User.Role.CUSTOM}:
         return FieldMission.objects.all()
     if user.role == User.Role.GOVERNOR:
         return FieldMission.objects.filter(governorate_id=user.governorate_id)
@@ -81,7 +78,7 @@ def _assignees(user, payload):
     scope = payload.get("scope") or "one"
     if user.role == User.Role.INSPECTOR:
         return user.governorate, user.region, [user], FieldMission.Status.FIELD
-    if scope == "office" and user.role != User.Role.ADMIN:
+    if scope == "office" and user.role not in {User.Role.ADMIN, User.Role.CUSTOM}:
         raise MissionError("هذا التوجيه لمدير النظام.")
     if user.role == User.Role.GOVERNOR:
         governorate = user.governorate
@@ -105,9 +102,12 @@ def _assignees(user, payload):
 
 
 def open_mission(user, payload, image=None):
-    if user.role not in {User.Role.ADMIN, User.Role.GOVERNOR, User.Role.INSPECTOR}:
+    from apps.accounts.permissions import allows
+    if user.role == User.Role.LEGAL or user.role not in {
+        User.Role.ADMIN, User.Role.GOVERNOR, User.Role.INSPECTOR, User.Role.CUSTOM,
+    }:
         raise MissionError("هذا الدور لا يفتح مهمة ميدانية.", 403)
-    if user.role != User.Role.ADMIN and not user.can_open_field_missions:
+    if user.role != User.Role.ADMIN and not allows(user, "can_open_field_missions"):
         raise MissionError("Forbidden", 403)
     kind, details, place_name, phone, priority = _required(payload)
     if image:

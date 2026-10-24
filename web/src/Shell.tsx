@@ -11,6 +11,7 @@ export const ROLE_LABELS: Record<SessionUser["role"], string> = {
   governor: "محافظ",
   inspector: "مفتش",
   legal: "الشؤون القانونية",
+  custom: "دور مخصص",
 }
 
 function internalHref(event: MouseEvent<HTMLElement>): string | null {

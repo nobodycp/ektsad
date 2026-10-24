@@ -10,6 +10,7 @@ import { FieldMissionPage } from "./FieldMissionPage"
 import { FieldMissionsPage } from "./FieldMissionsPage"
 import { PublicPage } from "./PublicPage"
 import { TelegramHealthPage } from "./TelegramHealthPage"
+import { RolesPage } from "./RolesPage"
 import { UsersPage } from "./UsersPage"
 
 type Reply = { status: number; body: unknown }
@@ -320,6 +321,45 @@ describe("users", () => {
     await user.click(within(dialog).getByRole("button", { name: "دخول بالحساب" }))
     expect(fetchFn.mock.calls.some(([url, init]) => url === "/api/users/9/enter/" && init?.method === "POST")).toBe(true)
   })
+})
+
+it("creates a role from the roles tab and keeps permissions on the role", async () => {
+  const roles = [
+    {
+      id: 2,
+      name: "مفتش",
+      kind: "inspector",
+      built_in: true,
+      can_view_all_complaints: false,
+      can_view_reports: false,
+      can_manage_users: false,
+      can_manage_geography: false,
+      can_publish: false,
+      can_field_missions: false,
+      can_manage_settings: false,
+      can_impersonate: false,
+      can_login_web: true,
+    },
+  ]
+  const fetchFn = mockFetch((url, init) => {
+    if (url === "/api/roles/" && (!init.method || init.method === "GET")) return { status: 200, body: { results: roles } }
+    if (url === "/api/roles/" && init.method === "POST") {
+      return { status: 201, body: { ...roles[0], id: 8, name: "مساعد المدير", kind: "custom", built_in: false, can_manage_users: true } }
+    }
+    return undefined
+  })
+  inRouter(<RolesPage />)
+  expect(screen.getByRole("link", { name: "الأدوار" })).toHaveAttribute("aria-current", "page")
+  await user.click(screen.getByRole("button", { name: "دور جديد" }))
+  await user.type(field("اسم الدور"), "مساعد المدير")
+  await user.click(screen.getByRole("checkbox", { name: "المستخدمون" }))
+  await user.click(screen.getByRole("button", { name: "إنشاء الدور" }))
+  expect(await screen.findByText("تم إنشاء الدور.")).toBeInTheDocument()
+  const call = fetchFn.mock.calls.find(([url, init]) => url === "/api/roles/" && init?.method === "POST")
+  const body = JSON.parse(String(call?.[1]?.body))
+  expect(body.name).toBe("مساعد المدير")
+  expect(body.can_manage_users).toBe(true)
+  expect(body.can_manage_settings).toBe(false)
 })
 
 it("shows an unregistered Telegram webhook to the system admin", async () => {
