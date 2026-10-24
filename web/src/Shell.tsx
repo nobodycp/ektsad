@@ -1,7 +1,7 @@
 import { useEffect, useState, type MouseEvent, type ReactNode } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
-import { AppShell, type NavEntry } from "./design-system"
-import { apiRequest, type ComplaintRow, type SessionUser } from "./api"
+import { AppShell, Button, type NavEntry } from "./design-system"
+import { apiRequest, errorDetail, type ComplaintRow, type SessionUser } from "./api"
 import { useAuth } from "./auth"
 import { LOGIN_PATH, navEntries } from "./routes"
 import { formatDateTime } from "./pages/common"
@@ -162,8 +162,10 @@ export function Shell({
   children: ReactNode
 }) {
   const navigate = useNavigate()
-  const { signOut } = useAuth()
+  const { signOut, signIn } = useAuth()
   const [leaving, setLeaving] = useState(false)
+  const [returning, setReturning] = useState(false)
+  const [returnError, setReturnError] = useState("")
   const hello = greeting(user.display_name || user.username)
   const nav = navEntries(user).map((entry): NavEntry =>
     entry.items ? { id: entry.id, label: entry.label, items: entry.items } : { id: entry.id, label: entry.label, href: entry.href || "/" },
@@ -181,6 +183,22 @@ export function Shell({
     await signOut()
     navigate(LOGIN_PATH, { replace: true })
   }
+
+  const onReturn = async () => {
+    setReturning(true)
+    setReturnError("")
+    const result = await apiRequest<SessionUser>("/api/auth/return/", { method: "POST" })
+    setReturning(false)
+    if (result.ok && result.data) {
+      signIn(result.data)
+      navigate("/users/")
+      return
+    }
+    setReturnError(errorDetail(result.data) || "تعذّرت العودة إلى حسابك.")
+  }
+
+  const impersonator = user.impersonator
+  const actingName = user.display_name || user.username
 
   return (
     <div className="app-frame" onClick={onClick}>
@@ -203,6 +221,17 @@ export function Shell({
           </div>
         }
       >
+        {impersonator && (
+          <div className="ds-impersonate" role="status">
+            <p>
+              تتصفح بحساب {actingName} (<bdi>@{user.username}</bdi>).
+              {returnError && <span className="ds-impersonate__error">{returnError}</span>}
+            </p>
+            <Button size="sm" variant="secondary" loading={returning} onClick={onReturn}>
+              العودة إلى حسابك
+            </Button>
+          </div>
+        )}
         {children}
       </AppShell>
     </div>

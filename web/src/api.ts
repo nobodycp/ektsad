@@ -12,6 +12,7 @@ export type SessionUser = {
   can_publish_prices: boolean
   can_publish_crossings: boolean
   can_view_all_complaints: boolean
+  impersonator?: { id: number; username: string; display_name: string } | null
 }
 
 export type PublishFlag = "can_publish_prices" | "can_publish_crossings"

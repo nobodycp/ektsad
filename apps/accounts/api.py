@@ -16,6 +16,7 @@ from apps.geography.models import Governorate, Region
 
 INVALID_CREDENTIALS = "بيانات الدخول غير صحيحة."
 LAST_ADMIN_DEACTIVATE = "لا يمكن تعطيل آخر مدير نظام مفعّل."
+IMPERSONATOR_SESSION_KEY = "impersonator_id"
 
 
 def _body(request):
@@ -43,10 +44,20 @@ def login_view(request):
     if not user.can_login_web:
         return JsonResponse({"detail": "هذا الحساب لا يدخل من الموقع."}, status=400)
     login(request, user)
-    return JsonResponse(_me_payload(user))
+    return JsonResponse(_me_payload(user, request))
 
 
-def _me_payload(user):
+def _impersonator_payload(request):
+    raw = request.session.get(IMPERSONATOR_SESSION_KEY)
+    if not raw:
+        return None
+    admin = User.objects.filter(pk=raw, role=User.Role.ADMIN, is_active=True).first()
+    if admin is None:
+        return None
+    return {"id": admin.pk, "username": admin.username, "display_name": admin.display_name}
+
+
+def _me_payload(user, request):
     return {
         "id": user.pk,
         "username": user.username,
@@ -60,6 +71,7 @@ def _me_payload(user):
         "can_publish_crossings": user.can_publish_crossings,
         "can_view_all_complaints": user.can_view_all_complaints,
         "can_login_web": user.can_login_web,
+        "impersonator": _impersonator_payload(request),
     }
 
 
@@ -118,7 +130,38 @@ def logout_view(request):
 def me_view(request):
     if not request.user.is_authenticated:
         return JsonResponse({"detail": "Forbidden"}, status=403)
-    return JsonResponse(_me_payload(request.user))
+    return JsonResponse(_me_payload(request.user, request))
+
+
+@require_http_methods(["POST"])
+def enter_user(request, pk):
+    if not _is_admin(request) or request.session.get(IMPERSONATOR_SESSION_KEY):
+        return _forbidden()
+    try:
+        target = User.objects.get(pk=pk)
+    except User.DoesNotExist:
+        return JsonResponse({"detail": "الحساب غير موجود."}, status=404)
+    if target.pk == request.user.pk:
+        return JsonResponse({"detail": "لا يمكن الدخول بحسابك."}, status=400)
+    if not target.is_active:
+        return JsonResponse({"detail": "لا يمكن الدخول بحساب معطّل."}, status=400)
+    admin_id = request.user.pk
+    login(request, target)
+    request.session[IMPERSONATOR_SESSION_KEY] = admin_id
+    return JsonResponse(_me_payload(target, request))
+
+
+@require_http_methods(["POST"])
+def return_session(request):
+    raw = request.session.get(IMPERSONATOR_SESSION_KEY)
+    if not raw:
+        return JsonResponse({"detail": "لا توجد جلسة للعودة إليها."}, status=400)
+    admin = User.objects.filter(pk=raw, role=User.Role.ADMIN, is_active=True).first()
+    if admin is None:
+        logout(request)
+        return JsonResponse({"detail": "تعذّرت العودة إلى حساب المدير."}, status=400)
+    login(request, admin)
+    return JsonResponse(_me_payload(admin, request))
 
 
 @require_http_methods(["GET", "POST"])

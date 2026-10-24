@@ -199,3 +199,52 @@ class UserAdministrationTests(TestCase):
         self.assertEqual(bulk.json()["failed"][0]["detail"], "لا يمكن تعطيل آخر مدير نظام مفعّل.")
         self.admin.refresh_from_db()
         self.assertTrue(self.admin.is_active)
+
+    def test_admin_enters_a_user_and_returns_to_the_same_account(self):
+        self.inspector.can_login_web = False
+        self.inspector.save(update_fields=["can_login_web"])
+        self.client.force_login(self.admin)
+
+        entered = self.client.post(f"/api/users/{self.inspector.pk}/enter/")
+        self.assertEqual(entered.status_code, 200)
+        self.assertEqual(entered.json()["username"], "inspector")
+        self.assertEqual(entered.json()["impersonator"]["username"], "admin")
+        self.assertEqual(self.client.get("/api/auth/me/").json()["role"], "inspector")
+        self.assertEqual(self.client.get("/api/users/").status_code, 403)
+        self.assertEqual(self.client.post(f"/api/users/{self.admin.pk}/enter/").status_code, 403)
+
+        back = self.client.post("/api/auth/return/")
+        self.assertEqual(back.status_code, 200)
+        self.assertEqual(back.json()["username"], "admin")
+        self.assertIsNone(back.json()["impersonator"])
+        self.assertEqual(self.client.get("/api/users/").status_code, 200)
+
+    def test_enter_refuses_self_inactive_and_non_admin(self):
+        self.client.force_login(self.inspector)
+        self.assertEqual(self.client.post(f"/api/users/{self.admin.pk}/enter/").status_code, 403)
+
+        self.client.force_login(self.admin)
+        own = self.client.post(f"/api/users/{self.admin.pk}/enter/")
+        self.assertEqual(own.status_code, 400)
+        self.assertEqual(own.json()["detail"], "لا يمكن الدخول بحسابك.")
+        self.inspector.is_active = False
+        self.inspector.save(update_fields=["is_active"])
+        inactive = self.client.post(f"/api/users/{self.inspector.pk}/enter/")
+        self.assertEqual(inactive.status_code, 400)
+        self.assertEqual(inactive.json()["detail"], "لا يمكن الدخول بحساب معطّل.")
+        self.assertEqual(self.client.post("/api/users/99999/enter/").status_code, 404)
+        self.assertEqual(self.client.post("/api/auth/return/").status_code, 400)
+
+    def test_return_logs_out_when_the_admin_was_disabled(self):
+        other = User.objects.create_user(
+            username="admin-2", password="admin-password-12", role=User.Role.ADMIN
+        )
+        self.client.force_login(self.admin)
+        self.assertEqual(self.client.post(f"/api/users/{self.inspector.pk}/enter/").status_code, 200)
+        self.admin.is_active = False
+        self.admin.save(update_fields=["is_active"])
+        response = self.client.post("/api/auth/return/")
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "تعذّرت العودة إلى حساب المدير.")
+        self.assertEqual(self.client.get("/api/auth/me/").status_code, 403)
+        self.assertTrue(other.is_active)

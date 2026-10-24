@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react"
+import { useNavigate } from "react-router-dom"
 import {
   Button,
   DataTable,
@@ -11,7 +12,9 @@ import {
   type FilterField,
   type FilterValues,
 } from "../design-system"
-import { apiRequest, withQuery, type ActionResult, type Page, type Role, type UserRow } from "../api"
+import { apiRequest, withQuery, type ActionResult, type Page, type Role, type SessionUser, type UserRow } from "../api"
+import { useAuthOptional } from "../auth"
+import { HOME_PATH } from "../routes"
 import { PASSWORD_MIN_LENGTH } from "./AccountPage"
 import { Loaded, NoticeLine, PAGE_SIZE, Section, actionNotice, failureText, useLoad, type Notice } from "./common"
 import { nameOf, optionsOf, useAdminGeography, type Geography } from "./geo"
@@ -61,6 +64,7 @@ type Panel =
   | { kind: "password"; user: UserRow }
   | { kind: "telegram"; user: UserRow }
   | { kind: "delete"; user: UserRow }
+  | { kind: "enter"; user: UserRow }
   | null
 
 type Draft = {
@@ -423,7 +427,50 @@ function DeletePanel({ user, onDone, onCancel }: { user: UserRow; onDone: (notic
   )
 }
 
+function EnterPanel({
+  user,
+  onEntered,
+  onCancel,
+}: {
+  user: UserRow
+  onEntered: (session: SessionUser) => void
+  onCancel: () => void
+}) {
+  const [notice, setNotice] = useState<Notice>(null)
+  const [busy, setBusy] = useState(false)
+  const name = user.display_name || user.username
+  const onConfirm = async () => {
+    setBusy(true)
+    const result = await apiRequest<SessionUser>(`/api/users/${user.id}/enter/`, { method: "POST" })
+    setBusy(false)
+    if (result.ok && result.data) onEntered(result.data)
+    else setNotice({ tone: "error", text: failureText(result) })
+  }
+  return (
+    <div className="confirm" role="alertdialog" aria-modal="false" aria-labelledby="enter-title" aria-describedby="enter-desc">
+      <p className="confirm__title" id="enter-title">
+        الدخول بحساب {name}؟
+      </p>
+      <p className="confirm__desc" id="enter-desc">
+        سترى الموقع كما يراه هذا الحساب. تعود إلى حسابك من الشريط أعلى الصفحة.
+      </p>
+      <NoticeLine notice={notice} />
+      <div className="sheet__actions">
+        <Button loading={busy} onClick={onConfirm}>
+          دخول بالحساب
+        </Button>
+        <Button variant="ghost" onClick={onCancel}>
+          إلغاء
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 export function UsersPage() {
+  const navigate = useNavigate()
+  const auth = useAuthOptional()
+  const selfId = auth?.session.status === "signed_in" ? auth.session.user.id : null
   const [filters, setFilters] = useState<FilterValues>({})
   const [page, setPage] = useState(1)
   const [panel, setPanel] = useState<Panel>(null)
@@ -506,6 +553,19 @@ export function UsersPage() {
           <DeletePanel key={panel.user.id} user={panel.user} onDone={finish} onCancel={() => setPanel(null)} />
         </Dialog>
       )}
+      {panel?.kind === "enter" && (
+        <Dialog title="دخول بالحساب" onClose={() => setPanel(null)}>
+          <EnterPanel
+            key={panel.user.id}
+            user={panel.user}
+            onCancel={() => setPanel(null)}
+            onEntered={(session) => {
+              auth?.signIn(session)
+              navigate(HOME_PATH)
+            }}
+          />
+        </Dialog>
+      )}
       <FilterBar
         schema={SCHEMA}
         onChange={(values) => {
@@ -525,6 +585,9 @@ export function UsersPage() {
             bulkActions={bulkActions}
             emptyTitle="لا يوجد مستخدمون مطابقون."
             rowActions={(row) => [
+              ...(row.is_active && row.id !== selfId
+                ? [{ id: "enter", label: "دخول بالحساب", onSelect: () => setPanel({ kind: "enter", user: row }) }]
+                : []),
               { id: "edit", label: "تعديل", onSelect: () => setPanel({ kind: "edit", user: row }) },
               { id: "password", label: "كلمة المرور", onSelect: () => setPanel({ kind: "password", user: row }) },
               { id: "telegram", label: "تلغرام", onSelect: () => setPanel({ kind: "telegram", user: row }) },

@@ -419,6 +419,38 @@ h4,
   gap: 16px;
 }
 
+.ds-impersonate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--ds-warning);
+  border-radius: var(--ds-radius-input);
+  background: var(--ds-warning-soft);
+  color: var(--ds-ink);
+}
+
+.ds-impersonate p {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ds-impersonate__error {
+  display: block;
+  margin-top: 4px;
+  color: var(--ds-danger);
+  font-weight: 500;
+}
+
+@media (max-width: 640px) {
+  .ds-impersonate {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
 @media (min-width: 992px) {
   .ds-shell {
     grid-template-columns: 15.5rem 1fr;

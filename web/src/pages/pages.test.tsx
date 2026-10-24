@@ -283,6 +283,34 @@ describe("users", () => {
     expect(await screen.findByText("تم حذف الحساب inspector1.")).toBeInTheDocument()
     expect(fetchFn.mock.calls.filter(([url]) => String(url).startsWith("/api/users/?")).length).toBeGreaterThan(1)
   })
+
+  it("asks before entering another account", async () => {
+    const session = {
+      id: staff.id,
+      username: staff.username,
+      display_name: staff.display_name,
+      role: "inspector",
+      governorate: 1,
+      governorate_name: "محافظة تجريبية",
+      region: 3,
+      region_name: "المنطقة الأولى",
+      can_publish_prices: false,
+      can_publish_crossings: false,
+      can_view_all_complaints: false,
+      impersonator: { id: 1, username: "admin", display_name: "المدير" },
+    }
+    const fetchFn = mockFetch((url, init) => {
+      if (url.startsWith("/api/users/?")) return page([staff])
+      if (url === "/api/users/9/enter/" && init.method === "POST") return { status: 200, body: session }
+      return undefined
+    })
+    inRouter(<UsersPage />)
+    await user.click(await screen.findByRole("button", { name: "دخول بالحساب" }))
+    expect(fetchFn.mock.calls.some(([url]) => url === "/api/users/9/enter/")).toBe(false)
+    const dialog = screen.getByRole("dialog", { name: "دخول بالحساب" })
+    await user.click(within(dialog).getByRole("button", { name: "دخول بالحساب" }))
+    expect(fetchFn.mock.calls.some(([url, init]) => url === "/api/users/9/enter/" && init?.method === "POST")).toBe(true)
+  })
 })
 
 it("shows an unregistered Telegram webhook to the system admin", async () => {
