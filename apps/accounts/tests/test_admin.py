@@ -168,6 +168,17 @@ class UserAdministrationTests(TestCase):
         legal.refresh_from_db()
         self.assertFalse(legal.is_active)
 
+    def test_governor_lists_only_inspectors_in_the_governorate(self):
+        governor = User.objects.create_user(
+            username="governor", password="governor-password-12", role=User.Role.GOVERNOR,
+            governorate=self.governorate, display_name="المدير",
+        )
+        self.client.force_login(governor)
+        response = self.client.get("/api/users/", {"role": "inspector", "is_active": "1"})
+        self.assertEqual(response.status_code, 200)
+        usernames = [row["username"] for row in response.json()["results"]]
+        self.assertEqual(usernames, ["inspector"])
+
     def test_login_rejects_get_and_last_admin_cannot_be_deactivated(self):
         self.assertEqual(self.client.get("/api/auth/login/").status_code, 405)
 

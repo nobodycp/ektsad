@@ -36,6 +36,15 @@ export type ComplaintRow = {
   inspector_name: string
   created_at: string
   is_flagged: boolean
+  source?: string
+  submitter_ip?: string | null
+  telegram_user_id?: string
+  has_image?: boolean
+  field_replied_at?: string | null
+  accepted_at?: string | null
+  legal_referred_at?: string | null
+  closed_at?: string | null
+  assigned_by_name?: string
 }
 
 export type FollowUpLine = {

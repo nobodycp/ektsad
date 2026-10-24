@@ -119,6 +119,15 @@ def me_view(request):
 
 @require_http_methods(["GET", "POST"])
 def users(request):
+    if request.method == "GET" and request.user.is_authenticated and request.user.role == User.Role.GOVERNOR:
+        queryset = User.objects.filter(
+            role=User.Role.INSPECTOR, governorate_id=request.user.governorate_id, is_active=True
+        )
+        if request.GET.get("region"):
+            queryset = queryset.filter(region_id=request.GET["region"])
+        page = paginate(queryset.order_by("display_name", "username"), request.GET)
+        page["results"] = [_user_payload(user) for user in page["results"]]
+        return JsonResponse(page)
     if not _is_admin(request):
         return _forbidden()
     if request.method == "GET":

@@ -336,9 +336,25 @@ function ComplaintView({ complaint, user, reload }: { complaint: ComplaintDetail
             <dt>وقت التقديم</dt>
             <dd>{formatDateTime(complaint.created_at)}</dd>
           </div>
+          <div>
+            <dt>القناة</dt>
+            <dd>{complaint.source === "telegram" ? "تلغرام" : "الموقع"}</dd>
+          </div>
+          <div>
+            <dt>مقدّم الشكوى</dt>
+            <dd>{complaint.telegram_user_id || complaint.submitter_ip || "—"}</dd>
+          </div>
+          <div>
+            <dt>وقت القبول</dt>
+            <dd>{formatDateTime(complaint.accepted_at)}</dd>
+          </div>
+          <div>
+            <dt>وقت الرد الميداني</dt>
+            <dd>{formatDateTime(complaint.field_replied_at)}</dd>
+          </div>
         </dl>
         <p className="app-prose dossier__body">{complaint.body}</p>
-        <ComplaintImage id={complaint.id} />
+        {complaint.has_image !== false && <ComplaintImage id={complaint.id} />}
       </article>
       <NoticeLine notice={notice} />
       {actions}

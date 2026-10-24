@@ -138,6 +138,17 @@ export function ComplaintsPage({ user }: { user: SessionUser }) {
     { key: "status", header: "الحالة", render: (row) => <StatusChip status={row.status} /> },
     { key: "inspector", header: "المفتش", render: (row) => row.inspector_name || "—" },
     { key: "created_at", header: "وقت التقديم", render: (row) => formatDateTime(row.created_at) },
+    ...(isInspector
+      ? [
+          { key: "source", header: "القناة", render: (row: ComplaintRow) => (row.source === "telegram" ? "تلغرام" : "الموقع") },
+          {
+            key: "contact",
+            header: "مقدّم الشكوى",
+            render: (row: ComplaintRow) => row.telegram_user_id || row.submitter_ip || "—",
+          },
+          { key: "field_replied_at", header: "وقت الرد الميداني", render: (row: ComplaintRow) => formatDateTime(row.field_replied_at) },
+        ]
+      : []),
     {
       key: "flag",
       header: "المتابعة",

@@ -2,6 +2,7 @@ import json
 
 from django.core.cache import cache
 from django.db import transaction
+from django.db.models import OuterRef, Subquery
 from django.core.exceptions import ValidationError
 from django.http import FileResponse, Http404, JsonResponse
 from django.utils import timezone
@@ -10,7 +11,7 @@ from django.views.decorators.http import require_http_methods
 from apps.accounts.models import User
 from apps.common.files import validate_upload
 from apps.common.listing import paginate
-from apps.complaints.models import Complaint, FollowUpFile
+from apps.complaints.models import Complaint, FollowUp, FollowUpFile
 from apps.geography.models import Region
 from apps.complaints.services import (
     accept_complaint,
@@ -38,6 +39,17 @@ def _forbidden(request):
 PUBLIC_RATE_LIMIT_MESSAGE = "تجاوزت الحد المسموح لتقديم الشكاوى. حاول لاحقاً."
 
 
+def _iso(value):
+    return value.isoformat() if value else None
+
+
+def _with_field_time(queryset):
+    field_at = FollowUp.objects.filter(
+        complaint=OuterRef("pk"), place=FollowUp.Place.FIELD
+    ).order_by("created_at").values("created_at")[:1]
+    return queryset.annotate(field_replied_at=Subquery(field_at))
+
+
 def _complaint_data(complaint, detail=False):
     result = {
         "id": complaint.pk, "governorate": complaint.governorate_id,
@@ -47,8 +59,19 @@ def _complaint_data(complaint, detail=False):
         "status": complaint.status, "inspector": complaint.inspector_id,
         "inspector_name": complaint.inspector_name, "created_at": complaint.created_at.isoformat(),
         "is_flagged": complaint.is_flagged,
+        "source": complaint.source,
+        "submitter_ip": complaint.submitter_ip,
+        "telegram_user_id": complaint.telegram_user_id,
+        "has_image": bool(complaint.image),
+        "field_replied_at": _iso(getattr(complaint, "field_replied_at", None)),
     }
     if detail:
+        result.update({
+            "accepted_at": _iso(complaint.accepted_at),
+            "legal_referred_at": _iso(complaint.legal_referred_at),
+            "closed_at": _iso(complaint.closed_at),
+            "assigned_by_name": complaint.assigned_by_name,
+        })
         result["follow_ups"] = [
             {
                 "id": line.pk, "author_name": line.author_name, "created_at": line.created_at.isoformat(),
@@ -64,7 +87,9 @@ def _complaint_data(complaint, detail=False):
 def complaints(request):
     if _forbidden(request):
         return JsonResponse({"detail": "Forbidden"}, status=403)
-    queryset = visible_complaints(request.user).select_related("governorate", "region").order_by("-created_at")
+    queryset = _with_field_time(
+        visible_complaints(request.user).select_related("governorate", "region")
+    ).order_by("-created_at")
     if request.GET.get("status"):
         queryset = queryset.filter(status=request.GET["status"])
     if request.user.role in {User.Role.ADMIN, User.Role.GOVERNOR} and request.GET.get("region"):
@@ -78,7 +103,7 @@ def complaints(request):
 def complaint_detail(request, pk):
     if _forbidden(request):
         return JsonResponse({"detail": "Forbidden"}, status=403)
-    complaint = visible_complaints(request.user).filter(pk=pk).first()
+    complaint = _with_field_time(visible_complaints(request.user)).filter(pk=pk).first()
     if complaint is None:
         return JsonResponse({"detail": "Forbidden"}, status=403)
     return JsonResponse(_complaint_data(complaint, detail=True))

@@ -57,6 +57,7 @@ type Panel =
   | { kind: "create" }
   | { kind: "edit"; user: UserRow }
   | { kind: "password"; user: UserRow }
+  | { kind: "telegram"; user: UserRow }
   | { kind: "delete"; user: UserRow }
   | null
 
@@ -336,6 +337,57 @@ function PasswordPanel({ user, onClose }: { user: UserRow; onClose: () => void }
   )
 }
 
+function TelegramPanel({ user, onClose }: { user: UserRow; onClose: () => void }) {
+  const [link, setLink] = useState<string | null>(null)
+  const [notice, setNotice] = useState<Notice>(null)
+  const [busy, setBusy] = useState<"link" | "unlink" | null>(null)
+
+  const onLink = async () => {
+    setNotice(null)
+    setLink(null)
+    setBusy("link")
+    const result = await apiRequest<{ link: string }>(`/api/users/${user.id}/telegram-link/`, { method: "POST" })
+    setBusy(null)
+    if (result.ok && result.data?.link) setLink(result.data.link)
+    else setNotice({ tone: "error", text: failureText(result) })
+  }
+
+  const onUnlink = async () => {
+    setNotice(null)
+    setLink(null)
+    setBusy("unlink")
+    const result = await apiRequest(`/api/users/${user.id}/telegram-link/`, { method: "DELETE" })
+    setBusy(null)
+    if (result.ok) setNotice({ tone: "ok", text: "تم فك ربط تلغرام." })
+    else setNotice({ tone: "error", text: failureText(result) })
+  }
+
+  return (
+    <Section title={`تلغرام ${user.username}`} note="الرابط يظهر مرة واحدة، ويصلح ٢٤ ساعة لاستخدام واحد.">
+      <div className="sheet__actions">
+        <Button loading={busy === "link"} onClick={onLink}>
+          إنشاء رابط الربط
+        </Button>
+        <Button variant="secondary" loading={busy === "unlink"} onClick={onUnlink}>
+          فك الربط
+        </Button>
+        <Button variant="ghost" onClick={onClose}>
+          إغلاق
+        </Button>
+      </div>
+      <NoticeLine notice={notice} />
+      {link && (
+        <div className="secret" role="status">
+          <p className="secret__label">انقل هذا الرابط إلى الموظف الآن. لن يُعرض مرة أخرى.</p>
+          <output className="secret__value" dir="ltr">
+            {link}
+          </output>
+        </div>
+      )}
+    </Section>
+  )
+}
+
 function DeletePanel({ user, onDone, onCancel }: { user: UserRow; onDone: (notice: Notice) => void; onCancel: () => void }) {
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<Notice>(null)
@@ -430,6 +482,7 @@ export function UsersPage() {
         <UserForm key={panel.user.id} user={panel.user} geo={geo} onSaved={finish} onCancel={() => setPanel(null)} />
       )}
       {panel?.kind === "password" && <PasswordPanel key={panel.user.id} user={panel.user} onClose={() => setPanel(null)} />}
+      {panel?.kind === "telegram" && <TelegramPanel key={panel.user.id} user={panel.user} onClose={() => setPanel(null)} />}
       {panel?.kind === "delete" && (
         <DeletePanel key={panel.user.id} user={panel.user} onDone={finish} onCancel={() => setPanel(null)} />
       )}
@@ -454,6 +507,7 @@ export function UsersPage() {
             rowActions={(row) => [
               { id: "edit", label: "تعديل", onSelect: () => setPanel({ kind: "edit", user: row }) },
               { id: "password", label: "كلمة المرور", onSelect: () => setPanel({ kind: "password", user: row }) },
+              { id: "telegram", label: "تلغرام", onSelect: () => setPanel({ kind: "telegram", user: row }) },
               { id: "delete", label: "حذف", tone: "danger", onSelect: () => setPanel({ kind: "delete", user: row }) },
             ]}
             pagination={{ page: data.page, pageSize: data.page_size, total: data.count, onPageChange: setPage }}

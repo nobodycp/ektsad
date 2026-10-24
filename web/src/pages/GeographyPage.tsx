@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react"
-import { Button, DataTable, Select, TextField, type Column } from "../design-system"
+import { Button, DataTable, Select, TextField, type Column, type RowAction } from "../design-system"
 import { apiRequest, withQuery, type Page, type RegionPlace } from "../api"
 import { Loaded, NoticeLine, PAGE_SIZE, Section, failureText, useLoad, type Notice } from "./common"
 import { nameOf, optionsOf, useAdminGeography } from "./geo"
@@ -23,6 +23,8 @@ export function GeographyPage({ kind }: { kind: Kind }) {
   const [notice, setNotice] = useState<Notice>(null)
   const [busy, setBusy] = useState(false)
   const [version, setVersion] = useState(0)
+  const [editing, setEditing] = useState<Row | null>(null)
+  const [editName, setEditName] = useState("")
   const geo = useAdminGeography(version)
 
   const { state, reload } = useLoad(
@@ -52,6 +54,32 @@ export function GeographyPage({ kind }: { kind: Kind }) {
     }
   }
 
+  const rename = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!editing || !editName.trim()) return
+    setBusy(true)
+    const result = await apiRequest(`/api/${kind}/${editing.id}/`, { method: "PATCH", body: { name: editName.trim() } })
+    setBusy(false)
+    if (result.ok) {
+      setNotice({ tone: "ok", text: `تم تعديل اسم ${copy.noun}.` })
+      setEditing(null)
+      setVersion((v) => v + 1)
+      reload()
+    } else {
+      setNotice({ tone: "error", text: failureText(result) })
+    }
+  }
+
+  const remove = async (row: Row) => {
+    setNotice(null)
+    const result = await apiRequest(`/api/${kind}/${row.id}/`, { method: "DELETE" })
+    setNotice(result.ok ? { tone: "ok", text: `تم حذف ${copy.noun} ${row.name}.` } : { tone: "error", text: failureText(result) })
+    if (result.ok) {
+      setVersion((v) => v + 1)
+      reload()
+    }
+  }
+
   const columns: Column<Row>[] = [{ key: "name", header: "الاسم", render: (row) => row.name }]
   if (kind === "regions")
     columns.push({ key: "governorate", header: "المحافظة", render: (row) => nameOf(geo.governorates, row.governorate) })
@@ -78,6 +106,17 @@ export function GeographyPage({ kind }: { kind: Kind }) {
           </Button>
         </form>
         <NoticeLine notice={notice} />
+        {editing && (
+          <form className="sheet__form sheet__form--inline" onSubmit={rename} noValidate>
+            <TextField label={`اسم ${copy.noun} الجديد`} name="edit_name" value={editName} onChange={(e) => setEditName(e.target.value)} required />
+            <Button type="submit" loading={busy}>
+              حفظ الاسم
+            </Button>
+            <Button variant="ghost" onClick={() => setEditing(null)}>
+              إلغاء
+            </Button>
+          </form>
+        )}
       </Section>
       <Loaded state={state} onRetry={reload}>
         {(data) => (
@@ -87,6 +126,10 @@ export function GeographyPage({ kind }: { kind: Kind }) {
             rows={data.results}
             getRowId={rowId}
             emptyTitle={copy.empty}
+            rowActions={(row): RowAction[] => [
+              { id: "rename", label: "تعديل الاسم", onSelect: () => { setEditing(row); setEditName(row.name) } },
+              { id: "delete", label: "حذف", tone: "danger", onSelect: () => remove(row) },
+            ]}
             pagination={{ page: data.page, pageSize: data.page_size, total: data.count, onPageChange: setPage }}
           />
         )}

@@ -7,7 +7,9 @@ from apps.complaints.api import (
     assign, complaint_actions, complaint_detail, complaint_media, complaints, field_report,
     followup_media, legal_close, public_complaint,
 )
-from apps.geography.api import governorates, public_governorates, public_regions, regions
+from apps.geography.api import (
+    governorate_detail, governorates, public_governorates, public_regions, region_detail, regions,
+)
 
 def health(request):
     try:
@@ -25,6 +27,8 @@ urlpatterns = [
     path("api/users/<int:pk>/", user_detail),
     path("api/governorates/public/", public_governorates),
     path("api/regions/public/", public_regions),
+    path("api/governorates/<int:pk>/", governorate_detail),
+    path("api/regions/<int:pk>/", region_detail),
     path("api/governorates/", governorates),
     path("api/regions/", regions),
     path("api/complaints/", complaints),
