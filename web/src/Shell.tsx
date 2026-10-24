@@ -1,7 +1,7 @@
-import { useState, type MouseEvent, type ReactNode } from "react"
-import { useNavigate } from "react-router-dom"
+import { useEffect, useState, type MouseEvent, type ReactNode } from "react"
+import { useLocation, useNavigate } from "react-router-dom"
 import { AppShell, type NavEntry } from "./design-system"
-import { apiRequest, withQuery, type ComplaintRow, type Page, type SessionUser } from "./api"
+import { apiRequest, type ComplaintRow, type SessionUser } from "./api"
 import { useAuth } from "./auth"
 import { LOGIN_PATH, navEntries } from "./routes"
 import { formatDateTime } from "./pages/common"
@@ -31,33 +31,60 @@ function greeting(name: string) {
 }
 
 function Notifications() {
+  const location = useLocation()
   const [open, setOpen] = useState(false)
-  const [rows, setRows] = useState<ComplaintRow[] | null>(null)
+  const [rows, setRows] = useState<ComplaintRow[]>([])
+  const [count, setCount] = useState(0)
+  const [loaded, setLoaded] = useState(false)
 
-  const toggle = () => {
-    setOpen((value) => !value)
-    if (rows) return
-    apiRequest<Page<ComplaintRow>>(withQuery("/api/complaints/", { status: "واردة", page_size: 6 })).then((result) => {
-      setRows(result.ok && result.data ? result.data.results : [])
+  const load = () => {
+    apiRequest<{ count: number; results: ComplaintRow[] }>("/api/complaints/notices/").then((result) => {
+      if (!result.ok || !result.data) return
+      setCount(result.data.count)
+      setRows(result.data.results)
+      setLoaded(true)
     })
   }
 
+  useEffect(() => {
+    load()
+    const soon = window.setTimeout(load, 800)
+    const timer = window.setInterval(load, 15000)
+    window.addEventListener("focus", load)
+    return () => {
+      window.clearTimeout(soon)
+      window.clearInterval(timer)
+      window.removeEventListener("focus", load)
+    }
+  }, [location.pathname])
+
   return (
     <div className="ds-popover">
-      <button type="button" className="ds-icon-btn" aria-label="الإشعارات" aria-expanded={open} onClick={toggle}>
+      <button
+        type="button"
+        className={count > 0 ? "ds-icon-btn is-active" : "ds-icon-btn"}
+        aria-label="الإشعارات"
+        aria-expanded={open}
+        onClick={() => {
+          setOpen((value) => !value)
+          load()
+        }}
+      >
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M6 9a6 6 0 1 1 12 0c0 7 3 7 3 9H3c0-2 3-2 3-9" />
           <path d="M10 20a2 2 0 0 0 4 0" />
         </svg>
+        {count > 0 && <span className="ds-notif-badge">{count > 99 ? "99+" : count}</span>}
       </button>
       {open && <div className="ds-popover__panel">
         <div className="ds-popover__identity">
-          <strong>الشكاوى الواردة</strong>
+          <strong>شكاوى جديدة</strong>
+          {count > 0 && <span className="ds-notif-total">{count}</span>}
         </div>
-        {rows === null ? (
+        {!loaded ? (
           <p className="ds-popover__empty">جار التحميل</p>
         ) : rows.length === 0 ? (
-          <p className="ds-popover__empty">لا توجد شكاوى واردة.</p>
+          <p className="ds-popover__empty">لا توجد شكاوى جديدة.</p>
         ) : (
           <ul className="ds-note-list">
             {rows.map((row) => (
@@ -65,7 +92,7 @@ function Notifications() {
                 <a href={`/complaints/${row.id}/`}>
                   <span>{row.title}</span>
                   <small>
-                    {row.governorate_name} · {formatDateTime(row.created_at)}
+                    {row.region_name} · {formatDateTime(row.created_at)}
                   </small>
                 </a>
               </li>

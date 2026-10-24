@@ -1,11 +1,12 @@
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db import models
+from django.db.models import Exists, OuterRef
 from django.utils import timezone
 
 from apps.accounts.models import User
 from apps.common.files import validate_upload
-from apps.complaints.models import Complaint, FollowUp, FollowUpFile
+from apps.complaints.models import Complaint, ComplaintSeen, FollowUp, FollowUpFile
 
 
 def _name(user):
@@ -94,6 +95,20 @@ def close_legal(complaint, actor, notes, *, channel, ip, telegram_id):
     complaint.status = Complaint.Status.RESOLVED
     complaint.closed_at = timezone.now()
     complaint.save()
+
+
+def unread_incoming(user):
+    seen = ComplaintSeen.objects.filter(user=user, complaint_id=OuterRef("pk"))
+    return (
+        visible_complaints(user)
+        .filter(status=Complaint.Status.RECEIVED)
+        .annotate(_seen=Exists(seen))
+        .filter(_seen=False)
+    )
+
+
+def mark_complaint_seen(user, complaint):
+    ComplaintSeen.objects.get_or_create(user=user, complaint=complaint)
 
 
 def visible_complaints(user):

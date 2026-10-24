@@ -20,6 +20,8 @@ from apps.complaints.services import (
     assign_complaint,
     close_legal,
     submit_field_report,
+    mark_complaint_seen,
+    unread_incoming,
     visible_complaints,
 )
 
@@ -139,12 +141,24 @@ def complaints(request):
 
 
 @require_http_methods(["GET"])
+def complaint_notices(request):
+    if _forbidden(request):
+        return JsonResponse({"detail": "Forbidden"}, status=403)
+    queryset = unread_incoming(request.user).select_related("governorate", "region").order_by("-created_at")
+    return JsonResponse({
+        "count": queryset.count(),
+        "results": [_complaint_data(item) for item in queryset[:6]],
+    })
+
+
+@require_http_methods(["GET"])
 def complaint_detail(request, pk):
     if _forbidden(request):
         return JsonResponse({"detail": "Forbidden"}, status=403)
     complaint = _with_field_time(visible_complaints(request.user)).filter(pk=pk).first()
     if complaint is None:
         return JsonResponse({"detail": "Forbidden"}, status=403)
+    mark_complaint_seen(request.user, complaint)
     return JsonResponse(_complaint_data(complaint, detail=True))
 
 

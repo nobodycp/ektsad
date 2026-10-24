@@ -64,3 +64,26 @@ class ComplaintApiTests(TestCase):
         response = self.client.post("/api/complaints/public/", payload)
         self.assertEqual(response.status_code, 429)
         self.assertEqual(response.json()["detail"], "تجاوزت الحد المسموح لتقديم الشكاوى. حاول لاحقاً.")
+
+    def test_incoming_notice_stays_unread_for_other_staff(self):
+        colleague = User.objects.create_user(
+            username="colleague", password="password-123", role=User.Role.INSPECTOR,
+            governorate=self.governorate, region=self.region,
+        )
+        elsewhere = Region.objects.create(governorate=self.governorate, name="أخرى")
+        outsider = User.objects.create_user(
+            username="outsider", password="password-123", role=User.Role.INSPECTOR,
+            governorate=self.governorate, region=elsewhere,
+        )
+        self.client.force_login(self.inspector)
+        first = self.client.get("/api/complaints/notices/")
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(first.json()["count"], 1)
+        self.assertEqual(first.json()["results"][0]["id"], self.complaint.pk)
+        self.client.get(f"/api/complaints/{self.complaint.pk}/")
+        self.assertEqual(self.client.get("/api/complaints/notices/").json()["count"], 0)
+        self.client.force_login(colleague)
+        still = self.client.get("/api/complaints/notices/")
+        self.assertEqual(still.json()["count"], 1)
+        self.client.force_login(outsider)
+        self.assertEqual(self.client.get("/api/complaints/notices/").json()["count"], 0)

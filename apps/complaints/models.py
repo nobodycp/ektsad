@@ -66,3 +66,16 @@ class FollowUp(models.Model):
 class FollowUpFile(models.Model):
     follow_up = models.ForeignKey(FollowUp, on_delete=models.CASCADE, related_name="files")
     file = models.FileField(upload_to="complaint-followups/")
+
+
+class ComplaintSeen(models.Model):
+    """A staff member opened this complaint. Other accounts stay unread."""
+
+    user = models.ForeignKey("accounts.User", on_delete=models.CASCADE, related_name="seen_complaints")
+    complaint = models.ForeignKey(Complaint, on_delete=models.CASCADE, related_name="seen_by")
+    seen_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=("user", "complaint"), name="unique_complaint_seen")
+        ]

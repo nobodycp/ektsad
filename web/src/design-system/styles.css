@@ -923,7 +923,8 @@ input[type="file"].ds-field__control::file-selector-button {
 
 @media (prefers-reduced-motion: reduce) {
   .ds-loading__bar::after,
-  .ds-btn__spinner {
+  .ds-btn__spinner,
+  .ds-icon-btn.is-active svg {
     animation: none;
   }
   .ds-shell__sidebar {
@@ -1107,6 +1108,10 @@ input[type="file"].ds-field__control::file-selector-button {
   font-size: 0.95rem;
 }
 
+.ds-icon-btn {
+  position: relative;
+}
+
 .ds-icon-btn svg {
   width: 18px;
   height: 18px;
@@ -1115,6 +1120,52 @@ input[type="file"].ds-field__control::file-selector-button {
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
+  transform-origin: 50% 4px;
+}
+
+@keyframes ds-bell-ring {
+  0% { transform: rotate(0deg); }
+  3% { transform: rotate(-14deg); }
+  6% { transform: rotate(12deg); }
+  9% { transform: rotate(-10deg); }
+  12% { transform: rotate(8deg); }
+  15% { transform: rotate(-6deg); }
+  18% { transform: rotate(4deg); }
+  21% { transform: rotate(-2deg); }
+  24%, 100% { transform: rotate(0deg); }
+}
+
+.ds-icon-btn.is-active svg {
+  animation: ds-bell-ring 2.4s ease-in-out infinite;
+}
+
+.ds-notif-badge,
+.ds-notif-total {
+  font-family: var(--ds-num), var(--ds-font);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.ds-notif-badge {
+  position: absolute;
+  top: -3px;
+  inset-inline-end: -3px;
+  min-width: 1.05rem;
+  height: 1.05rem;
+  padding: 0 0.32rem;
+  border-radius: 999px;
+  background: var(--ds-danger);
+  color: var(--ds-on-ink);
+  font-size: 0.65rem;
+  line-height: 1.05rem;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--ds-paper);
+}
+
+.ds-notif-total {
+  margin-inline-start: auto;
+  color: var(--ds-danger);
+  font-size: 13px;
 }
 
 .ds-popover__panel {
@@ -1223,6 +1274,18 @@ input[type="file"].ds-field__control::file-selector-button {
   border-radius: 10px;
   color: inherit;
   text-decoration: none;
+  font-weight: 700;
+}
+
+.ds-note-list a span::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-inline-end: 8px;
+  border-radius: 50%;
+  background: var(--ds-danger);
+  vertical-align: middle;
 }
 
 .ds-note-list a:hover {
