@@ -7,7 +7,6 @@ import { APP_ROUTES, FORBIDDEN_MESSAGE, LOGIN_PATH, PUBLIC_PATH, canOpen, type A
 import { Shell } from "./Shell"
 import { LoginPage } from "./pages/LoginPage"
 import { AccountPage } from "./pages/AccountPage"
-import { PlaceholderPage } from "./pages/PlaceholderPage"
 import { PublicPage } from "./pages/PublicPage"
 import { ComplaintsPage } from "./pages/ComplaintsPage"
 import { ComplaintPage } from "./pages/ComplaintPage"
@@ -15,6 +14,7 @@ import { UsersPage } from "./pages/UsersPage"
 import { GeographyPage } from "./pages/GeographyPage"
 import { AdminReportsPage, GovernorReportPage } from "./pages/ReportsPage"
 import { PublicationsPage } from "./pages/PublicationsPage"
+import { TelegramHealthPage } from "./pages/TelegramHealthPage"
 import "./app.css"
 
 function FullPageLoading() {
@@ -47,8 +47,10 @@ function pageFor(route: AppRoute, user: SessionUser): ReactNode {
       return <PublicationsPage kind="prices" user={user} />
     case "crossings":
       return <PublicationsPage kind="crossings" user={user} />
+    case "telegram-health":
+      return <TelegramHealthPage />
     default:
-      return <PlaceholderPage label={route.label} />
+      return null
   }
 }
 

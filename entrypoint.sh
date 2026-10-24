@@ -2,6 +2,7 @@
 set -eu
 
 python manage.py migrate --noinput
+python manage.py collectstatic --noinput
 python manage.py bootstrap
 python manage.py register_telegram_webhook
 python manage.py run_telegram_outbox &

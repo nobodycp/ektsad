@@ -7,6 +7,7 @@ import type { ComplaintRow, SessionUser, UserRow } from "../api"
 import { ComplaintPage } from "./ComplaintPage"
 import { ComplaintsPage } from "./ComplaintsPage"
 import { PublicPage } from "./PublicPage"
+import { TelegramHealthPage } from "./TelegramHealthPage"
 import { UsersPage } from "./UsersPage"
 
 type Reply = { status: number; body: unknown }
@@ -277,4 +278,19 @@ describe("users", () => {
     expect(await screen.findByText("تم حذف الحساب inspector1.")).toBeInTheDocument()
     expect(fetchFn.mock.calls.filter(([url]) => String(url).startsWith("/api/users/?")).length).toBeGreaterThan(1)
   })
+})
+
+it("shows an unregistered Telegram webhook to the system admin", async () => {
+  mockFetch((url) =>
+    url === "/api/telegram/health/"
+      ? {
+          status: 200,
+          body: { registered: false, last_error: "تعذّر التسجيل", last_update_at: null, pending_count: 2, oldest_wait: null },
+        }
+      : undefined,
+  )
+  inRouter(<TelegramHealthPage />)
+  expect(await screen.findByText("غير مسجّل")).toBeInTheDocument()
+  expect(screen.getByText("تعذّر التسجيل")).toBeInTheDocument()
+  expect(screen.getByText("2")).toBeInTheDocument()
 })

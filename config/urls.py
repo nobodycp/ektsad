@@ -1,6 +1,6 @@
 from django.db import connection
 from django.http import HttpResponse, HttpResponseServerError
-from django.urls import include, path
+from django.urls import include, path, re_path
 
 from apps.accounts.api import login_view, logout_view, me_view, user_detail
 from apps.complaints.api import (
@@ -10,6 +10,7 @@ from apps.complaints.api import (
 from apps.geography.api import (
     governorate_detail, governorates, public_governorates, public_regions, region_detail, regions,
 )
+from config.spa import spa
 
 def health(request):
     try:
@@ -44,4 +45,5 @@ urlpatterns = [
     path("api/", include("apps.publications.urls")),
     path("api/", include("apps.reports.urls")),
     path("api/", include("apps.telegram.urls")),
+    re_path(r"^(?P<resource>.*)$", spa),
 ]
