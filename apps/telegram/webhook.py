@@ -98,9 +98,15 @@ def notify_new_complaint(complaint):
 
 
 def _create_complaint(chat_id, user_id, governorate_id, region_id, title, body, image=None):
-    region = Region.objects.select_related("governorate").filter(pk=region_id, governorate_id=governorate_id).first()
-    if region is None or not title.strip() or not body.strip():
+    try:
+        region = Region.objects.select_related("governorate").filter(
+            pk=int(region_id), governorate_id=int(governorate_id)
+        ).first()
+    except (TypeError, ValueError):
         return None
+    if region is None or not str(title).strip() or not str(body).strip():
+        return None
+    image = _accepted_image(image)
     since = timezone.now() - timedelta(hours=1)
     if Complaint.objects.filter(
         source=Complaint.Source.TELEGRAM, telegram_user_id=str(user_id), created_at__gte=since
@@ -149,12 +155,7 @@ def _staff_action(chat_id, telegram_id, text):
         complaint = Complaint.objects.get(pk=int(bits[1]))
         if command == "/accept":
             accept_complaint(complaint, user, channel="telegram", ip=None, telegram_id=str(telegram_id))
-            governors = User.objects.filter(
-                role=User.Role.GOVERNOR, is_active=True, governorate_id=complaint.governorate_id,
-                telegram_link__isnull=False,
-            ).select_related("telegram_link")
-            for governor in governors:
-                enqueue(governor.telegram_link.telegram_id, f"قبل المفتش {user.display_name or user.username} الشكوى وتوجه للمتابعة الميدانية.")
+            notify_accept(complaint, user)
         elif command == "/assign":
             inspector = User.objects.get(pk=int(bits[2]))
             assign_complaint(complaint, user, inspector, channel="telegram", ip=None, telegram_id=str(telegram_id))
@@ -167,7 +168,8 @@ def _staff_action(chat_id, telegram_id, text):
             if destination == "governor":
                 _citizen_resolution(complaint)
         elif command == "/close":
-            close_legal(complaint, user, bits[2] if len(bits) > 2 else "", channel="telegram", ip=None, telegram_id=str(telegram_id))
+            notes = text.split(maxsplit=2)[2] if len(text.split(maxsplit=2)) > 2 else ""
+            close_legal(complaint, user, notes, channel="telegram", ip=None, telegram_id=str(telegram_id))
             _citizen_resolution(complaint)
         else:
             return False
@@ -177,6 +179,39 @@ def _staff_action(chat_id, telegram_id, text):
         return True
     enqueue(chat_id, "تم التنفيذ.")
     return True
+
+
+ROLE_LABELS = {
+    User.Role.ADMIN: "مدير النظام",
+    User.Role.GOVERNOR: "مدير المحافظة",
+    User.Role.INSPECTOR: "مفتش",
+    User.Role.LEGAL: "الشؤون القانونية",
+}
+
+
+def _accepted_image(image):
+    if image is None:
+        return None
+    name = (getattr(image, "name", "") or "").lower()
+    if not name.endswith((".jpg", ".jpeg", ".png", ".webp")):
+        return None
+    if getattr(image, "size", 0) > 5 * 1024 * 1024:
+        return None
+    return image
+
+
+def notify_accept(complaint, actor):
+    governors = User.objects.filter(
+        role=User.Role.GOVERNOR, is_active=True, governorate_id=complaint.governorate_id,
+        telegram_link__isnull=False,
+    ).select_related("telegram_link")
+    message = f"قبل المفتش {actor.display_name or actor.username} الشكوى وتوجه للمتابعة الميدانية."
+    for governor in governors:
+        enqueue(governor.telegram_link.telegram_id, message)
+
+
+def notify_citizen_resolved(complaint):
+    _citizen_resolution(complaint)
 
 
 def _citizen_resolution(complaint):
@@ -252,8 +287,15 @@ def _advance_draft(chat_id, user_id, text):
         draft.step = "image"
         reply = "أرسل صورة أو اكتب تخطي."
     else:
-        if cleaned not in {"تخطي", "تقديم الشكوى"}:
-            enqueue(chat_id, "أرسل صورة أو اكتب تخطي.")
+        if cleaned == "تخطي":
+            payload.pop("image", None)
+            payload.pop("image_name", None)
+            draft.payload = payload
+            draft.save(update_fields=["payload", "step", "updated_at"])
+            enqueue(chat_id, "اكتب تقديم الشكوى.")
+            return True
+        if cleaned != "تقديم الشكوى":
+            enqueue(chat_id, "أرسل صورة أو اكتب تخطي، ثم اكتب تقديم الشكوى.")
             return True
         draft.payload = payload
         draft.save(update_fields=["payload", "step", "updated_at"])
@@ -309,10 +351,10 @@ def _download_photo(photo):
 
 
 def handle_update(update):
-    message = update.get("message") or update.get("callback_query", {}).get("message") or {}
     callback = update.get("callback_query") or {}
+    message = update.get("message") or callback.get("message") or {}
     chat_id = (message.get("chat") or {}).get("id")
-    sender = (update.get("message") or callback.get("from") or {}).get("from") or (update.get("message") or {}).get("from") or {}
+    sender = (update.get("message") or {}).get("from") or callback.get("from") or {}
     user_id = sender.get("id")
     text = (update.get("message") or {}).get("text") or callback.get("data") or ""
     if chat_id is None:
@@ -330,7 +372,8 @@ def handle_update(update):
     if text.startswith("/start "):
         if consume_staff_link(text.split(maxsplit=1)[1], user_id):
             user = _linked_user(user_id)
-            enqueue(chat_id, f"تم ربط الحساب: {user.display_name or user.username}.")
+            name = user.display_name or user.username
+            enqueue(chat_id, f"تم ربط الحساب: {name}. الدور: {ROLE_LABELS.get(user.role, user.role)}.")
         else:
             enqueue(chat_id, "رابط الربط غير صالح أو منتهي.")
     elif text.startswith("/complaint"):
@@ -348,4 +391,8 @@ def handle_update(update):
     elif text:
         enqueue(chat_id, "تقديم شكوى، قائمة الأسعار، أو حركة المعابر.")
     elif photo:
-        enqueue(chat_id, "تم حفظ الصورة. اكتب تقديم الشكوى أو تخطي.")
+        draft = TelegramDraft.objects.filter(chat_id=str(chat_id)).first()
+        if draft and draft.step == "image":
+            enqueue(chat_id, "تم حفظ الصورة. اكتب تقديم الشكوى أو تخطي.")
+        else:
+            enqueue(chat_id, "الصورة تُرفق بعد نص الشكوى.")

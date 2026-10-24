@@ -107,7 +107,10 @@ def complaint_actions(request):
             if complaint is None:
                 raise ValidationError("الشكوى غير موجودة.")
             if action == "accept":
-                accept_complaint(complaint, request.user, channel="web", ip=_ip(request), telegram_id=None)
+                with transaction.atomic():
+                    accept_complaint(complaint, request.user, channel="web", ip=_ip(request), telegram_id=None)
+                    from apps.telegram.webhook import notify_accept
+                    notify_accept(complaint, request.user)
             else:
                 if request.user.role == User.Role.GOVERNOR and complaint.governorate_id != request.user.governorate_id:
                     raise ValidationError("غير مسموح.")
@@ -146,11 +149,16 @@ def field_report(request, pk):
     complaint = _visible_complaint_or_forbidden(request, pk)
     if complaint is None:
         return JsonResponse({"detail": "Forbidden"}, status=403)
+    destination = request.POST.get("destination")
     try:
-        submit_field_report(
-            complaint, request.user, request.POST.get("text", ""), request.FILES.getlist("files"),
-            request.POST.get("destination"),
-        )
+        with transaction.atomic():
+            submit_field_report(
+                complaint, request.user, request.POST.get("text", ""), request.FILES.getlist("files"),
+                destination, channel="web", ip=_ip(request),
+            )
+            if destination == "governor":
+                from apps.telegram.webhook import notify_citizen_resolved
+                notify_citizen_resolved(complaint)
     except ValidationError as error:
         return JsonResponse({"detail": error.messages[0]}, status=400)
     return JsonResponse(_complaint_data(complaint))
@@ -162,7 +170,10 @@ def legal_close(request, pk):
     if complaint is None:
         return JsonResponse({"detail": "Forbidden"}, status=403)
     try:
-        close_legal(complaint, request.user, _payload(request).get("notes", ""), channel="web", ip=_ip(request), telegram_id=None)
+        with transaction.atomic():
+            close_legal(complaint, request.user, _payload(request).get("notes", ""), channel="web", ip=_ip(request), telegram_id=None)
+            from apps.telegram.webhook import notify_citizen_resolved
+            notify_citizen_resolved(complaint)
     except ValidationError as error:
         return JsonResponse({"detail": error.messages[0]}, status=400)
     return JsonResponse(_complaint_data(complaint))

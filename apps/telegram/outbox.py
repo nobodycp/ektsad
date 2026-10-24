@@ -1,11 +1,12 @@
 from datetime import timedelta
+import json
 import os
 
 import httpx
 from django.db import OperationalError
 from django.utils import timezone
 
-from apps.telegram.models import TelegramOutbox
+from apps.telegram.models import TelegramLink, TelegramOutbox
 
 
 def _retry(operation):
@@ -30,6 +31,19 @@ def next_delay(attempts):
     )
 
 
+def keyboard_for(chat_id):
+    rows = [
+        [{"text": "تقديم شكوى"}, {"text": "قائمة الأسعار"}],
+        [{"text": "حركة المعابر"}],
+    ]
+    link = TelegramLink.objects.select_related("user").filter(telegram_id=str(chat_id)).first()
+    if link and link.user.is_active:
+        rows.append([{"text": "شكاوى"}])
+        if link.user.role == "governor":
+            rows.append([{"text": "وصلت"}, {"text": "معلقة"}, {"text": "مغلقة"}])
+    return {"keyboard": rows, "resize_keyboard": True}
+
+
 def send_telegram_outbox():
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     if not token:
@@ -46,14 +60,22 @@ def send_telegram_outbox():
                 with default_storage.open(item.photo, "rb") as photo:
                     response = httpx.post(
                         f"https://api.telegram.org/bot{token}/sendPhoto",
-                        data={"chat_id": item.chat_id, "caption": item.text},
+                        data={
+                            "chat_id": item.chat_id,
+                            "caption": item.text,
+                            "reply_markup": json.dumps(keyboard_for(item.chat_id), ensure_ascii=False),
+                        },
                         files={"photo": photo},
                         timeout=10,
                     )
             else:
                 response = httpx.post(
                     f"https://api.telegram.org/bot{token}/sendMessage",
-                    json={"chat_id": item.chat_id, "text": item.text},
+                    json={
+                        "chat_id": item.chat_id,
+                        "text": item.text,
+                        "reply_markup": keyboard_for(item.chat_id),
+                    },
                     timeout=10,
                 )
             response.raise_for_status()

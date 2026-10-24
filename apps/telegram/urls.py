@@ -23,9 +23,9 @@ def webhook(request):
         return JsonResponse({"detail": "Forbidden"}, status=403)
     try:
         update = json.loads(request.body or "{}")
-        update_id = update["update_id"]
+        update_id = int(update["update_id"])
     except (ValueError, KeyError, TypeError):
-        return JsonResponse({"detail": "بيانات غير صالحة."}, status=400)
+        return JsonResponse({"ok": True})
     if not record_update(update_id):
         return JsonResponse({"ok": True})
     _status_update(last_update_at=timezone.now())

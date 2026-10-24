@@ -1,3 +1,4 @@
+import json
 from datetime import timedelta
 from unittest.mock import Mock, patch
 
@@ -190,6 +191,58 @@ class TelegramWebhookTests(TestCase):
         item = TelegramOutbox.objects.get()
         self.assertIn("price", item.photo)
         self.assertEqual(item.text, "")
+
+    @override_settings(TELEGRAM_WEBHOOK_SECRET="secret")
+    def test_non_numeric_complaint_command_stays_a_single_update(self):
+        from apps.telegram.models import TelegramUpdate
+
+        update = {
+            "update_id": 77,
+            "message": {"chat": {"id": 770}, "from": {"id": 770}, "text": "/complaint الخليل الحرم عنوان نص"},
+        }
+        response = self.client.post("/api/telegram/webhook/", update, content_type="application/json", **self.secret)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Complaint.objects.count(), 0)
+        self.assertTrue(TelegramUpdate.objects.filter(update_id=77).exists())
+
+    def test_web_close_tells_the_telegram_citizen_and_close_keeps_the_notes(self):
+        from apps.complaints.models import FollowUp
+        from apps.telegram.models import TelegramLink, TelegramOutbox
+        from apps.telegram.webhook import handle_update
+
+        legal = User.objects.create_user(
+            username="legal-web", password="password-long-12", role=User.Role.LEGAL, display_name="قانوني",
+        )
+        TelegramLink.objects.create(user=legal, telegram_id="880")
+        complaint = Complaint.objects.create(
+            governorate=self.governorate, region=self.region, title="عنوان المحل", body="النص",
+            source=Complaint.Source.TELEGRAM, telegram_chat_id="881", telegram_user_id="881",
+            status=Complaint.Status.LEGAL, legal_referred_at=timezone.now(),
+        )
+        self.client.force_login(legal)
+        closed = self.client.post(
+            f"/api/complaints/{complaint.pk}/legal-close/",
+            data=json.dumps({"notes": "تمت المعالجة بالكامل"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(closed.status_code, 200)
+        self.assertTrue(TelegramOutbox.objects.filter(text="تم التعامل مع الشكوى تبعك: عنوان المحل.").exists())
+
+        complaint.status = Complaint.Status.LEGAL
+        complaint.closed_at = None
+        complaint.save()
+        handle_update({
+            "message": {"chat": {"id": 880}, "from": {"id": 880}, "text": f"/close {complaint.pk} تمت المعالجة بالكامل"},
+        })
+        self.assertEqual(FollowUp.objects.latest("pk").body, "تمت المعالجة بالكامل")
+
+    def test_public_keyboard_has_the_three_buttons(self):
+        from apps.telegram.outbox import keyboard_for
+
+        labels = [button["text"] for row in keyboard_for("missing")["keyboard"] for button in row]
+        self.assertEqual(labels, ["تقديم شكوى", "قائمة الأسعار", "حركة المعابر"])
 
     def test_register_webhook_failure_keeps_unregistered_status(self):
         from apps.telegram.models import TelegramWebhookStatus
