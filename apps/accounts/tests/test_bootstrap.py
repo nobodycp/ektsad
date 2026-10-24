@@ -6,7 +6,7 @@ from django.core.management.base import CommandError
 from django.test import TestCase
 
 from apps.accounts.models import User
-from apps.geography.models import Governorate, Region
+from apps.geography.models import Governorate
 
 
 ENV = {
@@ -21,17 +21,12 @@ ENV = {
 
 class BootstrapTests(TestCase):
     @patch.dict(os.environ, ENV, clear=True)
-    def test_bootstrap_seeds_once_and_keeps_existing_password(self):
+    def test_bootstrap_creates_only_the_admin_and_keeps_the_password(self):
         call_command("bootstrap")
         call_command("bootstrap")
-        self.assertEqual(Governorate.objects.filter(name="محافظة تجريبية").count(), 1)
-        self.assertTrue(
-            Region.objects.filter(
-                name="المنطقة الأولى", governorate__name="محافظة تجريبية"
-            ).exists()
-        )
-        self.assertTrue(Region.objects.filter(name="المنطقة الثانية").exists())
-        user = User.objects.get(username="inspector")
+        self.assertEqual(list(User.objects.values_list("username", flat=True)), ["admin"])
+        self.assertEqual(Governorate.objects.count(), 0)
+        user = User.objects.get(username="admin")
         user.set_password("changed-password-12")
         user.save()
         call_command("bootstrap")
@@ -43,8 +38,3 @@ class BootstrapTests(TestCase):
         with self.assertRaisesMessage(CommandError, "POSTGRES_DB"):
             call_command("bootstrap")
 
-    @patch.dict(os.environ, ENV, clear=True)
-    def test_missing_trial_governorate_for_inspector_names_it(self):
-        Governorate.objects.create(name="محافظة أخرى")
-        with self.assertRaisesMessage(CommandError, "محافظة تجريبية"):
-            call_command("bootstrap")
