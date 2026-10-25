@@ -6,7 +6,7 @@ import httpx
 from django.db import OperationalError
 from django.utils import timezone
 
-from apps.telegram.models import TelegramLink, TelegramOutbox
+from apps.telegram.models import TelegramOutbox
 
 
 def _retry(operation):
@@ -31,23 +31,14 @@ def next_delay(attempts):
     )
 
 
-def keyboard_for(chat_id):
-    rows = [
-        [{"text": "تقديم شكوى"}, {"text": "قائمة الأسعار"}],
-        [{"text": "حركة المعابر"}],
-    ]
-    link = TelegramLink.objects.select_related("user").filter(telegram_id=str(chat_id)).first()
-    if link and link.user.is_active:
-        rows.append([{"text": "شكاوى"}])
-        if link.user.role == "governor":
-            rows.append([{"text": "وصلت"}, {"text": "معلقة"}, {"text": "مغلقة"}])
-    return {"keyboard": rows, "resize_keyboard": True}
-
-
 def _reply_markup(item):
-    if item.markup:
-        return item.markup
-    return keyboard_for(item.chat_id)
+    return item.markup
+
+
+def _post(token, method, payload):
+    response = httpx.post(f"https://api.telegram.org/bot{token}/{method}", json=payload, timeout=10)
+    response.raise_for_status()
+    return response
 
 
 def send_telegram_outbox():
@@ -60,31 +51,41 @@ def send_telegram_outbox():
     sent = 0
     for item in due:
         try:
+            markup = _reply_markup(item)
+            inline = isinstance(markup, dict) and "inline_keyboard" in markup
             if item.photo:
                 from django.core.files.storage import default_storage
 
+                data = {"chat_id": item.chat_id, "caption": item.text}
+                if inline:
+                    data["reply_markup"] = json.dumps({"remove_keyboard": True}, ensure_ascii=False)
+                elif markup:
+                    data["reply_markup"] = json.dumps(markup, ensure_ascii=False)
                 with default_storage.open(item.photo, "rb") as photo:
                     response = httpx.post(
                         f"https://api.telegram.org/bot{token}/sendPhoto",
-                        data={
-                            "chat_id": item.chat_id,
-                            "caption": item.text,
-                            "reply_markup": json.dumps(_reply_markup(item), ensure_ascii=False),
-                        },
+                        data=data,
                         files={"photo": photo},
                         timeout=10,
                     )
             else:
+                payload = {"chat_id": item.chat_id, "text": item.text}
+                if inline:
+                    payload["reply_markup"] = {"remove_keyboard": True}
+                elif markup:
+                    payload["reply_markup"] = markup
                 response = httpx.post(
                     f"https://api.telegram.org/bot{token}/sendMessage",
-                    json={
-                        "chat_id": item.chat_id,
-                        "text": item.text,
-                        "reply_markup": _reply_markup(item),
-                    },
+                    json=payload,
                     timeout=10,
                 )
             response.raise_for_status()
+            if inline:
+                _post(token, "editMessageReplyMarkup", {
+                    "chat_id": item.chat_id,
+                    "message_id": response.json()["result"]["message_id"],
+                    "reply_markup": markup,
+                })
         except Exception as error:
             item.attempts += 1
             item.last_error = str(error)

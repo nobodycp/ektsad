@@ -195,7 +195,9 @@ class TelegramWebhookTests(TestCase):
         self.assertEqual(inspector_message.markup, {
             "inline_keyboard": [[{"text": "قبول", "callback_data": f"/accept {complaint.pk}"}]],
         })
-        self.assertFalse(governor_message.markup)
+        self.assertEqual(governor_message.markup, {
+            "inline_keyboard": [[{"text": "فتح", "callback_data": f"op:{complaint.pk}"}]],
+        })
 
         handle_update({
             "callback_query": {
@@ -272,11 +274,175 @@ class TelegramWebhookTests(TestCase):
         })
         self.assertEqual(FollowUp.objects.latest("pk").body, "تمت المعالجة بالكامل")
 
-    def test_public_keyboard_has_the_three_buttons(self):
-        from apps.telegram.outbox import keyboard_for
+    def test_public_menu_is_inline_and_staff_get_complaints(self):
+        from apps.telegram.models import TelegramLink, TelegramOutbox
+        from apps.telegram.webhook import handle_update
 
-        labels = [button["text"] for row in keyboard_for("missing")["keyboard"] for button in row]
+        handle_update({"message": {"chat": {"id": 50}, "from": {"id": 50}, "text": "/start"}})
+        labels = self.button_labels(TelegramOutbox.objects.get(chat_id="50").markup)
         self.assertEqual(labels, ["تقديم شكوى", "قائمة الأسعار", "حركة المعابر"])
+        self.assertNotIn("keyboard", TelegramOutbox.objects.get(chat_id="50").markup)
+
+        TelegramLink.objects.create(user=self.inspector, telegram_id="51")
+        handle_update({"message": {"chat": {"id": 51}, "from": {"id": 51}, "text": "/start"}})
+        self.assertIn("الشكاوى", self.button_labels(TelegramOutbox.objects.get(chat_id="51").markup))
+
+    def test_complaint_choices_are_buttons_and_text_is_only_title_and_body(self):
+        from apps.telegram.models import TelegramDraft, TelegramOutbox
+
+        self.say("تقديم شكوى", chat=910, user=910)
+        self.assertIn("الخليل", self.button_labels(TelegramOutbox.objects.latest("pk").markup))
+        self.press(f"g:{self.governorate.pk}", chat=910, user=910)
+        self.assertEqual(TelegramDraft.objects.get(chat_id="910").step, "region")
+        self.assertIn("الحرم", self.button_labels(TelegramOutbox.objects.latest("pk").markup))
+        self.press(f"n:{self.region.pk}", chat=910, user=910)
+        self.assertIn("أرسل عنوان الشكوى.", TelegramOutbox.objects.latest("pk").text)
+        self.say("محل", chat=910, user=910)
+        self.assertIn("أرسل نص الشكوى.", TelegramOutbox.objects.latest("pk").text)
+        self.say("النص", chat=910, user=910)
+        self.assertIn("تخطي", self.button_labels(TelegramOutbox.objects.latest("pk").markup))
+        self.press("sk", chat=910, user=910)
+        self.assertIn("تقديم", self.button_labels(TelegramOutbox.objects.latest("pk").markup))
+        self.press("ok", chat=910, user=910)
+
+        complaint = Complaint.objects.get()
+        self.assertEqual(complaint.title, "محل")
+        self.assertEqual(complaint.body, "النص")
+        self.assertEqual(complaint.region, self.region)
+        self.assertEqual(TelegramOutbox.objects.filter(chat_id="910", text="تم استلام الشكوى.").count(), 1)
+
+    def test_complaints_button_opens_the_complaint(self):
+        from apps.telegram.models import TelegramLink, TelegramOutbox
+
+        TelegramLink.objects.create(user=self.inspector, telegram_id="920")
+        complaint = Complaint.objects.create(
+            governorate=self.governorate, region=self.region, title="محل السوق", body="النص الكامل",
+        )
+        self.press("ls:r:0", chat=920, user=920)
+        self.assertTrue(any("محل السوق" in label for label in self.button_labels(TelegramOutbox.objects.latest("pk").markup)))
+        self.press(f"op:{complaint.pk}", chat=920, user=920)
+        detail = TelegramOutbox.objects.latest("pk")
+        self.assertIn("المحافظة: الخليل", detail.text)
+        self.assertIn("المنطقة: الحرم", detail.text)
+        self.assertIn("العنوان: محل السوق", detail.text)
+        self.assertIn("المحتوى: النص الكامل", detail.text)
+        self.assertIn("قبول", self.button_labels(detail.markup))
+
+    def test_reply_button_then_destination_buttons(self):
+        from apps.complaints.models import FollowUp
+        from apps.telegram.models import TelegramLink, TelegramOutbox
+
+        TelegramLink.objects.create(user=self.inspector, telegram_id="930")
+        complaint = Complaint.objects.create(
+            governorate=self.governorate, region=self.region, title="محل", body="النص",
+            source=Complaint.Source.TELEGRAM, telegram_chat_id="931", telegram_user_id="931",
+            inspector=self.inspector, status=Complaint.Status.FIELD,
+        )
+        self.press(f"ry:{complaint.pk}", chat=930, user=930)
+        self.assertIn("اكتب نتيجة الكشف.", TelegramOutbox.objects.latest("pk").text)
+        self.say("الكشف سليم", chat=930, user=930)
+        labels = self.button_labels(TelegramOutbox.objects.latest("pk").markup)
+        self.assertIn("مدير المحافظة وحدها", labels)
+        self.assertIn("مدير المحافظة والشؤون القانونية", labels)
+        self.press(f"dl:{complaint.pk}", chat=930, user=930)
+        complaint.refresh_from_db()
+        self.assertEqual(complaint.status, Complaint.Status.LEGAL)
+        self.assertEqual(FollowUp.objects.get().body, "الكشف سليم")
+        self.assertFalse(TelegramOutbox.objects.filter(chat_id="931").exists())
+
+        complaint.status = Complaint.Status.FIELD
+        complaint.legal_referred_at = None
+        complaint.save()
+        self.press(f"ry:{complaint.pk}", chat=930, user=930)
+        self.say("أُغلق ميدانياً", chat=930, user=930)
+        self.press(f"dg:{complaint.pk}", chat=930, user=930)
+        complaint.refresh_from_db()
+        self.assertEqual(complaint.status, Complaint.Status.FINISHED)
+        self.assertTrue(TelegramOutbox.objects.filter(chat_id="931", text="تم التعامل مع الشكوى تبعك: محل.").exists())
+
+    def test_governor_assigns_from_inspector_buttons(self):
+        from apps.telegram.models import TelegramLink, TelegramOutbox
+
+        TelegramLink.objects.create(user=self.governor, telegram_id="940")
+        TelegramLink.objects.create(user=self.inspector, telegram_id="941")
+        complaint = Complaint.objects.create(
+            governorate=self.governorate, region=self.region, title="محل", body="النص",
+        )
+        self.press(f"op:{complaint.pk}", chat=940, user=940)
+        self.assertIn("توجيه", self.button_labels(TelegramOutbox.objects.latest("pk").markup))
+        self.press(f"as:{complaint.pk}", chat=940, user=940)
+        self.assertIn("المفتش", self.button_labels(TelegramOutbox.objects.latest("pk").markup))
+        self.press(f"in:{complaint.pk}:{self.inspector.pk}", chat=940, user=940)
+        complaint.refresh_from_db()
+        self.assertEqual(complaint.inspector, self.inspector)
+        self.assertEqual(complaint.status, Complaint.Status.FIELD)
+        inspector_card = TelegramOutbox.objects.filter(chat_id="941").latest("pk")
+        self.assertIn("رد", self.button_labels(inspector_card.markup))
+
+    def test_legal_close_button_finishes_without_typing(self):
+        from apps.complaints.models import FollowUp
+        from apps.telegram.models import TelegramLink, TelegramOutbox
+
+        legal = User.objects.create_user(
+            username="legal-btn", password="password-long-12", role=User.Role.LEGAL, display_name="قانوني",
+        )
+        TelegramLink.objects.create(user=legal, telegram_id="950")
+        complaint = Complaint.objects.create(
+            governorate=self.governorate, region=self.region, title="محل", body="النص",
+            source=Complaint.Source.TELEGRAM, telegram_chat_id="951", telegram_user_id="951",
+            status=Complaint.Status.LEGAL, legal_referred_at=timezone.now(),
+        )
+        self.press(f"op:{complaint.pk}", chat=950, user=950)
+        self.assertIn("تم الانجاز", self.button_labels(TelegramOutbox.objects.latest("pk").markup))
+        self.press(f"dn:{complaint.pk}", chat=950, user=950)
+        complaint.refresh_from_db()
+        self.assertEqual(complaint.status, Complaint.Status.RESOLVED)
+        self.assertEqual(FollowUp.objects.get().body, "تم الانجاز")
+        self.assertTrue(TelegramOutbox.objects.filter(text="تم التعامل مع الشكوى تبعك: محل.").exists())
+
+    def test_inline_screen_clears_the_fixed_keyboard(self):
+        import os
+        from apps.telegram.models import TelegramOutbox
+        from apps.telegram.outbox import send_telegram_outbox
+
+        TelegramOutbox.objects.create(
+            chat_id="1", text="اختر المحافظة.",
+            markup={"inline_keyboard": [[{"text": "الخليل", "callback_data": "g:1"}]]},
+        )
+        sent = Mock()
+        sent.raise_for_status.return_value = None
+        sent.json.return_value = {"result": {"message_id": 9}}
+        edited = Mock()
+        edited.raise_for_status.return_value = None
+        with patch.dict(os.environ, {"TELEGRAM_BOT_TOKEN": "token"}):
+            with patch("apps.telegram.outbox.httpx.post", side_effect=[sent, edited]) as post:
+                self.assertEqual(send_telegram_outbox(), 1)
+        self.assertEqual(post.call_args_list[0].kwargs["json"]["reply_markup"], {"remove_keyboard": True})
+        self.assertIn("editMessageReplyMarkup", post.call_args_list[1].args[0])
+        self.assertEqual(
+            post.call_args_list[1].kwargs["json"]["reply_markup"]["inline_keyboard"][0][0]["text"],
+            "الخليل",
+        )
+
+    def say(self, text, chat, user):
+        from apps.telegram.webhook import handle_update
+
+        handle_update({"message": {"chat": {"id": chat}, "from": {"id": user}, "text": text}})
+
+    def press(self, data, chat, user):
+        from apps.telegram.webhook import handle_update
+
+        handle_update({
+            "callback_query": {
+                "id": "cb",
+                "from": {"id": user},
+                "data": data,
+                "message": {"chat": {"id": chat}, "message_id": 1},
+            }
+        })
+
+    def button_labels(self, markup):
+        return [button["text"] for row in markup["inline_keyboard"] for button in row]
 
     def test_register_webhook_failure_keeps_unregistered_status(self):
         from apps.telegram.models import TelegramWebhookStatus
