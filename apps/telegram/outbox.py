@@ -41,6 +41,29 @@ def _post(token, method, payload):
     return response
 
 
+def _safe_error(error):
+    text = str(error)
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    if token:
+        text = text.replace(token, "redacted")
+    return text[:500]
+
+
+def _clear_reply_keyboard(token, chat_id):
+    try:
+        response = _post(token, "sendMessage", {
+            "chat_id": chat_id,
+            "text": "·",
+            "reply_markup": {"remove_keyboard": True},
+        })
+        _post(token, "deleteMessage", {
+            "chat_id": chat_id,
+            "message_id": response.json()["result"]["message_id"],
+        })
+    except Exception:
+        return
+
+
 def send_telegram_outbox():
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     if not token:
@@ -53,13 +76,13 @@ def send_telegram_outbox():
         try:
             markup = _reply_markup(item)
             inline = isinstance(markup, dict) and "inline_keyboard" in markup
+            if inline:
+                _clear_reply_keyboard(token, item.chat_id)
             if item.photo:
                 from django.core.files.storage import default_storage
 
                 data = {"chat_id": item.chat_id, "caption": item.text}
-                if inline:
-                    data["reply_markup"] = json.dumps({"remove_keyboard": True}, ensure_ascii=False)
-                elif markup:
+                if markup:
                     data["reply_markup"] = json.dumps(markup, ensure_ascii=False)
                 with default_storage.open(item.photo, "rb") as photo:
                     response = httpx.post(
@@ -70,9 +93,7 @@ def send_telegram_outbox():
                     )
             else:
                 payload = {"chat_id": item.chat_id, "text": item.text}
-                if inline:
-                    payload["reply_markup"] = {"remove_keyboard": True}
-                elif markup:
+                if markup:
                     payload["reply_markup"] = markup
                 response = httpx.post(
                     f"https://api.telegram.org/bot{token}/sendMessage",
@@ -80,15 +101,9 @@ def send_telegram_outbox():
                     timeout=10,
                 )
             response.raise_for_status()
-            if inline:
-                _post(token, "editMessageReplyMarkup", {
-                    "chat_id": item.chat_id,
-                    "message_id": response.json()["result"]["message_id"],
-                    "reply_markup": markup,
-                })
         except Exception as error:
             item.attempts += 1
-            item.last_error = str(error)
+            item.last_error = _safe_error(error)
             item.next_attempt_at = timezone.now() + next_delay(item.attempts)
             _retry(item.save)
             continue

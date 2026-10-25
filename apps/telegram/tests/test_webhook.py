@@ -409,20 +409,22 @@ class TelegramWebhookTests(TestCase):
             chat_id="1", text="اختر المحافظة.",
             markup={"inline_keyboard": [[{"text": "الخليل", "callback_data": "g:1"}]]},
         )
+        cleared = Mock()
+        cleared.raise_for_status.return_value = None
+        cleared.json.return_value = {"result": {"message_id": 3}}
+        deleted = Mock()
+        deleted.raise_for_status.return_value = None
         sent = Mock()
         sent.raise_for_status.return_value = None
         sent.json.return_value = {"result": {"message_id": 9}}
-        edited = Mock()
-        edited.raise_for_status.return_value = None
         with patch.dict(os.environ, {"TELEGRAM_BOT_TOKEN": "token"}):
-            with patch("apps.telegram.outbox.httpx.post", side_effect=[sent, edited]) as post:
+            with patch("apps.telegram.outbox.httpx.post", side_effect=[cleared, deleted, sent]) as post:
                 self.assertEqual(send_telegram_outbox(), 1)
         self.assertEqual(post.call_args_list[0].kwargs["json"]["reply_markup"], {"remove_keyboard": True})
-        self.assertIn("editMessageReplyMarkup", post.call_args_list[1].args[0])
-        self.assertEqual(
-            post.call_args_list[1].kwargs["json"]["reply_markup"]["inline_keyboard"][0][0]["text"],
-            "الخليل",
-        )
+        self.assertIn("deleteMessage", post.call_args_list[1].args[0])
+        menu = post.call_args_list[2].kwargs["json"]
+        self.assertEqual(menu["text"], "اختر المحافظة.")
+        self.assertEqual(menu["reply_markup"]["inline_keyboard"][0][0]["text"], "الخليل")
 
     def say(self, text, chat, user):
         from apps.telegram.webhook import handle_update
