@@ -21,6 +21,8 @@ class StaffRole(models.Model):
     can_manage_geography = models.BooleanField(default=False)
     can_publish = models.BooleanField(default=False)
     can_field_missions = models.BooleanField(default=False)
+    can_view_field_missions = models.BooleanField(default=False)
+    can_open_field_missions = models.BooleanField(default=False)
     can_manage_settings = models.BooleanField(default=False)
     can_impersonate = models.BooleanField(default=False)
     can_login_web = models.BooleanField(default=True)

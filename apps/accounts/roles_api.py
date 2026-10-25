@@ -28,6 +28,7 @@ def _payload(role):
     data = {"id": role.pk, "name": role.name, "kind": role.kind, "built_in": role.built_in}
     for field in ROLE_FIELDS:
         data[field] = getattr(role, field)
+    data["can_field_missions"] = bool(role.can_view_field_missions or role.can_open_field_missions)
     return data
 
 
@@ -42,6 +43,12 @@ def _apply(role, payload):
     for field in ROLE_FIELDS:
         if field in payload:
             setattr(role, field, bool(payload[field]))
+    if "can_field_missions" in payload:
+        both = bool(payload["can_field_missions"])
+        if "can_view_field_missions" not in payload:
+            role.can_view_field_missions = both
+        if "can_open_field_missions" not in payload:
+            role.can_open_field_missions = both
     return None
 
 

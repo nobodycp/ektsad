@@ -97,7 +97,9 @@ export type StaffRole = {
   can_manage_users: boolean
   can_manage_geography: boolean
   can_publish: boolean
-  can_field_missions: boolean
+  can_view_field_missions: boolean
+  can_open_field_missions: boolean
+  can_field_missions?: boolean
   can_manage_settings: boolean
   can_impersonate: boolean
   can_login_web: boolean

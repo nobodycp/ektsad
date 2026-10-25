@@ -480,6 +480,42 @@ class TelegramWebhookTests(TestCase):
         self.assertIn("اكتب نتيجة الكشف.", TelegramOutbox.objects.latest("pk").text)
         self.assertNotIn("الصورة تُرفق بعد نص الشكوى.", TelegramOutbox.objects.latest("pk").text)
 
+    def test_staff_menu_follows_role_permissions_and_missions_are_notified(self):
+        from apps.accounts.models import StaffRole
+        from apps.field_missions.services import open_mission
+        from apps.telegram.models import TelegramLink, TelegramOutbox
+        from apps.telegram.webhook import handle_update
+
+        role = StaffRole.objects.create(
+            name="مفتش التجربة", kind=StaffRole.Kind.INSPECTOR, can_view_field_missions=True,
+        )
+        self.inspector.staff_role = role
+        self.inspector.save(update_fields=["staff_role"])
+        TelegramLink.objects.create(user=self.inspector, telegram_id="990")
+        handle_update({"message": {"chat": {"id": 990}, "from": {"id": 990}, "text": "/start"}})
+        labels = self.button_labels(TelegramOutbox.objects.get(chat_id="990").markup)
+        self.assertIn("المهمات", labels)
+        self.assertNotIn("إنشاء مهمة", labels)
+        self.assertNotIn("التقارير", labels)
+
+        role.can_open_field_missions = True
+        role.can_view_reports = True
+        role.save(update_fields=["can_open_field_missions", "can_view_reports"])
+        TelegramOutbox.objects.all().delete()
+        handle_update({"message": {"chat": {"id": 990}, "from": {"id": 990}, "text": "/start"}})
+        labels = self.button_labels(TelegramOutbox.objects.get(chat_id="990").markup)
+        self.assertIn("إنشاء مهمة", labels)
+        self.assertIn("التقارير", labels)
+
+        TelegramOutbox.objects.all().delete()
+        open_mission(self.inspector, {
+            "kind": "ضبط", "priority": "عادي", "details": "بضاعة", "place_name": "محل", "phone": "0599000000",
+        })
+        note = TelegramOutbox.objects.get(chat_id="990")
+        self.assertIn("وصلت مهمة.", note.text)
+        self.assertIn("محل", note.text)
+        self.assertEqual(note.markup["inline_keyboard"][0][0]["text"], "فتح")
+
     def test_register_webhook_failure_keeps_unregistered_status(self):
         from apps.telegram.models import TelegramWebhookStatus
         from apps.telegram.webhook import register_webhook

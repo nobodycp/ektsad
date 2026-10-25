@@ -26,6 +26,8 @@ class StaffRoleApiTests(TestCase):
         self.assertEqual(renamed.status_code, 200)
         self.assertEqual(renamed.json()["name"], "مدير المديرية")
         self.assertTrue(renamed.json()["can_field_missions"])
+        self.assertTrue(renamed.json()["can_view_field_missions"])
+        self.assertTrue(renamed.json()["can_open_field_missions"])
         self.assertTrue(renamed.json()["built_in"])
 
         refused = self.client.delete(f"/api/roles/{governor['id']}/")

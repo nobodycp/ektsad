@@ -133,6 +133,8 @@ def open_mission(user, payload, image=None):
                 for inspector in inspectors
             ]
         )
+    from apps.telegram.webhook import notify_new_mission
+    notify_new_mission(mission)
     return mission
 
 

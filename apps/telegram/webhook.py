@@ -83,6 +83,8 @@ def _menu_markup(chat_id):
     link = TelegramLink.objects.select_related("user").filter(telegram_id=str(chat_id)).first()
     if link and link.user.is_active:
         rows.append([{"text": "الشكاوى", "callback_data": "ls:a:0"}])
+        from apps.telegram.office import extra_rows
+        rows.extend(extra_rows(link.user))
     return {"inline_keyboard": rows}
 
 
@@ -246,6 +248,38 @@ def notify_new_complaint(complaint):
         enqueue(user.telegram_link.telegram_id, message, markup=accept)
     for user in governors:
         enqueue(user.telegram_link.telegram_id, message, markup=opened)
+
+
+def notify_new_mission(mission):
+    from apps.accounts.permissions import allows
+
+    recipients = []
+    for assignee in mission.assignees.select_related("user"):
+        user = assignee.user
+        link = TelegramLink.objects.filter(user=user).first() if user and user.is_active else None
+        if link and allows(user, "can_view_field_missions"):
+            recipients.append((user, link))
+    governors = User.objects.filter(
+        role=User.Role.GOVERNOR, is_active=True, governorate_id=mission.governorate_id,
+        telegram_link__isnull=False,
+    ).select_related("telegram_link")
+    for governor in governors:
+        if allows(governor, "can_view_field_missions"):
+            recipients.append((governor, governor.telegram_link))
+    text = (
+        "وصلت مهمة.\n"
+        f"النوع: {mission.kind}\n"
+        f"الأولوية: {mission.priority}\n"
+        f"المحل: {mission.place_name}\n"
+        f"التفاصيل: {mission.details}"
+    )
+    opened = {"inline_keyboard": [[{"text": "فتح", "callback_data": f"mo:{mission.pk}"}]]}
+    seen = set()
+    for user, link in recipients:
+        if user.pk in seen:
+            continue
+        seen.add(user.pk)
+        enqueue(link.telegram_id, text, markup=opened)
 
 
 def _create_complaint(chat_id, user_id, governorate_id, region_id, title, body, image=None):
@@ -610,6 +644,9 @@ def _finish_draft(chat_id, user_id, draft):
 
 
 def _advance_draft(chat_id, user_id, text):
+    from apps.telegram.office import consume_text
+    if consume_text(chat_id, user_id, text):
+        return True
     draft = TelegramDraft.objects.filter(chat_id=str(chat_id)).first()
     if draft is None or draft.step not in {"governorate", "region", "title", "body", "image", "field_text", "field_dest"}:
         return False
@@ -782,7 +819,9 @@ def _on_callback(chat_id, user_id, data):
         elif data.startswith("dn:"):
             _legal_done(chat_id, user_id, int(data.split(":")[1]))
         else:
-            return False
+            from apps.telegram.office import handle_callback
+            if not handle_callback(chat_id, user_id, data):
+                return False
     except (ValueError, IndexError):
         enqueue(chat_id, "بيانات غير صالحة.", markup=_home_markup())
     return True
@@ -850,6 +889,9 @@ def handle_update(update):
         return
     photo = (update.get("message") or {}).get("photo")
     if photo and not callback.get("data"):
+        from apps.telegram.office import consume_photo
+        if consume_photo(chat_id, user_id, photo):
+            return
         draft = TelegramDraft.objects.filter(chat_id=str(chat_id)).first()
         downloaded = None
         if draft and draft.step in {"image", "field_text", "field_dest"}:
