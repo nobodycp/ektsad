@@ -35,33 +35,12 @@ def _reply_markup(item):
     return item.markup
 
 
-def _post(token, method, payload):
-    response = httpx.post(f"https://api.telegram.org/bot{token}/{method}", json=payload, timeout=10)
-    response.raise_for_status()
-    return response
-
-
 def _safe_error(error):
     text = str(error)
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     if token:
         text = text.replace(token, "redacted")
     return text[:500]
-
-
-def _clear_reply_keyboard(token, chat_id):
-    try:
-        response = _post(token, "sendMessage", {
-            "chat_id": chat_id,
-            "text": "·",
-            "reply_markup": {"remove_keyboard": True},
-        })
-        _post(token, "deleteMessage", {
-            "chat_id": chat_id,
-            "message_id": response.json()["result"]["message_id"],
-        })
-    except Exception:
-        return
 
 
 def send_telegram_outbox():
@@ -75,9 +54,6 @@ def send_telegram_outbox():
     for item in due:
         try:
             markup = _reply_markup(item)
-            inline = isinstance(markup, dict) and "inline_keyboard" in markup
-            if inline:
-                _clear_reply_keyboard(token, item.chat_id)
             if item.photo:
                 from django.core.files.storage import default_storage
 

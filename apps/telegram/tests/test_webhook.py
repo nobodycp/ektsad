@@ -409,20 +409,14 @@ class TelegramWebhookTests(TestCase):
             chat_id="1", text="اختر المحافظة.",
             markup={"inline_keyboard": [[{"text": "الخليل", "callback_data": "g:1"}]]},
         )
-        cleared = Mock()
-        cleared.raise_for_status.return_value = None
-        cleared.json.return_value = {"result": {"message_id": 3}}
-        deleted = Mock()
-        deleted.raise_for_status.return_value = None
         sent = Mock()
         sent.raise_for_status.return_value = None
         sent.json.return_value = {"result": {"message_id": 9}}
         with patch.dict(os.environ, {"TELEGRAM_BOT_TOKEN": "token"}):
-            with patch("apps.telegram.outbox.httpx.post", side_effect=[cleared, deleted, sent]) as post:
+            with patch("apps.telegram.outbox.httpx.post", return_value=sent) as post:
                 self.assertEqual(send_telegram_outbox(), 1)
-        self.assertEqual(post.call_args_list[0].kwargs["json"]["reply_markup"], {"remove_keyboard": True})
-        self.assertIn("deleteMessage", post.call_args_list[1].args[0])
-        menu = post.call_args_list[2].kwargs["json"]
+        self.assertEqual(post.call_count, 1)
+        menu = post.call_args.kwargs["json"]
         self.assertEqual(menu["text"], "اختر المحافظة.")
         self.assertEqual(menu["reply_markup"]["inline_keyboard"][0][0]["text"], "الخليل")
 
@@ -445,6 +439,46 @@ class TelegramWebhookTests(TestCase):
 
     def button_labels(self, markup):
         return [button["text"] for row in markup["inline_keyboard"] for button in row]
+
+    @override_settings(TELEGRAM_BOT_TOKEN="token")
+    def test_button_press_updates_the_same_message(self):
+        from apps.telegram.models import TelegramOutbox
+
+        response = Mock(status_code=200)
+        response.raise_for_status.return_value = None
+        with patch("apps.telegram.webhook.httpx.post", return_value=response) as post:
+            self.press("nw", chat=960, user=960)
+        edited = [call for call in post.call_args_list if "editMessageText" in call.args[0]]
+        self.assertEqual(edited[0].kwargs["json"]["message_id"], 1)
+        self.assertIn("اختر المحافظة.", edited[0].kwargs["json"]["text"])
+        self.assertFalse(TelegramOutbox.objects.filter(chat_id="960").exists())
+
+    def test_complaints_button_opens_pending_work_when_nothing_is_incoming(self):
+        from apps.telegram.models import TelegramLink, TelegramOutbox
+
+        TelegramLink.objects.create(user=self.inspector, telegram_id="970")
+        Complaint.objects.create(
+            governorate=self.governorate, region=self.region, title="كشف مفتوح", body="النص",
+            inspector=self.inspector, status=Complaint.Status.FIELD,
+        )
+        self.press("ls:a:0", chat=970, user=970)
+        labels = self.button_labels(TelegramOutbox.objects.latest("pk").markup)
+        self.assertTrue(any("كشف مفتوح" in label for label in labels))
+
+    def test_photo_during_the_reply_keeps_the_reply(self):
+        from apps.telegram.models import TelegramDraft, TelegramLink, TelegramOutbox
+        from apps.telegram.webhook import handle_update
+
+        TelegramLink.objects.create(user=self.inspector, telegram_id="980")
+        complaint = Complaint.objects.create(
+            governorate=self.governorate, region=self.region, title="محل", body="النص",
+            inspector=self.inspector, status=Complaint.Status.FIELD,
+        )
+        TelegramDraft.objects.create(chat_id="980", step="field_text", payload={"field_complaint": complaint.pk})
+        handle_update({"message": {"chat": {"id": 980}, "from": {"id": 980}, "photo": [{"file_id": "file-1"}]}})
+        self.assertEqual(TelegramDraft.objects.get(chat_id="980").step, "field_text")
+        self.assertIn("اكتب نتيجة الكشف.", TelegramOutbox.objects.latest("pk").text)
+        self.assertNotIn("الصورة تُرفق بعد نص الشكوى.", TelegramOutbox.objects.latest("pk").text)
 
     def test_register_webhook_failure_keeps_unregistered_status(self):
         from apps.telegram.models import TelegramWebhookStatus

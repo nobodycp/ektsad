@@ -11,4 +11,4 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         while True:
             send_telegram_outbox()
-            time.sleep(15)
+            time.sleep(1)

@@ -1,4 +1,5 @@
 import base64
+import contextvars
 import os
 from datetime import timedelta
 
@@ -20,7 +21,45 @@ from apps.telegram.links import consume_staff_link
 from apps.telegram.models import (
     TelegramDraft, TelegramLink, TelegramOutbox, TelegramUpdate, TelegramWebhookStatus,
 )
-from apps.telegram.outbox import enqueue
+from apps.telegram.outbox import enqueue as _enqueue
+from apps.telegram.outbox import send_telegram_outbox
+
+
+_edit_target = contextvars.ContextVar("telegram_edit_target", default=None)
+
+
+def enqueue(chat_id, text="", photo="", markup=None):
+    target = _edit_target.get()
+    if target and str(target[0]) == str(chat_id) and not photo and text:
+        if _edit_message(target[0], target[1], text, markup):
+            _edit_target.set(None)
+            return None
+    row = _enqueue(chat_id, text, photo=photo, markup=markup)
+    send_telegram_outbox()
+    return row
+
+
+def _edit_message(chat_id, message_id, text, markup):
+    token = _value("TELEGRAM_BOT_TOKEN")
+    if not token or not message_id:
+        return False
+    try:
+        response = httpx.post(
+            f"https://api.telegram.org/bot{token}/editMessageText",
+            json={
+                "chat_id": chat_id,
+                "message_id": message_id,
+                "text": text,
+                "reply_markup": markup or {"inline_keyboard": []},
+            },
+            timeout=10,
+        )
+        if response.status_code == 400 and "message is not modified" in response.text:
+            return True
+        response.raise_for_status()
+        return True
+    except Exception:
+        return False
 
 
 UNLINKED = "هذا الحساب غير مربوط. اطلب رابط الربط من مدير النظام."
@@ -43,7 +82,7 @@ def _menu_markup(chat_id):
     ]
     link = TelegramLink.objects.select_related("user").filter(telegram_id=str(chat_id)).first()
     if link and link.user.is_active:
-        rows.append([{"text": "الشكاوى", "callback_data": "ls:r:0"}])
+        rows.append([{"text": "الشكاوى", "callback_data": "ls:a:0"}])
     return {"inline_keyboard": rows}
 
 
@@ -366,7 +405,7 @@ def _complaint_actions(user, complaint):
     if user.role == User.Role.LEGAL and complaint.status == Complaint.Status.LEGAL:
         rows.append([{"text": "تم الانجاز", "callback_data": f"dn:{complaint.pk}"}])
     rows.append([
-        {"text": "الشكاوى", "callback_data": "ls:r:0"},
+        {"text": "الشكاوى", "callback_data": "ls:a:0"},
         {"text": "القائمة", "callback_data": "mn"},
     ])
     return {"inline_keyboard": rows}
@@ -390,11 +429,20 @@ def _show_work(chat_id, telegram_id, filt, page):
     if user is None:
         enqueue(chat_id, UNLINKED, markup=_home_markup())
         return
+    if filt == "a":
+        visible = visible_complaints(user)
+        if visible.filter(status=Complaint.Status.RECEIVED).exists():
+            filt = "r"
+        elif visible.filter(status__in=[Complaint.Status.FIELD, Complaint.Status.LEGAL]).exists():
+            filt = "p"
+        else:
+            filt = "r"
     statuses = {
         "r": [Complaint.Status.RECEIVED],
         "p": [Complaint.Status.FIELD, Complaint.Status.LEGAL],
         "c": [Complaint.Status.FINISHED, Complaint.Status.RESOLVED],
     }.get(filt)
+    empty = {"r": "لا توجد شكاوى وصلت.", "p": "لا توجد شكاوى معلقة.", "c": "لا توجد شكاوى مغلقة."}
     if statuses is None:
         enqueue(chat_id, "بيانات غير صالحة.", markup=_home_markup())
         return
@@ -408,7 +456,7 @@ def _show_work(chat_id, telegram_id, filt, page):
     ]]
     footer = [[{"text": "القائمة", "callback_data": "mn"}]]
     if not items:
-        enqueue(chat_id, "لا توجد شكاوى.", markup={"inline_keyboard": filters + footer})
+        enqueue(chat_id, empty.get(filt, "لا توجد شكاوى."), markup={"inline_keyboard": filters + footer})
         return
     buttons = _paged(
         items, page,
@@ -455,7 +503,7 @@ def _send_reply(chat_id, telegram_id, pk, destination):
     try:
         complaint = Complaint.objects.get(pk=pk)
         submit_field_report(
-            complaint, user, text, [], destination,
+            complaint, user, text, _field_files(draft), destination,
             channel="telegram", ip=None, telegram_id=str(telegram_id),
         )
     except (Complaint.DoesNotExist, ValidationError) as error:
@@ -527,6 +575,20 @@ def _legal_done(chat_id, telegram_id, pk):
         return
     _citizen_resolution(complaint)
     enqueue(chat_id, "تم الانجاز وأُغلقت الشكوى.", markup=_home_markup())
+
+
+def _field_files(draft):
+    image = _image_file(draft)
+    if image is None:
+        return []
+    name = (getattr(image, "name", "") or "").lower()
+    if name.endswith(".png"):
+        image.content_type = "image/png"
+    elif name.endswith(".webp"):
+        image.content_type = "image/webp"
+    else:
+        image.content_type = "image/jpeg"
+    return [image]
 
 
 def _image_file(draft):
@@ -787,20 +849,47 @@ def handle_update(update):
     if chat_id is None:
         return
     photo = (update.get("message") or {}).get("photo")
-    if photo:
-        try:
-            downloaded = _download_photo(photo)
-        except Exception:
-            downloaded = None
-        if downloaded:
-            draft, _ = TelegramDraft.objects.get_or_create(chat_id=str(chat_id), defaults={"step": "image"})
-            draft.payload = {**draft.payload, **downloaded}
-            draft.save(update_fields=["payload", "updated_at"])
+    if photo and not callback.get("data"):
+        draft = TelegramDraft.objects.filter(chat_id=str(chat_id)).first()
+        downloaded = None
+        if draft and draft.step in {"image", "field_text", "field_dest"}:
+            try:
+                downloaded = _download_photo(photo)
+            except Exception:
+                downloaded = None
+            if downloaded:
+                draft.payload = {**draft.payload, **downloaded}
+                draft.save(update_fields=["payload", "updated_at"])
+        if draft and draft.step == "image":
+            _ask_image(chat_id, saved=bool(downloaded))
+        elif draft and draft.step == "field_dest":
+            enqueue(chat_id, "تم حفظ الصورة. اختر جهة الإرسال." if downloaded else "اختر جهة الإرسال.", markup=_destination_markup(draft.payload.get("field_complaint")))
+        elif draft and draft.step == "field_text":
+            enqueue(chat_id, "تم حفظ الصورة. اكتب نتيجة الكشف." if downloaded else "اكتب نتيجة الكشف.", markup=_home_markup())
+        else:
+            if downloaded is None:
+                try:
+                    downloaded = _download_photo(photo)
+                except Exception:
+                    downloaded = None
+            if downloaded:
+                draft, _ = TelegramDraft.objects.get_or_create(chat_id=str(chat_id), defaults={"step": "image", "payload": {}})
+                draft.payload = {**draft.payload, **downloaded}
+                draft.save(update_fields=["payload", "updated_at"])
+                if draft.step == "image":
+                    _ask_image(chat_id, saved=True)
+                    return
+            enqueue(chat_id, "الصورة تُرفق بعد نص الشكوى.", markup=_home_markup())
+        return
     if callback.get("data"):
-        if text.startswith(("/accept", "/assign", "/field", "/close")):
-            _staff_action(chat_id, user_id, text)
-        elif not _on_callback(chat_id, user_id, text):
-            enqueue(chat_id, "بيانات غير صالحة.", markup=_home_markup())
+        edit_token = _edit_target.set((chat_id, message.get("message_id")))
+        try:
+            if text.startswith(("/accept", "/assign", "/field", "/close")):
+                _staff_action(chat_id, user_id, text)
+            elif not _on_callback(chat_id, user_id, text):
+                enqueue(chat_id, "بيانات غير صالحة.", markup=_home_markup())
+        finally:
+            _edit_target.reset(edit_token)
         return
     if text.startswith("/start "):
         if consume_staff_link(text.split(maxsplit=1)[1], user_id):
@@ -830,9 +919,3 @@ def handle_update(update):
         return
     elif text:
         _show_menu(chat_id)
-    elif photo:
-        draft = TelegramDraft.objects.filter(chat_id=str(chat_id)).first()
-        if draft and draft.step == "image":
-            _ask_image(chat_id, saved=True)
-        else:
-            enqueue(chat_id, "الصورة تُرفق بعد نص الشكوى.", markup=_home_markup())
