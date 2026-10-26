@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from "react"
-import { Link, useSearchParams } from "react-router-dom"
+import { useEffect, useMemo, useState, type FormEvent } from "react"
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom"
 import {
   Button,
   DataTable,
   Dialog,
   FilterBar,
   StatusChip,
+  TextArea,
   type BulkAction,
   type Column,
   type FilterField,
@@ -31,6 +32,7 @@ import {
   PAGE_SIZE,
   STATUS_OPTIONS,
   actionNotice,
+  failureText,
   formatDateTime,
   useLoad,
   type Notice,
@@ -75,15 +77,28 @@ function useRegionOptions(user: SessionUser) {
 
 export function ComplaintsPage({ user }: { user: SessionUser }) {
   const [params] = useSearchParams()
+  const location = useLocation()
+  const navigate = useNavigate()
   const [filters, setFilters] = useState<FilterValues>({ status: params.get("status") || undefined })
   const [page, setPage] = useState(1)
   const [notice, setNotice] = useState<Notice>(null)
   const [filing, setFiling] = useState(false)
+  const [returning, setReturning] = useState<ComplaintRow | null>(null)
+  const [reason, setReason] = useState("")
+  const [reasonError, setReasonError] = useState<string | undefined>()
+  const [returningBusy, setReturningBusy] = useState(false)
   const canFlag = user.role === "admin" || user.role === "governor"
   const missions = APP_ROUTES.find((route) => route.id === "field-missions")
   const showMissions = missions ? canOpen(missions, user) : false
   const isInspector = user.role === "inspector"
   const regionOptions = useRegionOptions(user)
+
+  useEffect(() => {
+    const incoming = (location.state as { notice?: Notice } | null)?.notice
+    if (!incoming) return
+    setNotice(incoming)
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null })
+  }, [location.pathname, location.search, location.state, navigate])
 
   const { state, reload } = useLoad(
     () =>
@@ -123,6 +138,30 @@ export function ComplaintsPage({ user }: { user: SessionUser }) {
     reload()
   }
 
+  const submitReturn = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!returning) return
+    if (!reason.trim()) {
+      setReasonError("سبب الرفض مطلوب.")
+      return
+    }
+    setReasonError(undefined)
+    setReturningBusy(true)
+    const result = await apiRequest(`/api/complaints/${returning.id}/return/`, {
+      method: "POST",
+      body: { reason: reason.trim() },
+    })
+    setReturningBusy(false)
+    if (result.ok) {
+      setReturning(null)
+      setReason("")
+      setNotice({ tone: "ok", text: "تم إرجاع الشكوى إلى مدير المحافظة." })
+      reload()
+    } else {
+      setNotice({ tone: "error", text: failureText(result) })
+    }
+  }
+
   const bulkActions: BulkAction[] = canFlag
     ? [
         { id: "flag", label: "وضع علامة المتابعة", onRun: (ids) => runFlag("flag", ids.map(Number)) },
@@ -132,7 +171,20 @@ export function ComplaintsPage({ user }: { user: SessionUser }) {
 
   const rowActions = isInspector
     ? (row: ComplaintRow): RowAction[] =>
-        row.status === "واردة" ? [{ id: "accept", label: "قبول", onSelect: () => accept(row.id) }] : []
+        row.status === "واردة"
+          ? [
+              { id: "accept", label: "قبول", onSelect: () => accept(row.id) },
+              {
+                id: "return",
+                label: "رفض وإرجاع للمدير",
+                onSelect: () => {
+                  setReason("")
+                  setReasonError(undefined)
+                  setReturning(row)
+                },
+              },
+            ]
+          : []
     : undefined
 
   const columns: Column<ComplaintRow>[] = [
@@ -174,6 +226,32 @@ export function ComplaintsPage({ user }: { user: SessionUser }) {
       <div className="page__bar">
         <Button onClick={() => setFiling(true)}>تقديم شكوى</Button>
       </div>
+      {returning && (
+        <Dialog
+          title="رفض وإرجاع للمدير"
+          onClose={() => {
+            setReturning(null)
+            setReason("")
+          }}
+        >
+          <form className="sheet__form" onSubmit={submitReturn} noValidate>
+            <TextArea
+              label="سبب الرفض"
+              name="reason"
+              rows={4}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              error={reasonError}
+              required
+            />
+            <div className="sheet__actions">
+              <Button type="submit" variant="danger" loading={returningBusy}>
+                إرجاع للمدير
+              </Button>
+            </div>
+          </form>
+        </Dialog>
+      )}
       {filing && (
         <Dialog title="تقديم شكوى" onClose={() => setFiling(false)}>
           <p className="account__note">الصورة اختيارية. بعد الإرسال تظهر جملة الاستلام فقط.</p>

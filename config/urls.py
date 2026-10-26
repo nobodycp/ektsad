@@ -6,7 +6,7 @@ from apps.accounts.api import login_view, logout_view, me_view, return_session, 
 from apps.common.api import public_settings, system_settings
 from apps.complaints.api import (
     assign, complaint_actions, complaint_detail, complaint_media, complaint_notices, complaints, field_report,
-    followup_media, legal_close, public_complaint,
+    followup_media, legal_close, public_complaint, return_to_governor,
 )
 from apps.geography.api import (
     governorate_detail, governorates, public_governorates, public_regions, region_detail, regions,
@@ -42,6 +42,7 @@ urlpatterns = [
     path("api/complaints/actions/", complaint_actions),
     path("api/complaints/<int:pk>/", complaint_detail),
     path("api/complaints/<int:pk>/assign/", assign),
+    path("api/complaints/<int:pk>/return/", return_to_governor),
     path("api/complaints/<int:pk>/field-report/", field_report),
     path("api/complaints/<int:pk>/legal-close/", legal_close),
     path("api/media/complaints/<int:pk>/", complaint_media),

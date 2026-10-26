@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react"
-import { Link, useParams } from "react-router-dom"
+import { Link, useNavigate, useParams } from "react-router-dom"
 import { Button, Dialog, FileField, Select, StatusChip, TextArea, TextField, Timeline, type TimelineEvent } from "../design-system"
 import {
   apiRequest,
@@ -29,20 +29,66 @@ const MAX_FILES = 5
 type ActionProps = { complaint: ComplaintDetail; onDone: (notice: Notice) => void }
 
 function AcceptAction({ complaint, onDone }: ActionProps) {
+  const navigate = useNavigate()
   const [busy, setBusy] = useState(false)
+  const [rejecting, setRejecting] = useState(false)
+  const [reason, setReason] = useState("")
+  const [reasonError, setReasonError] = useState<string | undefined>()
   const onClick = async () => {
     setBusy(true)
     const result = await postComplaintAction("accept", [complaint.id])
     setBusy(false)
     onDone(actionNotice(result, "تم قبول الشكوى، وهي الآن قيد المتابعة الميدانية."))
   }
+  const onReject = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!reason.trim()) {
+      setReasonError("سبب الرفض مطلوب.")
+      return
+    }
+    setReasonError(undefined)
+    setBusy(true)
+    const result = await apiRequest(`/api/complaints/${complaint.id}/return/`, {
+      method: "POST",
+      body: { reason: reason.trim() },
+    })
+    setBusy(false)
+    if (result.ok) {
+      navigate("/complaints/", { state: { notice: { tone: "ok", text: "تم إرجاع الشكوى إلى مدير المحافظة." } } })
+    } else {
+      onDone({ tone: "error", text: failureText(result) })
+    }
+  }
   return (
-    <Section title="القبول" note="القبول نقرة واحدة. بعده تصير الشكوى قيد المتابعة الميدانية باسمك.">
+    <Section title="القرار" note="القبول ينقل الشكوى للمتابعة الميدانية. الرفض يرجعها لمدير المحافظة بعد كتابة السبب.">
       <div className="sheet__actions">
-        <Button loading={busy} onClick={onClick}>
+        <Button loading={busy && !rejecting} onClick={onClick}>
           قبول الشكوى
         </Button>
+        <Button variant="secondary" type="button" onClick={() => setRejecting(true)}>
+          رفض وإرجاع للمدير
+        </Button>
       </div>
+      {rejecting && (
+        <Dialog title="رفض وإرجاع للمدير" onClose={() => setRejecting(false)}>
+          <form className="sheet__form" onSubmit={onReject} noValidate>
+            <TextArea
+              label="سبب الرفض"
+              name="reason"
+              rows={4}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              error={reasonError}
+              required
+            />
+            <div className="sheet__actions">
+              <Button type="submit" variant="danger" loading={busy}>
+                إرجاع للمدير
+              </Button>
+            </div>
+          </form>
+        </Dialog>
+      )}
     </Section>
   )
 }
@@ -288,7 +334,7 @@ function timelineFor(complaint: ComplaintDetail): TimelineEvent[] {
     ...received,
     ...complaint.follow_ups.map((line) => ({
       id: `follow-${line.id}`,
-      title: line.place === "legal" ? "الشؤون القانونية" : "المتابعة الميدانية",
+      title: line.place === "legal" ? "الشؤون القانونية" : line.place === "return" ? "رفض وإرجاع للمدير" : "المتابعة الميدانية",
       at: formatDateTime(line.created_at),
       actor: line.author_name,
       body: (
@@ -338,12 +384,13 @@ function ComplaintView({ complaint, user, reload }: { complaint: ComplaintDetail
   ]
   if (complaint.accepted_at) facts.push({ label: "وقت الاستلام", value: formatDateTime(complaint.accepted_at) })
   if (complaint.assigned_by_name) facts.push({ label: "وجّهها", value: complaint.assigned_by_name })
+  if (complaint.return_reason && status === "واردة") facts.push({ label: "سبب الإرجاع", value: complaint.return_reason })
   if (complaint.field_replied_at) facts.push({ label: "وقت الرد الميداني", value: formatDateTime(complaint.field_replied_at) })
   if (complaint.legal_referred_at) facts.push({ label: "إحالة الشؤون القانونية", value: formatDateTime(complaint.legal_referred_at) })
   if (complaint.closed_at) facts.push({ label: "وقت الإغلاق", value: formatDateTime(complaint.closed_at) })
   if (submitter) facts.push({ label: "مقدّم الشكوى", value: submitter, ltr: true })
   const actions = [
-    user.role === "inspector" && status === "واردة" && <AcceptAction key="accept" {...props} />,
+    user.role === "inspector" && status === "واردة" && !complaint.returned_at && <AcceptAction key="accept" {...props} />,
     user.role === "governor" && status === "واردة" && (
       <ActionLauncher key="assign" label="توجيه لمفتش" title="توجيه لمفتش">
         {(close) => <AssignAction {...props} onDone={(notice) => { close(); props.onDone(notice) }} />}

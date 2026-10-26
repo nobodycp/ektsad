@@ -156,6 +156,8 @@ def redirect_mission(user, mission, inspector_id):
         mission.region = inspector.region
         mission.status = FieldMission.Status.FIELD
         mission.save(update_fields=["region", "status"])
+    from apps.telegram.webhook import notify_new_mission
+    notify_new_mission(mission, governors=False)
     return mission
 
 
@@ -197,6 +199,9 @@ def reply_mission(user, mission, text, files, destination):
             mission.status = FieldMission.Status.LEGAL
             mission.legal_referred_at = now
         mission.save(update_fields=["field_replied_at", "status", "closed_at", "legal_referred_at"])
+    if destination == "legal":
+        from apps.telegram.webhook import notify_legal_mission
+        notify_legal_mission(mission)
     return mission
 
 

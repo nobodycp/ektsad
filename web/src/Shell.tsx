@@ -117,7 +117,9 @@ function Notifications() {
                 <a href={`/complaints/${row.id}/`}>
                   <span>{row.title}</span>
                   <small>
-                    {row.region_name} · {formatDateTime(row.created_at)}
+                    {row.return_reason
+                      ? `أُعيدت للتوجيه إلى مفتش آخر · ${row.return_reason}`
+                      : `${row.region_name} · ${formatDateTime(row.created_at)}`}
                   </small>
                 </a>
               </li>

@@ -56,6 +56,8 @@ export type ComplaintRow = {
   legal_referred_at?: string | null
   closed_at?: string | null
   assigned_by_name?: string
+  returned_at?: string | null
+  return_reason?: string
 }
 
 export type FollowUpLine = {

@@ -19,6 +19,7 @@ from apps.complaints.services import (
     accept_complaint,
     assign_complaint,
     close_legal,
+    return_complaint,
     submit_field_report,
     mark_complaint_seen,
     unread_incoming,
@@ -68,6 +69,7 @@ def _complaint_data(complaint, detail=False):
         "telegram_user_id": complaint.telegram_user_id,
         "has_image": bool(complaint.image),
         "field_replied_at": _iso(getattr(complaint, "field_replied_at", None)),
+        "return_reason": complaint.return_reason,
     }
     if detail:
         result.update({
@@ -75,6 +77,8 @@ def _complaint_data(complaint, detail=False):
             "legal_referred_at": _iso(complaint.legal_referred_at),
             "closed_at": _iso(complaint.closed_at),
             "assigned_by_name": complaint.assigned_by_name,
+            "returned_at": _iso(complaint.returned_at),
+            "return_reason": complaint.return_reason,
         })
         result["follow_ups"] = [
             {
@@ -220,6 +224,23 @@ def assign(request, pk):
     except (User.DoesNotExist, ValidationError) as error:
         return JsonResponse({"detail": getattr(error, "messages", ["المفتش غير صالح."])[0]}, status=400)
     return JsonResponse(_complaint_data(complaint))
+
+
+@require_http_methods(["POST"])
+def return_to_governor(request, pk):
+    complaint = _visible_complaint_or_forbidden(request, pk)
+    if complaint is None:
+        return JsonResponse({"detail": "Forbidden"}, status=403)
+    try:
+        return_complaint(
+            complaint, request.user, _payload(request).get("reason", ""),
+            channel="web", ip=_ip(request), telegram_id=None,
+        )
+        from apps.telegram.webhook import notify_return
+        notify_return(complaint, request.user)
+    except ValidationError as error:
+        return JsonResponse({"detail": error.messages[0]}, status=400)
+    return JsonResponse(_complaint_data(complaint, detail=True))
 
 
 @require_http_methods(["POST"])

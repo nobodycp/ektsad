@@ -34,6 +34,8 @@ class Complaint(models.Model):
     source = models.CharField(max_length=16, choices=Source.choices, default=Source.WEB)
     accept_ip = models.GenericIPAddressField(null=True, blank=True)
     accept_channel = models.CharField(max_length=16, choices=Source.choices, blank=True)
+    returned_at = models.DateTimeField(null=True, blank=True)
+    return_reason = models.TextField(blank=True)
     is_flagged = models.BooleanField(default=False)
     flagged_by = models.ForeignKey("accounts.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="flagged_complaints")
     flagged_at = models.DateTimeField(null=True, blank=True)
@@ -43,6 +45,7 @@ class FollowUp(models.Model):
     class Place(models.TextChoices):
         FIELD = "field", "Field"
         LEGAL = "legal", "Legal"
+        RETURN = "return", "Return"
 
     complaint = models.ForeignKey(Complaint, on_delete=models.CASCADE, related_name="follow_ups")
     author = models.ForeignKey("accounts.User", null=True, blank=True, on_delete=models.SET_NULL)

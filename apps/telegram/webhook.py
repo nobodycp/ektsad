@@ -12,7 +12,7 @@ from django.utils import timezone
 from apps.accounts.models import User
 from apps.complaints.models import Complaint
 from apps.complaints.services import (
-    accept_complaint, assign_complaint, close_legal, submit_field_report, visible_complaints,
+    accept_complaint, assign_complaint, close_legal, return_complaint, submit_field_report, visible_complaints,
 )
 from apps.geography.models import Governorate, Region
 from apps.publications.models import CrossingReport, PriceReport
@@ -37,6 +37,7 @@ UNLINKED = "هذا الحساب غير مربوط. اطلب رابط الربط 
 RECEIVED = "تم استلام الشكوى."
 RATE_LIMITED = "تجاوزت الحد المسموح لتقديم الشكاوى. حاول لاحقاً."
 PAGE_SIZE = 6
+COMPLAINT_PAGE = 15
 
 
 def _home_markup():
@@ -71,16 +72,16 @@ def _show_menu(chat_id):
     enqueue(chat_id, "اختر من القائمة.", markup=_menu_markup(chat_id))
 
 
-def _paged(items, page, text_of, data_of, page_prefix):
+def _paged(items, page, text_of, data_of, page_prefix, page_size=PAGE_SIZE):
     page = max(int(page), 0)
-    start = page * PAGE_SIZE
+    start = page * page_size
     rows = [[
         {"text": text_of(item)[:40], "callback_data": data_of(item)},
-    ] for item in items[start:start + PAGE_SIZE]]
+    ] for item in items[start:start + page_size]]
     nav = []
     if start:
         nav.append({"text": "السابق", "callback_data": f"{page_prefix}:{page - 1}"})
-    if start + PAGE_SIZE < len(items):
+    if start + page_size < len(items):
         nav.append({"text": "التالي", "callback_data": f"{page_prefix}:{page + 1}"})
     if nav:
         rows.append(nav)
@@ -197,63 +198,87 @@ def _linked_user(telegram_id):
     return link.user if link and link.user.is_active else None
 
 
+def _linked_staff(role, **filters):
+    return User.objects.filter(
+        is_active=True, role=role, telegram_link__isnull=False, **filters,
+    ).select_related("telegram_link")
+
+
+def _clip(text, limit=3500):
+    text = (text or "").strip()
+    if len(text) > limit:
+        return text[:limit].rstrip() + "…"
+    return text
+
+
 def notify_new_complaint(complaint):
-    inspectors = User.objects.filter(
-        is_active=True, role=User.Role.INSPECTOR, region_id=complaint.region_id,
-        telegram_link__isnull=False,
-    ).select_related("telegram_link")
-    governors = User.objects.filter(
-        is_active=True, role=User.Role.GOVERNOR, governorate_id=complaint.governorate_id,
-        telegram_link__isnull=False,
-    ).select_related("telegram_link")
-    body = (complaint.body or "").strip()
-    if len(body) > 3500:
-        body = body[:3500].rstrip() + "…"
-    message = (
-        "وصلت شكوى.\n"
+    details = (
         f"المحافظة: {complaint.governorate.name}\n"
         f"المنطقة: {complaint.region.name}\n"
         f"العنوان: {complaint.title}\n"
-        f"المحتوى: {body}"
+        f"المحتوى: {_clip(complaint.body)}"
     )
-    accept = {"inline_keyboard": [[{"text": "قبول", "callback_data": f"/accept {complaint.pk}"}]]}
+    accept = {"inline_keyboard": [[
+        {"text": "قبول", "callback_data": f"/accept {complaint.pk}"},
+        {"text": "رفض وإرجاع للمدير", "callback_data": f"rj:{complaint.pk}"},
+    ]]}
     opened = {"inline_keyboard": [[{"text": "فتح", "callback_data": f"op:{complaint.pk}"}]]}
-    for user in inspectors:
-        enqueue(user.telegram_link.telegram_id, message, markup=accept)
-    for user in governors:
+    for user in _linked_staff(User.Role.INSPECTOR, region_id=complaint.region_id):
+        enqueue(user.telegram_link.telegram_id, f"لديك شكوى جديدة.\n{details}", markup=accept)
+    for user in _linked_staff(User.Role.GOVERNOR, governorate_id=complaint.governorate_id):
+        enqueue(user.telegram_link.telegram_id, f"وصلت شكوى.\n{details}", markup=opened)
+
+
+def notify_legal_complaint(complaint):
+    message = (
+        "لديك شكوى جديدة.\n"
+        f"المحافظة: {complaint.governorate.name}\n"
+        f"المنطقة: {complaint.region.name}\n"
+        f"العنوان: {complaint.title}\n"
+        f"المحتوى: {_clip(complaint.body)}"
+    )
+    opened = {"inline_keyboard": [[{"text": "فتح", "callback_data": f"op:{complaint.pk}"}]]}
+    for user in _linked_staff(User.Role.LEGAL):
         enqueue(user.telegram_link.telegram_id, message, markup=opened)
 
 
-def notify_new_mission(mission):
+def notify_new_mission(mission, *, governors=True):
     from apps.accounts.permissions import allows
 
-    recipients = []
-    for assignee in mission.assignees.select_related("user"):
-        user = assignee.user
-        link = TelegramLink.objects.filter(user=user).first() if user and user.is_active else None
-        if link and allows(user, "can_view_field_missions"):
-            recipients.append((user, link))
-    governors = User.objects.filter(
-        role=User.Role.GOVERNOR, is_active=True, governorate_id=mission.governorate_id,
-        telegram_link__isnull=False,
-    ).select_related("telegram_link")
-    for governor in governors:
-        if allows(governor, "can_view_field_missions"):
-            recipients.append((governor, governor.telegram_link))
-    text = (
-        "وصلت مهمة.\n"
+    details = (
         f"النوع: {mission.kind}\n"
         f"الأولوية: {mission.priority}\n"
         f"المحل: {mission.place_name}\n"
-        f"التفاصيل: {mission.details}"
+        f"التفاصيل: {_clip(mission.details)}"
     )
     opened = {"inline_keyboard": [[{"text": "فتح", "callback_data": f"mo:{mission.pk}"}]]}
-    seen = set()
-    for user, link in recipients:
-        if user.pk in seen:
-            continue
-        seen.add(user.pk)
-        enqueue(link.telegram_id, text, markup=opened)
+    inspector_ids = set(mission.assignees.filter(
+        user__is_active=True, user__role=User.Role.INSPECTOR, user__telegram_link__isnull=False,
+    ).values_list("user_id", flat=True))
+    if mission.region_id:
+        inspector_ids.update(
+            _linked_staff(User.Role.INSPECTOR, region_id=mission.region_id).values_list("pk", flat=True)
+        )
+    for user in User.objects.filter(pk__in=inspector_ids).select_related("telegram_link"):
+        enqueue(user.telegram_link.telegram_id, f"لديك مهمة جديدة.\n{details}", markup=opened)
+    if not governors:
+        return
+    for governor in _linked_staff(User.Role.GOVERNOR, governorate_id=mission.governorate_id):
+        if allows(governor, "can_view_field_missions"):
+            enqueue(governor.telegram_link.telegram_id, f"وصلت مهمة.\n{details}", markup=opened)
+
+
+def notify_legal_mission(mission):
+    message = (
+        "لديك مهمة جديدة.\n"
+        f"النوع: {mission.kind}\n"
+        f"الأولوية: {mission.priority}\n"
+        f"المحل: {mission.place_name}\n"
+        f"التفاصيل: {_clip(mission.details)}"
+    )
+    opened = {"inline_keyboard": [[{"text": "فتح", "callback_data": f"mo:{mission.pk}"}]]}
+    for user in _linked_staff(User.Role.LEGAL):
+        enqueue(user.telegram_link.telegram_id, message, markup=opened)
 
 
 def _create_complaint(chat_id, user_id, governorate_id, region_id, title, body, image=None):
@@ -361,6 +386,26 @@ def _accepted_image(image):
     return image
 
 
+def notify_return(complaint, actor):
+    governors = User.objects.filter(
+        role=User.Role.GOVERNOR, is_active=True, governorate_id=complaint.governorate_id,
+        telegram_link__isnull=False,
+    ).select_related("telegram_link")
+    message = (
+        "أُعيدت إليك شكوى لتوجيهها إلى مفتش آخر.\n"
+        f"أرجعها: {actor.display_name or actor.username}\n"
+        f"العنوان: {complaint.title}\n"
+        f"المنطقة: {complaint.region.name}\n"
+        f"السبب: {complaint.return_reason}"
+    )
+    opened = {"inline_keyboard": [[
+        {"text": "توجيه", "callback_data": f"as:{complaint.pk}"},
+        {"text": "فتح", "callback_data": f"op:{complaint.pk}"},
+    ]]}
+    for governor in governors:
+        enqueue(governor.telegram_link.telegram_id, message, markup=opened)
+
+
 def notify_accept(complaint, actor):
     governors = User.objects.filter(
         role=User.Role.GOVERNOR, is_active=True, governorate_id=complaint.governorate_id,
@@ -384,22 +429,28 @@ def _complaint_card(complaint):
     body = (complaint.body or "").strip()
     if len(body) > 3000:
         body = body[:3000].rstrip() + "…"
-    return (
+    text = (
         f"المحافظة: {complaint.governorate.name}\n"
         f"المنطقة: {complaint.region.name}\n"
         f"العنوان: {complaint.title}\n"
         f"المحتوى: {body}\n"
         f"الحالة: {complaint.status}"
     )
+    if complaint.status == Complaint.Status.RECEIVED and complaint.return_reason:
+        text += f"\nسبب الإرجاع: {complaint.return_reason}"
+    return text
 
 
 def _complaint_actions(user, complaint):
     rows = []
     if (
         user.role == User.Role.INSPECTOR and complaint.status == Complaint.Status.RECEIVED
-        and user.region_id == complaint.region_id
+        and user.region_id == complaint.region_id and not complaint.returned_at
     ):
-        rows.append([{"text": "قبول", "callback_data": f"/accept {complaint.pk}"}])
+        rows.append([
+            {"text": "قبول", "callback_data": f"/accept {complaint.pk}"},
+            {"text": "رفض وإرجاع للمدير", "callback_data": f"rj:{complaint.pk}"},
+        ])
     if (
         user.role == User.Role.INSPECTOR and complaint.status == Complaint.Status.FIELD
         and complaint.inspector_id == user.pk
@@ -431,26 +482,40 @@ def _open_complaint(chat_id, telegram_id, pk):
     enqueue(chat_id, _complaint_card(complaint), markup=_complaint_actions(user, complaint))
 
 
+def _complaint_mark(status):
+    if status == Complaint.Status.LEGAL:
+        return "↪️"
+    if status in {Complaint.Status.FINISHED, Complaint.Status.RESOLVED}:
+        return "🔒"
+    return "🟢"
+
+
 def _show_work(chat_id, telegram_id, filt, page):
     _clear_field_draft(chat_id)
     user = _linked_user(telegram_id)
     if user is None:
         enqueue(chat_id, UNLINKED, markup=_home_markup())
         return
+    open_statuses = [Complaint.Status.RECEIVED, Complaint.Status.FIELD]
+    transferred = [Complaint.Status.LEGAL]
+    closed = [Complaint.Status.FINISHED, Complaint.Status.RESOLVED]
     if filt == "a":
         visible = visible_complaints(user)
-        if visible.filter(status=Complaint.Status.RECEIVED).exists():
-            filt = "r"
-        elif visible.filter(status__in=[Complaint.Status.FIELD, Complaint.Status.LEGAL]).exists():
-            filt = "p"
+        if visible.filter(status__in=open_statuses).exists():
+            filt = "o"
+        elif visible.filter(status__in=transferred).exists():
+            filt = "t"
         else:
-            filt = "r"
-    statuses = {
-        "r": [Complaint.Status.RECEIVED],
-        "p": [Complaint.Status.FIELD, Complaint.Status.LEGAL],
-        "c": [Complaint.Status.FINISHED, Complaint.Status.RESOLVED],
-    }.get(filt)
-    empty = {"r": "لا توجد شكاوى وصلت.", "p": "لا توجد شكاوى معلقة.", "c": "لا توجد شكاوى مغلقة."}
+            filt = "c"
+    filt = {"r": "o", "p": "t"}.get(filt, filt)
+    buckets = {"o": open_statuses, "t": transferred, "c": closed}
+    statuses = buckets.get(filt)
+    titles = {"o": "🟢 المفتوحة", "t": "↪️ المحولة", "c": "🔒 المغلقة"}
+    empty = {
+        "o": "لا توجد شكاوى مفتوحة.",
+        "t": "لا توجد شكاوى محوّلة.",
+        "c": "لا توجد شكاوى مغلقة.",
+    }
     if statuses is None:
         enqueue(chat_id, "بيانات غير صالحة.", markup=_home_markup())
         return
@@ -458,21 +523,67 @@ def _show_work(chat_id, telegram_id, filt, page):
         visible_complaints(user).filter(status__in=statuses).select_related("region").order_by("-created_at")
     )
     filters = [[
-        {"text": "وصلت", "callback_data": "ls:r:0"},
-        {"text": "معلقة", "callback_data": "ls:p:0"},
-        {"text": "مغلقة", "callback_data": "ls:c:0"},
+        {"text": "🟢 المفتوحة", "callback_data": "ls:o:0"},
+        {"text": "↪️ المحولة", "callback_data": "ls:t:0"},
+        {"text": "🔒 المغلقة", "callback_data": "ls:c:0"},
     ]]
     footer = [[{"text": "القائمة", "callback_data": "mn"}]]
     if not items:
-        enqueue(chat_id, empty.get(filt, "لا توجد شكاوى."), markup={"inline_keyboard": filters + footer})
+        enqueue(chat_id, empty[filt], markup={"inline_keyboard": filters + footer})
         return
     buttons = _paged(
         items, page,
-        lambda item: f"{item.title} · {item.region.name}",
+        lambda item: f"{_complaint_mark(item.status)} {item.pk} {item.title}",
         lambda item: f"op:{item.pk}",
         f"ls:{filt}",
+        COMPLAINT_PAGE,
     )
-    enqueue(chat_id, "اختر الشكوى.", markup={"inline_keyboard": filters + buttons + footer})
+    enqueue(
+        chat_id,
+        f"{titles[filt]}\nالعدد {len(items)}. مرّر اللوحة واختر شكوى للعمل عليها.",
+        markup={"inline_keyboard": filters + buttons + footer},
+    )
+
+
+def _start_return(chat_id, telegram_id, pk):
+    from apps.telegram.keyboard import keep_nav
+
+    user = _linked_user(telegram_id)
+    complaint = visible_complaints(user).filter(pk=pk).first() if user else None
+    if (
+        user is None or complaint is None or user.role != User.Role.INSPECTOR
+        or complaint.status != Complaint.Status.RECEIVED or complaint.returned_at
+        or user.region_id != complaint.region_id
+    ):
+        enqueue(chat_id, "غير مسموح.", markup=_home_markup())
+        return
+    draft, _ = TelegramDraft.objects.get_or_create(chat_id=str(chat_id), defaults={"step": "reject_reason", "payload": {}})
+    draft.step = "reject_reason"
+    draft.payload = keep_nav(draft.payload, {"reject_complaint": complaint.pk})
+    draft.save(update_fields=["step", "payload", "updated_at"])
+    enqueue(chat_id, "اكتب سبب الرفض والإرجاع.", markup={"inline_keyboard": []})
+
+
+def _finish_return(chat_id, telegram_id, pk, reason):
+    from apps.telegram.keyboard import keep_nav
+
+    user = _linked_user(telegram_id)
+    draft = TelegramDraft.objects.filter(chat_id=str(chat_id)).first()
+    try:
+        complaint = Complaint.objects.get(pk=pk)
+        return_complaint(
+            complaint, user, reason, channel="telegram", ip=None, telegram_id=str(telegram_id),
+        )
+    except (Complaint.DoesNotExist, ValidationError, AttributeError, TypeError, ValueError) as error:
+        message = error.messages[0] if isinstance(error, ValidationError) else "غير مسموح."
+        enqueue(chat_id, message, markup=_home_markup())
+        return
+    if draft:
+        draft.step = ""
+        draft.payload = keep_nav(draft.payload, {})
+        draft.save(update_fields=["step", "payload", "updated_at"])
+    notify_return(complaint, user)
+    enqueue(chat_id, "تم إرجاع الشكوى إلى مدير المحافظة.", markup=_home_markup())
 
 
 def _start_reply(chat_id, telegram_id, pk):
@@ -622,10 +733,16 @@ def _advance_draft(chat_id, user_id, text):
     if consume_text(chat_id, user_id, text):
         return True
     draft = TelegramDraft.objects.filter(chat_id=str(chat_id)).first()
-    if draft is None or draft.step not in {"governorate", "region", "title", "body", "image", "field_text", "field_dest"}:
+    if draft is None or draft.step not in {"governorate", "region", "title", "body", "image", "field_text", "field_dest", "reject_reason"}:
         return False
     cleaned = text.strip()
     payload = dict(draft.payload)
+    if draft.step == "reject_reason":
+        if not cleaned:
+            enqueue(chat_id, "اكتب سبب الرفض والإرجاع.", markup={"inline_keyboard": []})
+            return True
+        _finish_return(chat_id, user_id, payload.get("reject_complaint"), cleaned)
+        return True
     if draft.step == "field_dest":
         enqueue(chat_id, "اختر جهة الإرسال.", markup=_destination_markup(payload.get("field_complaint")))
         return True
@@ -772,6 +889,13 @@ def _rewind_draft(chat_id, user_id):
         draft.save(update_fields=["step", "updated_at"])
         enqueue(chat_id, "اكتب نتيجة الكشف.", markup=_home_markup())
         return True
+    if draft.step == "reject_reason":
+        complaint_id = (draft.payload or {}).get("reject_complaint")
+        draft.step = ""
+        draft.save(update_fields=["step", "updated_at"])
+        if complaint_id:
+            _open_complaint(chat_id, user_id, complaint_id)
+            return True
     if draft.step == "field_text":
         complaint_id = (draft.payload or {}).get("field_complaint")
         draft.step = ""
@@ -818,6 +942,8 @@ def _on_callback(chat_id, user_id, data):
             _open_complaint(chat_id, user_id, int(data.split(":")[1]))
         elif data.startswith("ry:"):
             _start_reply(chat_id, user_id, int(data.split(":")[1]))
+        elif data.startswith("rj:"):
+            _start_return(chat_id, user_id, int(data.split(":")[1]))
         elif data.startswith("dg:"):
             _send_reply(chat_id, user_id, int(data.split(":")[1]), "governor")
         elif data.startswith("dl:"):
@@ -922,6 +1048,8 @@ def handle_update(update):
             enqueue(chat_id, "تم حفظ الصورة. اختر جهة الإرسال." if downloaded else "اختر جهة الإرسال.", markup=_destination_markup(draft.payload.get("field_complaint")))
         elif draft and draft.step == "field_text":
             enqueue(chat_id, "تم حفظ الصورة. اكتب نتيجة الكشف." if downloaded else "اكتب نتيجة الكشف.", markup=_home_markup())
+        elif draft and draft.step == "reject_reason":
+            enqueue(chat_id, "اكتب سبب الرفض والإرجاع.", markup={"inline_keyboard": []})
         else:
             if downloaded is None:
                 try:
@@ -976,11 +1104,11 @@ def handle_update(update):
         return
     if _publications(chat_id, text):
         return
-    if text in {"شكاوى", "وصلت"}:
-        _show_work(chat_id, user_id, "r", 0)
-    elif text == "معلقة":
-        _show_work(chat_id, user_id, "p", 0)
-    elif text == "مغلقة":
+    if text in {"شكاوى", "وصلت", "المفتوحة", "🟢 المفتوحة"}:
+        _show_work(chat_id, user_id, "o", 0)
+    elif text in {"معلقة", "المحولة", "↪️ المحولة"}:
+        _show_work(chat_id, user_id, "t", 0)
+    elif text in {"مغلقة", "المغلقة", "🔒 المغلقة"}:
         _show_work(chat_id, user_id, "c", 0)
     elif text == "تقديم شكوى":
         _start_complaint(chat_id)

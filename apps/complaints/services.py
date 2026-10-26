@@ -14,6 +14,8 @@ def _name(user):
 
 
 def accept_complaint(complaint, actor, *, channel, ip, telegram_id):
+    if complaint.returned_at:
+        raise ValidationError("أُعيدت هذه الشكوى إلى مدير المحافظة.")
     if complaint.status != Complaint.Status.RECEIVED:
         if complaint.inspector_id and complaint.inspector_id != actor.pk:
             raise ValidationError("استلم هذه الشكوى مفتش آخر.")
@@ -52,6 +54,32 @@ def assign_complaint(complaint, actor, inspector, *, channel, ip, telegram_id):
 
 
 @transaction.atomic
+def return_complaint(complaint, actor, reason, *, channel, ip, telegram_id):
+    reason = (reason or "").strip()
+    if not reason:
+        raise ValidationError("سبب الرفض مطلوب.")
+    if len(reason) > 3500:
+        reason = reason[:3500].rstrip()
+    if complaint.returned_at or complaint.status != Complaint.Status.RECEIVED:
+        raise ValidationError("لا يمكن إرجاع الشكوى.")
+    if actor.role != User.Role.INSPECTOR or actor.region_id != complaint.region_id:
+        raise ValidationError("غير مسموح.")
+    FollowUp.objects.create(
+        complaint=complaint, author=actor, author_name=_name(actor),
+        place=FollowUp.Place.RETURN, body=reason,
+        channel=channel, author_ip=ip, author_telegram_id=telegram_id or "",
+    )
+    complaint.returned_at = timezone.now()
+    complaint.return_reason = reason
+    complaint.save(update_fields=["returned_at", "return_reason"])
+    ComplaintSeen.objects.filter(
+        complaint=complaint,
+        user__role=User.Role.GOVERNOR,
+        user__governorate_id=complaint.governorate_id,
+    ).delete()
+
+
+@transaction.atomic
 def submit_field_report(complaint, actor, text, files, destination, *, channel="web", ip=None, telegram_id=""):
     if actor.role != User.Role.INSPECTOR or complaint.inspector_id != actor.pk:
         raise ValidationError("غير مسموح.")
@@ -78,6 +106,9 @@ def submit_field_report(complaint, actor, text, files, destination, *, channel="
         complaint.status = Complaint.Status.LEGAL
         complaint.legal_referred_at = timezone.now()
     complaint.save()
+    if destination == "legal":
+        from apps.telegram.webhook import notify_legal_complaint
+        notify_legal_complaint(complaint)
 
 
 def close_legal(complaint, actor, notes, *, channel, ip, telegram_id):
@@ -120,7 +151,7 @@ def visible_complaints(user):
         return queryset
     if user.role == User.Role.INSPECTOR:
         return queryset.filter(
-            models.Q(region_id=user.region_id, status=Complaint.Status.RECEIVED)
+            models.Q(region_id=user.region_id, status=Complaint.Status.RECEIVED, returned_at__isnull=True)
             | models.Q(inspector_id=user.pk)
         )
     if user.role == User.Role.GOVERNOR:

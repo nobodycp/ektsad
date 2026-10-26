@@ -115,6 +115,7 @@ class TelegramWebhookTests(TestCase):
             "message": {"chat": {"id": 601}, "from": {"id": 601}, "text": f"/field {complaint.pk} legal تفاصيل"}
         })
         self.assertFalse(TelegramOutbox.objects.filter(text__startswith="تم التعامل مع الشكوى تبعك").exists())
+        self.assertTrue(TelegramOutbox.objects.filter(chat_id="602", text__startswith="لديك شكوى جديدة.").exists())
         handle_update({
             "message": {"chat": {"id": 602}, "from": {"id": 602}, "text": f"/close {complaint.pk}"}
         })
@@ -170,14 +171,13 @@ class TelegramWebhookTests(TestCase):
 
         self.assertEqual(response.status_code, 201)
         texts = list(TelegramOutbox.objects.values_list("text", flat=True))
-        arrival = (
-            "وصلت شكوى.\n"
+        details = (
             f"المحافظة: {self.governorate.name}\n"
             f"المنطقة: {self.region.name}\n"
             "العنوان: محل\n"
             "المحتوى: النص"
         )
-        self.assertEqual(texts, [arrival, arrival])
+        self.assertCountEqual(texts, [f"لديك شكوى جديدة.\n{details}", f"وصلت شكوى.\n{details}"])
 
     def test_inspector_arrival_message_has_accept_button(self):
         from apps.telegram.models import TelegramLink, TelegramOutbox
@@ -193,6 +193,7 @@ class TelegramWebhookTests(TestCase):
         governor_message = TelegramOutbox.objects.get(chat_id="812")
 
         self.assertEqual(self.button_labels(inspector_message.markup)[0], "قبول")
+        self.assertIn("رفض وإرجاع للمدير", self.button_labels(inspector_message.markup))
         self.assertIn("رجوع", self.button_labels(inspector_message.markup))
         self.assertEqual(self.button_labels(governor_message.markup)[0], "فتح")
         self.assertIn("رجوع", self.button_labels(governor_message.markup))
@@ -207,7 +208,35 @@ class TelegramWebhookTests(TestCase):
         })
         complaint.refresh_from_db()
         self.assertEqual(complaint.status, Complaint.Status.FIELD)
-        self.assertEqual(complaint.inspector, self.inspector)
+
+    def test_return_to_the_governor_requires_a_reason_and_notifies_him(self):
+        from apps.telegram.models import TelegramLink, TelegramOutbox
+        from apps.telegram.webhook import handle_update
+
+        TelegramLink.objects.create(user=self.inspector, telegram_id="701")
+        TelegramLink.objects.create(user=self.governor, telegram_id="702")
+        complaint = Complaint.objects.create(
+            governorate=self.governorate, region=self.region, title="محل السوق", body="النص",
+        )
+        handle_update({
+            "callback_query": {
+                "id": "rj-1", "from": {"id": 701}, "data": f"rj:{complaint.pk}",
+                "message": {"chat": {"id": 701}, "message_id": 3},
+            }
+        })
+        self.assertIn("اكتب سبب الرفض والإرجاع.", TelegramOutbox.objects.filter(chat_id="701").latest("pk").text)
+        handle_update({"message": {"chat": {"id": 701}, "from": {"id": 701}, "text": "   "}})
+        complaint.refresh_from_db()
+        self.assertIsNone(complaint.returned_at)
+        handle_update({"message": {"chat": {"id": 701}, "from": {"id": 701}, "text": "ليست من اختصاص المنطقة"}})
+        complaint.refresh_from_db()
+        self.assertEqual(complaint.return_reason, "ليست من اختصاص المنطقة")
+        note = TelegramOutbox.objects.get(chat_id="702")
+        self.assertIn("أُعيدت إليك شكوى لتوجيهها إلى مفتش آخر.", note.text)
+        self.assertIn("ليست من اختصاص المنطقة", note.text)
+        self.assertEqual(self.button_labels(note.markup)[0], "توجيه")
+        self.assertIn("فتح", self.button_labels(note.markup))
+        self.assertIsNone(complaint.inspector_id)
 
     def test_price_button_queues_the_image(self):
         from django.core.files.uploadedfile import SimpleUploadedFile
@@ -509,10 +538,59 @@ class TelegramWebhookTests(TestCase):
             "kind": "ضبط", "priority": "عادي", "details": "بضاعة", "place_name": "محل", "phone": "0599000000",
         })
         note = TelegramOutbox.objects.get(chat_id="990")
-        self.assertIn("وصلت مهمة.", note.text)
+        self.assertIn("لديك مهمة جديدة.", note.text)
         self.assertIn("محل", note.text)
         self.assertEqual(self.button_labels(note.markup)[0], "فتح")
         self.assertIn("رجوع", self.button_labels(note.markup))
+
+    def test_legal_and_redirected_inspector_get_arrival_notices(self):
+        from apps.accounts.models import StaffRole
+        from apps.complaints.services import accept_complaint, submit_field_report
+        from apps.field_missions.services import open_mission, redirect_mission, reply_mission
+        from apps.telegram.models import TelegramLink, TelegramOutbox
+
+        legal = User.objects.create_user(
+            username="legal-note", password="password-long-12", role=User.Role.LEGAL,
+        )
+        admin = User.objects.create_user(
+            username="admin-note", password="password-long-12", role=User.Role.ADMIN,
+        )
+        role = StaffRole.objects.create(
+            name="مفتش الإشعار", kind=StaffRole.Kind.INSPECTOR,
+            can_view_field_missions=True, can_open_field_missions=True,
+        )
+        self.inspector.staff_role = role
+        self.inspector.save(update_fields=["staff_role"])
+        TelegramLink.objects.create(user=legal, telegram_id="660")
+        TelegramLink.objects.create(user=self.inspector, telegram_id="661")
+        complaint = Complaint.objects.create(
+            governorate=self.governorate, region=self.region, title="محل محوّل", body="النص",
+            status=Complaint.Status.RECEIVED,
+        )
+        accept_complaint(complaint, self.inspector, channel="web", ip="1", telegram_id=None)
+        submit_field_report(complaint, self.inspector, "للقانوني", [], "legal")
+        legal_complaint = TelegramOutbox.objects.get(chat_id="660")
+        self.assertTrue(legal_complaint.text.startswith("لديك شكوى جديدة."))
+        self.assertIn("محل محوّل", legal_complaint.text)
+        self.assertEqual(self.button_labels(legal_complaint.markup)[0], "فتح")
+
+        TelegramOutbox.objects.all().delete()
+        waiting = open_mission(admin, {
+            "scope": "office", "governorate": self.governorate.pk,
+            "kind": "ضبط", "priority": "عادي", "details": "بضاعة", "place_name": "المحل", "phone": "0599000000",
+        })
+        self.assertFalse(TelegramOutbox.objects.filter(chat_id="661").exists())
+        redirect_mission(self.governor, waiting, self.inspector.pk)
+        self.assertTrue(TelegramOutbox.objects.filter(chat_id="661", text__startswith="لديك مهمة جديدة.").exists())
+
+        TelegramOutbox.objects.all().delete()
+        mission = open_mission(self.inspector, {
+            "kind": "ضبط", "priority": "عادي", "details": "بضاعة", "place_name": "محل المهمة", "phone": "0599000000",
+        })
+        reply_mission(self.inspector, mission, "أُحيلت", [], "legal")
+        legal_mission = TelegramOutbox.objects.get(chat_id="660")
+        self.assertTrue(legal_mission.text.startswith("لديك مهمة جديدة."))
+        self.assertIn("محل المهمة", legal_mission.text)
 
     def test_register_webhook_failure_keeps_unregistered_status(self):
         from apps.telegram.models import TelegramWebhookStatus

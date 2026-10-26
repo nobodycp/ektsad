@@ -179,6 +179,7 @@ describe("complaints list", () => {
     expect(header).toHaveTextContent("المنطقة الأولى")
 
     expect(screen.getByRole("button", { name: "قبول" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "رفض وإرجاع للمدير" })).toBeInTheDocument()
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument()
     expect(fetchFn.mock.calls[0][0]).toContain("page=1")
   })
@@ -235,6 +236,32 @@ describe("complaint page", () => {
     expect(within(timeline).getByText("التفاصيل")).toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "قبول الشكوى" }))
     expect(await screen.findByRole("alert")).toHaveTextContent("استلم هذه الشكوى مفتش آخر.")
+  })
+
+  it("returns the complaint to the governor only after a reason", async () => {
+    const inspector = { ...base, role: "inspector" as const, id: 5 }
+    const fetchFn = mockFetch((url, init) => {
+      if (url === "/api/complaints/7/") return { status: 200, body: { ...complaint, follow_ups: [] } }
+      if (url.startsWith("/api/complaints/?")) return page([])
+      if (url === "/api/complaints/7/return/" && init?.method === "POST")
+        return { status: 200, body: { ...complaint, follow_ups: [], return_reason: "ليست من اختصاصي" } }
+      return undefined
+    })
+    inRouter(
+      <Routes>
+        <Route path="/complaints/:id/" element={<ComplaintPage user={inspector} />} />
+        <Route path="/complaints/" element={<ComplaintsPage user={inspector} />} />
+      </Routes>,
+      "/complaints/7/",
+    )
+    await user.click(await screen.findByRole("button", { name: "رفض وإرجاع للمدير" }))
+    await user.click(screen.getByRole("button", { name: "إرجاع للمدير" }))
+    expect(await screen.findByText("سبب الرفض مطلوب.")).toBeInTheDocument()
+    await user.type(field("سبب الرفض"), "ليست من اختصاصي")
+    await user.click(screen.getByRole("button", { name: "إرجاع للمدير" }))
+    expect(await screen.findByText("تم إرجاع الشكوى إلى مدير المحافظة.")).toBeInTheDocument()
+    const call = fetchFn.mock.calls.find(([url]) => url === "/api/complaints/7/return/")
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ reason: "ليست من اختصاصي" })
   })
 })
 

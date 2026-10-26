@@ -3,12 +3,15 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 
 from apps.accounts.models import User
-from apps.complaints.models import Complaint, FollowUp
+from apps.complaints.models import Complaint, ComplaintSeen, FollowUp
 from apps.complaints.services import (
     accept_complaint,
     assign_complaint,
     close_legal,
+    return_complaint,
     submit_field_report,
+    unread_incoming,
+    visible_complaints,
 )
 from apps.geography.models import Governorate, Region
 
@@ -45,6 +48,29 @@ class ComplaintServiceTests(TestCase):
             accept_complaint(complaint, self.second_inspector, channel="web", ip="127.0.0.1", telegram_id=None)
         complaint.refresh_from_db()
         self.assertEqual(complaint.inspector, self.inspector)
+
+    def test_return_asks_for_a_reason_and_leaves_the_inspector_queue(self):
+        complaint = self.complaint()
+        ComplaintSeen.objects.create(user=self.governor, complaint=complaint)
+        with self.assertRaisesMessage(ValidationError, "سبب الرفض مطلوب."):
+            return_complaint(complaint, self.inspector, "  ", channel="web", ip="1", telegram_id=None)
+        return_complaint(
+            complaint, self.inspector, "ليست من اختصاص المنطقة",
+            channel="web", ip="1", telegram_id=None,
+        )
+        complaint.refresh_from_db()
+        self.assertEqual(complaint.return_reason, "ليست من اختصاص المنطقة")
+        self.assertIsNotNone(complaint.returned_at)
+        self.assertEqual(complaint.status, Complaint.Status.RECEIVED)
+        self.assertFalse(visible_complaints(self.inspector).filter(pk=complaint.pk).exists())
+        self.assertTrue(visible_complaints(self.governor).filter(pk=complaint.pk).exists())
+        self.assertFalse(ComplaintSeen.objects.filter(user=self.governor, complaint=complaint).exists())
+        self.assertTrue(unread_incoming(self.governor).filter(pk=complaint.pk).exists())
+        self.assertTrue(FollowUp.objects.filter(place=FollowUp.Place.RETURN, body="ليست من اختصاص المنطقة").exists())
+        with self.assertRaisesMessage(ValidationError, "أُعيدت هذه الشكوى إلى مدير المحافظة."):
+            accept_complaint(complaint, self.second_inspector, channel="web", ip="1", telegram_id=None)
+        assign_complaint(complaint, self.governor, self.second_inspector, channel="web", ip="1", telegram_id=None)
+        self.assertEqual(complaint.status, Complaint.Status.FIELD)
 
     def test_five_transitions(self):
         complaint = self.complaint()
