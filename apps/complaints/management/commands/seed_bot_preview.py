@@ -16,14 +16,136 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         now = timezone.now()
         self._mission_permissions()
+        staff = self._import_roster()
         places = self._places()
-        if places is None:
-            return
-        people = self._people(places)
-        complaints = self._complaints(now, people)
-        missions = self._missions(now, people)
+        complaints = missions = 0
+        if places is not None:
+            people = self._people(places)
+            complaints += self._complaints(now, people)
+            missions += self._missions(now, people)
+        area_complaints, area_missions = self._area_samples(now)
+        complaints += area_complaints
+        missions += area_missions
+        self.stdout.write(f"الحسابات الجديدة من الكشف: {staff}.")
         self.stdout.write(f"الشكاوى الجديدة: {complaints}. المهمات الجديدة: {missions}.")
-        self.stdout.write("الحسابات الجديدة كلمة مرورها preview-password-12. اربط كل حساب من صفحة المستخدمين قبل الاستعراض على البوت.")
+        self.stdout.write("كلمة مرور الحسابات الجديدة preview-password-12. اربط الحساب من صفحة المستخدمين قبل الاستعراض على البوت.")
+        self.stdout.write("تُرك اسمان بلا محافظة في الكشف: عماد محمد عبد الهادي الحوراني، وفرج محمد علي ابو الليل.")
+
+    def _import_roster(self):
+        from apps.complaints.management.commands._roster import ROSTER
+
+        roles = {role.kind: role for role in StaffRole.objects.filter(built_in=True)}
+        role_names = {
+            "inspector": (User.Role.INSPECTOR, StaffRole.Kind.INSPECTOR),
+            "governor": (User.Role.GOVERNOR, StaffRole.Kind.GOVERNOR),
+            "legal": (User.Role.LEGAL, StaffRole.Kind.LEGAL),
+        }
+        created = 0
+        for number, name, kind, gov_name, region_name in ROSTER:
+            account_role, staff_kind = role_names[kind]
+            governorate = None
+            region = None
+            if kind != "legal":
+                governorate, _ = Governorate.objects.get_or_create(name=gov_name)
+            if kind == "inspector":
+                region, _ = Region.objects.get_or_create(
+                    governorate=governorate, name=region_name or "غير محدد",
+                )
+            user, was_created = User.objects.get_or_create(
+                username=f"sheet-{number:03d}",
+                defaults={
+                    "display_name": name,
+                    "role": account_role,
+                    "governorate": governorate,
+                    "region": region,
+                    "staff_role": roles.get(staff_kind),
+                    "is_active": True,
+                },
+            )
+            if was_created:
+                user.set_password(PASSWORD)
+                user.save()
+                created += 1
+        return created
+
+    def _area_samples(self, now):
+        if Complaint.objects.filter(title__startswith="استعراض حي:").exists():
+            return 0, 0
+        legal = User.objects.filter(role=User.Role.LEGAL, is_active=True).order_by("pk").first()
+        complaints = missions = 0
+        for gov_name in ("غزة", "الشمال", "خانيونس", "الوسطى"):
+            governorate = Governorate.objects.filter(name=gov_name).first()
+            inspector = User.objects.filter(
+                role=User.Role.INSPECTOR, governorate=governorate, region__isnull=False, is_active=True,
+            ).order_by("pk").first()
+            if governorate is None or inspector is None:
+                continue
+            governor = User.objects.filter(
+                role=User.Role.GOVERNOR, governorate=governorate, is_active=True,
+            ).order_by("pk").first()
+            samples = [
+                ("واردة", Complaint.Status.RECEIVED, None),
+                ("قيد الكشف", Complaint.Status.FIELD, inspector),
+                ("محوّلة", Complaint.Status.LEGAL, inspector),
+                ("مغلقة", Complaint.Status.FINISHED, inspector),
+                ("منجزة", Complaint.Status.RESOLVED, inspector),
+            ]
+            for label, status, owner in samples:
+                complaint = Complaint.objects.create(
+                    governorate=governorate,
+                    region=inspector.region,
+                    title=f"استعراض حي: {gov_name} — {label}",
+                    body=f"نموذج استعراض في {gov_name}.",
+                    status=status,
+                    inspector=owner,
+                    inspector_name=owner.display_name if owner else "",
+                    assigned_by=governor if owner and governor else None,
+                    assigned_by_name=governor.display_name if owner and governor else "",
+                    accepted_at=now if owner else None,
+                    source=Complaint.Source.WEB,
+                )
+                if status == Complaint.Status.LEGAL:
+                    complaint.legal_referred_at = now
+                    complaint.save(update_fields=["legal_referred_at"])
+                if status == Complaint.Status.FINISHED:
+                    complaint.closed_at = now
+                    complaint.save(update_fields=["closed_at"])
+                if status == Complaint.Status.RESOLVED:
+                    complaint.legal_referred_at = now
+                    complaint.closed_at = now
+                    complaint.save(update_fields=["closed_at", "legal_referred_at"])
+                    if legal:
+                        FollowUp.objects.create(
+                            complaint=complaint, author=legal, author_name=legal.display_name or legal.username,
+                            place=FollowUp.Place.LEGAL, body="تم الانجاز.",
+                        )
+                complaints += 1
+            mission_rows = [
+                (FieldMission.Status.FIELD, FieldMission.Kind.SEIZURE, "مفتوحة"),
+                (FieldMission.Status.LEGAL, FieldMission.Kind.SAMPLES, "محوّلة"),
+                (FieldMission.Status.FINISHED, FieldMission.Kind.DESTRUCTION, "مغلقة"),
+            ]
+            for status, kind, label in mission_rows:
+                mission = FieldMission.objects.create(
+                    kind=kind,
+                    priority=FieldMission.Priority.NORMAL,
+                    status=status,
+                    details=f"نموذج استعراض في {gov_name}.",
+                    place_name=f"استعراض حي: {gov_name} — {label}",
+                    phone="0599000000",
+                    governorate=governorate,
+                    region=inspector.region,
+                    created_by=governor or inspector,
+                    created_by_name=(governor or inspector).display_name,
+                    legal_referred_at=now if status == FieldMission.Status.LEGAL else None,
+                    closed_at=now if status == FieldMission.Status.FINISHED else None,
+                    field_replied_at=now if status != FieldMission.Status.FIELD else None,
+                )
+                FieldMissionAssignee.objects.create(
+                    mission=mission, user=inspector, display_name=inspector.display_name,
+                )
+                missions += 1
+        return complaints, missions
 
     def _mission_permissions(self):
         StaffRole.objects.filter(built_in=True, kind=StaffRole.Kind.INSPECTOR).update(
