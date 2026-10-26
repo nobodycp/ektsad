@@ -1,5 +1,4 @@
 import base64
-import contextvars
 import os
 from datetime import timedelta
 
@@ -21,45 +20,17 @@ from apps.telegram.links import consume_staff_link
 from apps.telegram.models import (
     TelegramDraft, TelegramLink, TelegramOutbox, TelegramUpdate, TelegramWebhookStatus,
 )
+from apps.telegram.keyboard import attach_keyboard
 from apps.telegram.outbox import enqueue as _enqueue
-from apps.telegram.outbox import send_telegram_outbox
-
-
-_edit_target = contextvars.ContextVar("telegram_edit_target", default=None)
+from apps.telegram.outbox import send_pending_item
 
 
 def enqueue(chat_id, text="", photo="", markup=None):
-    target = _edit_target.get()
-    if target and str(target[0]) == str(chat_id) and not photo and text:
-        if _edit_message(target[0], target[1], text, markup):
-            _edit_target.set(None)
-            return None
+    if markup:
+        markup = attach_keyboard(chat_id, markup)
     row = _enqueue(chat_id, text, photo=photo, markup=markup)
-    send_telegram_outbox()
+    send_pending_item(row)
     return row
-
-
-def _edit_message(chat_id, message_id, text, markup):
-    token = _value("TELEGRAM_BOT_TOKEN")
-    if not token or not message_id:
-        return False
-    try:
-        response = httpx.post(
-            f"https://api.telegram.org/bot{token}/editMessageText",
-            json={
-                "chat_id": chat_id,
-                "message_id": message_id,
-                "text": text,
-                "reply_markup": markup or {"inline_keyboard": []},
-            },
-            timeout=10,
-        )
-        if response.status_code == 400 and "message is not modified" in response.text:
-            return True
-        response.raise_for_status()
-        return True
-    except Exception:
-        return False
 
 
 UNLINKED = "هذا الحساب غير مربوط. اطلب رابط الربط من مدير النظام."
@@ -74,11 +45,11 @@ def _home_markup():
 
 def _menu_markup(chat_id):
     rows = [
+        [{"text": "تقديم شكوى", "callback_data": "nw"}],
         [
-            {"text": "تقديم شكوى", "callback_data": "nw"},
-            {"text": "قائمة الأسعار", "callback_data": "pr"},
+            {"text": "حركة المعابر", "callback_data": "cr"},
+            {"text": "القائمة الاسترشادية", "callback_data": "pr"},
         ],
-        [{"text": "حركة المعابر", "callback_data": "cr"}],
     ]
     link = TelegramLink.objects.select_related("user").filter(telegram_id=str(chat_id)).first()
     if link and link.user.is_active:
@@ -93,7 +64,10 @@ def _clear_field_draft(chat_id):
 
 
 def _show_menu(chat_id):
+    from apps.telegram.keyboard import reset_place
+
     _clear_field_draft(chat_id)
+    reset_place(chat_id)
     enqueue(chat_id, "اختر من القائمة.", markup=_menu_markup(chat_id))
 
 
@@ -309,7 +283,7 @@ def _create_complaint(chat_id, user_id, governorate_id, region_id, title, body, 
 
 
 def _publications(chat_id, text):
-    if text in {"قائمة الأسعار", "prices", "/prices"}:
+    if text in {"القائمة الاسترشادية", "قائمة الأسعار", "prices", "/prices"}:
         report = PriceReport.objects.order_by("-published_at").first()
         if report is None or not report.image:
             enqueue(chat_id, "لا توجد قائمة أسعار منشورة.", markup=_home_markup())
@@ -764,14 +738,54 @@ def _skip_image(chat_id):
 
 
 def _start_complaint(chat_id):
+    from apps.telegram.keyboard import keep_nav
+
     draft, _ = TelegramDraft.objects.get_or_create(chat_id=str(chat_id), defaults={"step": "governorate", "payload": {}})
     draft.step = "governorate"
-    draft.payload = {}
+    draft.payload = keep_nav(draft.payload, {})
     draft.save(update_fields=["step", "payload", "updated_at"])
     _show_governorates(chat_id, 0)
 
 
+def _rewind_draft(chat_id, user_id):
+    """Step back inside a typed answer without leaving the whole flow."""
+    draft = TelegramDraft.objects.filter(chat_id=str(chat_id)).first()
+    if draft is None:
+        return False
+    if draft.step == "title":
+        draft.step = "region"
+        draft.save(update_fields=["step", "updated_at"])
+        _show_regions(chat_id, 0)
+        return True
+    if draft.step == "body":
+        draft.step = "title"
+        draft.save(update_fields=["step", "updated_at"])
+        enqueue(chat_id, "أرسل عنوان الشكوى.", markup=_home_markup())
+        return True
+    if draft.step == "image":
+        draft.step = "body"
+        draft.save(update_fields=["step", "updated_at"])
+        enqueue(chat_id, "أرسل نص الشكوى.", markup=_home_markup())
+        return True
+    if draft.step == "field_dest":
+        draft.step = "field_text"
+        draft.save(update_fields=["step", "updated_at"])
+        enqueue(chat_id, "اكتب نتيجة الكشف.", markup=_home_markup())
+        return True
+    if draft.step == "field_text":
+        complaint_id = (draft.payload or {}).get("field_complaint")
+        draft.step = ""
+        draft.save(update_fields=["step", "updated_at"])
+        if complaint_id:
+            _open_complaint(chat_id, user_id, complaint_id)
+            return True
+    return False
+
+
 def _on_callback(chat_id, user_id, data):
+    from apps.telegram.keyboard import track
+
+    data = track(chat_id, data)
     try:
         if data == "mn":
             _show_menu(chat_id)
@@ -924,14 +938,10 @@ def handle_update(update):
             enqueue(chat_id, "الصورة تُرفق بعد نص الشكوى.", markup=_home_markup())
         return
     if callback.get("data"):
-        edit_token = _edit_target.set((chat_id, message.get("message_id")))
-        try:
-            if text.startswith(("/accept", "/assign", "/field", "/close")):
-                _staff_action(chat_id, user_id, text)
-            elif not _on_callback(chat_id, user_id, text):
-                enqueue(chat_id, "بيانات غير صالحة.", markup=_home_markup())
-        finally:
-            _edit_target.reset(edit_token)
+        if text.startswith(("/accept", "/assign", "/field", "/close")):
+            _staff_action(chat_id, user_id, text)
+        elif not _on_callback(chat_id, user_id, text):
+            enqueue(chat_id, "بيانات غير صالحة.", markup=_home_markup())
         return
     if text.startswith("/start "):
         if consume_staff_link(text.split(maxsplit=1)[1], user_id):
@@ -941,13 +951,32 @@ def handle_update(update):
             _show_menu(chat_id)
         else:
             enqueue(chat_id, "رابط الربط غير صالح أو منتهي.", markup=_home_markup())
-    elif text.startswith("/complaint"):
-        _handle_complaint_command(chat_id, user_id, text)
-    elif _publications(chat_id, text):
         return
-    elif text.startswith(("/accept", "/assign", "/field", "/close")):
+    if text.startswith("/complaint"):
+        _handle_complaint_command(chat_id, user_id, text)
+        return
+    if text.startswith(("/accept", "/assign", "/field", "/close")):
         _staff_action(chat_id, user_id, text)
-    elif text in {"شكاوى", "وصلت"}:
+        return
+    if text == "/start":
+        _show_menu(chat_id)
+        return
+    if text == "رجوع":
+        if not _rewind_draft(chat_id, user_id):
+            _on_callback(chat_id, user_id, "bk")
+        return
+    from apps.telegram.keyboard import bound_action
+
+    action = bound_action(chat_id, text) if text else None
+    if action:
+        if action.startswith(("/accept", "/assign", "/field", "/close")):
+            _staff_action(chat_id, user_id, action)
+        elif not _on_callback(chat_id, user_id, action):
+            enqueue(chat_id, "بيانات غير صالحة.", markup=_home_markup())
+        return
+    if _publications(chat_id, text):
+        return
+    if text in {"شكاوى", "وصلت"}:
         _show_work(chat_id, user_id, "r", 0)
     elif text == "معلقة":
         _show_work(chat_id, user_id, "p", 0)
@@ -955,8 +984,6 @@ def handle_update(update):
         _show_work(chat_id, user_id, "c", 0)
     elif text == "تقديم شكوى":
         _start_complaint(chat_id)
-    elif text == "/start":
-        _show_menu(chat_id)
     elif text and _advance_draft(chat_id, user_id, text):
         return
     elif text:

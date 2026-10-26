@@ -43,49 +43,62 @@ def _safe_error(error):
     return text[:500]
 
 
+def _deliver(item, token):
+    from apps.telegram.keyboard import as_reply_markup
+
+    markup = as_reply_markup(_reply_markup(item))
+    if item.photo:
+        from django.core.files.storage import default_storage
+
+        data = {"chat_id": item.chat_id, "caption": item.text}
+        if markup:
+            data["reply_markup"] = json.dumps(markup, ensure_ascii=False)
+        with default_storage.open(item.photo, "rb") as photo:
+            response = httpx.post(
+                f"https://api.telegram.org/bot{token}/sendPhoto",
+                data=data,
+                files={"photo": photo},
+                timeout=5,
+            )
+    else:
+        payload = {"chat_id": item.chat_id, "text": item.text}
+        if markup:
+            payload["reply_markup"] = markup
+        response = httpx.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json=payload,
+            timeout=5,
+        )
+    response.raise_for_status()
+
+
+def send_pending_item(item):
+    """Send one outbox row now. Failures stay pending for the background retry."""
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    if not token or item.status != TelegramOutbox.Status.PENDING:
+        return False
+    try:
+        _deliver(item, token)
+    except Exception as error:
+        item.attempts += 1
+        item.last_error = _safe_error(error)
+        item.next_attempt_at = timezone.now() + next_delay(item.attempts)
+        _retry(item.save)
+        return False
+    item.status = TelegramOutbox.Status.SENT
+    item.sent_at = timezone.now()
+    item.last_error = ""
+    _retry(item.save)
+    return True
+
+
 def send_telegram_outbox():
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     if not token:
         return 0
-    due = TelegramOutbox.objects.filter(
-        status=TelegramOutbox.Status.PENDING, next_attempt_at__lte=timezone.now()
-    ).order_by("pk")
-    sent = 0
-    for item in due:
-        try:
-            markup = _reply_markup(item)
-            if item.photo:
-                from django.core.files.storage import default_storage
-
-                data = {"chat_id": item.chat_id, "caption": item.text}
-                if markup:
-                    data["reply_markup"] = json.dumps(markup, ensure_ascii=False)
-                with default_storage.open(item.photo, "rb") as photo:
-                    response = httpx.post(
-                        f"https://api.telegram.org/bot{token}/sendPhoto",
-                        data=data,
-                        files={"photo": photo},
-                        timeout=10,
-                    )
-            else:
-                payload = {"chat_id": item.chat_id, "text": item.text}
-                if markup:
-                    payload["reply_markup"] = markup
-                response = httpx.post(
-                    f"https://api.telegram.org/bot{token}/sendMessage",
-                    json=payload,
-                    timeout=10,
-                )
-            response.raise_for_status()
-        except Exception as error:
-            item.attempts += 1
-            item.last_error = _safe_error(error)
-            item.next_attempt_at = timezone.now() + next_delay(item.attempts)
-            _retry(item.save)
-            continue
-        item.status = TelegramOutbox.Status.SENT
-        item.sent_at = timezone.now()
-        item.last_error = ""
-        _retry(item.save)
-        sent += 1
-    return sent
+    due = list(
+        TelegramOutbox.objects.filter(
+            status=TelegramOutbox.Status.PENDING, next_attempt_at__lte=timezone.now()
+        ).order_by("pk")
+    )
+    return sum(send_pending_item(item) for item in due)

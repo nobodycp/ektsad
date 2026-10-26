@@ -37,7 +37,7 @@ function useLatest(path: string, emptyText: string): Latest {
 
 type Errors = Partial<Record<"governorate" | "region" | "title" | "body", string>>
 
-function ComplaintForm() {
+export function ComplaintForm({ onSubmitted }: { onSubmitted?: () => void } = {}) {
   const [governorates, setGovernorates] = useState<Place[]>([])
   const [regions, setRegions] = useState<RegionPlace[]>([])
   const [governorate, setGovernorate] = useState("")
@@ -98,6 +98,10 @@ function ComplaintForm() {
       setBody("")
       setImage(null)
       setFileKey((k) => k + 1)
+      if (onSubmitted) {
+        onSubmitted()
+        return
+      }
       setNotice({ tone: "ok", text: COMPLAINT_RECEIVED })
       return
     }

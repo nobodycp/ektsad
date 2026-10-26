@@ -192,12 +192,10 @@ class TelegramWebhookTests(TestCase):
         inspector_message = TelegramOutbox.objects.get(chat_id="811")
         governor_message = TelegramOutbox.objects.get(chat_id="812")
 
-        self.assertEqual(inspector_message.markup, {
-            "inline_keyboard": [[{"text": "قبول", "callback_data": f"/accept {complaint.pk}"}]],
-        })
-        self.assertEqual(governor_message.markup, {
-            "inline_keyboard": [[{"text": "فتح", "callback_data": f"op:{complaint.pk}"}]],
-        })
+        self.assertEqual(self.button_labels(inspector_message.markup)[0], "قبول")
+        self.assertIn("رجوع", self.button_labels(inspector_message.markup))
+        self.assertEqual(self.button_labels(governor_message.markup)[0], "فتح")
+        self.assertIn("رجوع", self.button_labels(governor_message.markup))
 
         handle_update({
             "callback_query": {
@@ -280,8 +278,9 @@ class TelegramWebhookTests(TestCase):
 
         handle_update({"message": {"chat": {"id": 50}, "from": {"id": 50}, "text": "/start"}})
         labels = self.button_labels(TelegramOutbox.objects.get(chat_id="50").markup)
-        self.assertEqual(labels, ["تقديم شكوى", "قائمة الأسعار", "حركة المعابر"])
-        self.assertNotIn("keyboard", TelegramOutbox.objects.get(chat_id="50").markup)
+        self.assertEqual(labels, ["تقديم شكوى", "حركة المعابر", "القائمة الاسترشادية"])
+        self.assertIn("keyboard", TelegramOutbox.objects.get(chat_id="50").markup)
+        self.assertNotIn("رجوع", labels)
 
         TelegramLink.objects.create(user=self.inspector, telegram_id="51")
         handle_update({"message": {"chat": {"id": 51}, "from": {"id": 51}, "text": "/start"}})
@@ -400,7 +399,7 @@ class TelegramWebhookTests(TestCase):
         self.assertEqual(FollowUp.objects.get().body, "تم الانجاز")
         self.assertTrue(TelegramOutbox.objects.filter(text="تم التعامل مع الشكوى تبعك: محل.").exists())
 
-    def test_inline_screen_clears_the_fixed_keyboard(self):
+    def test_screens_use_the_reply_keyboard(self):
         import os
         from apps.telegram.models import TelegramOutbox
         from apps.telegram.outbox import send_telegram_outbox
@@ -418,7 +417,8 @@ class TelegramWebhookTests(TestCase):
         self.assertEqual(post.call_count, 1)
         menu = post.call_args.kwargs["json"]
         self.assertEqual(menu["text"], "اختر المحافظة.")
-        self.assertEqual(menu["reply_markup"]["inline_keyboard"][0][0]["text"], "الخليل")
+        self.assertEqual(menu["reply_markup"]["keyboard"][0][0]["text"], "الخليل")
+        self.assertNotIn("inline_keyboard", menu["reply_markup"])
 
     def say(self, text, chat, user):
         from apps.telegram.webhook import handle_update
@@ -438,20 +438,17 @@ class TelegramWebhookTests(TestCase):
         })
 
     def button_labels(self, markup):
-        return [button["text"] for row in markup["inline_keyboard"] for button in row]
+        rows = markup.get("keyboard") or markup.get("inline_keyboard") or []
+        return [button["text"] for row in rows for button in row]
 
-    @override_settings(TELEGRAM_BOT_TOKEN="token")
-    def test_button_press_updates_the_same_message(self):
+    def test_button_press_sends_the_next_screen_on_the_keyboard(self):
         from apps.telegram.models import TelegramOutbox
 
-        response = Mock(status_code=200)
-        response.raise_for_status.return_value = None
-        with patch("apps.telegram.webhook.httpx.post", return_value=response) as post:
-            self.press("nw", chat=960, user=960)
-        edited = [call for call in post.call_args_list if "editMessageText" in call.args[0]]
-        self.assertEqual(edited[0].kwargs["json"]["message_id"], 1)
-        self.assertIn("اختر المحافظة.", edited[0].kwargs["json"]["text"])
-        self.assertFalse(TelegramOutbox.objects.filter(chat_id="960").exists())
+        self.press("nw", chat=960, user=960)
+        item = TelegramOutbox.objects.get(chat_id="960")
+        self.assertIn("اختر المحافظة.", item.text)
+        self.assertIn("keyboard", item.markup)
+        self.assertIn("رجوع", self.button_labels(item.markup))
 
     def test_complaints_button_opens_pending_work_when_nothing_is_incoming(self):
         from apps.telegram.models import TelegramLink, TelegramOutbox
@@ -514,7 +511,8 @@ class TelegramWebhookTests(TestCase):
         note = TelegramOutbox.objects.get(chat_id="990")
         self.assertIn("وصلت مهمة.", note.text)
         self.assertIn("محل", note.text)
-        self.assertEqual(note.markup["inline_keyboard"][0][0]["text"], "فتح")
+        self.assertEqual(self.button_labels(note.markup)[0], "فتح")
+        self.assertIn("رجوع", self.button_labels(note.markup))
 
     def test_register_webhook_failure_keeps_unregistered_status(self):
         from apps.telegram.models import TelegramWebhookStatus

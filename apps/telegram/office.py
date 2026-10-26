@@ -36,8 +36,10 @@ def _draft(chat_id):
 
 
 def _save(draft, step, payload):
+    from apps.telegram.keyboard import keep_nav
+
     draft.step = step
-    draft.payload = payload
+    draft.payload = keep_nav(draft.payload, payload)
     draft.save(update_fields=["step", "payload", "updated_at"])
 
 

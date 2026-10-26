@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import {
+  Button,
   DataTable,
+  Dialog,
   FilterBar,
   StatusChip,
   type BulkAction,
@@ -20,6 +22,7 @@ import {
   type RegionPlace,
   type SessionUser,
 } from "../api"
+import { APP_ROUTES, canOpen } from "../routes"
 import {
   ALL_ROWS,
   Ledger,
@@ -32,6 +35,7 @@ import {
   useLoad,
   type Notice,
 } from "./common"
+import { COMPLAINT_RECEIVED, ComplaintForm } from "./PublicPage"
 
 const rowId = (row: ComplaintRow) => row.id
 
@@ -74,7 +78,10 @@ export function ComplaintsPage({ user }: { user: SessionUser }) {
   const [filters, setFilters] = useState<FilterValues>({ status: params.get("status") || undefined })
   const [page, setPage] = useState(1)
   const [notice, setNotice] = useState<Notice>(null)
+  const [filing, setFiling] = useState(false)
   const canFlag = user.role === "admin" || user.role === "governor"
+  const missions = APP_ROUTES.find((route) => route.id === "field-missions")
+  const showMissions = missions ? canOpen(missions, user) : false
   const isInspector = user.role === "inspector"
   const regionOptions = useRegionOptions(user)
 
@@ -164,6 +171,22 @@ export function ComplaintsPage({ user }: { user: SessionUser }) {
 
   return (
     <div className="page">
+      <div className="page__bar">
+        <Button onClick={() => setFiling(true)}>تقديم شكوى</Button>
+      </div>
+      {filing && (
+        <Dialog title="تقديم شكوى" onClose={() => setFiling(false)}>
+          <p className="account__note">الصورة اختيارية. بعد الإرسال تظهر جملة الاستلام فقط.</p>
+          <ComplaintForm
+            onSubmitted={() => {
+              setFiling(false)
+              setNotice({ tone: "ok", text: COMPLAINT_RECEIVED })
+              setPage(1)
+              reload()
+            }}
+          />
+        </Dialog>
+      )}
       {isInspector && (
         <Ledger
           label="بيانات المفتش"
@@ -205,6 +228,13 @@ export function ComplaintsPage({ user }: { user: SessionUser }) {
           />
         )}
       </Loaded>
+      {showMissions && (
+        <div className="page__bar">
+          <a className="ds-btn" data-variant="secondary" href="/field-missions/">
+            مهمات ميدانية
+          </a>
+        </div>
+      )}
     </div>
   )
 }
