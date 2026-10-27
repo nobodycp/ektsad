@@ -479,6 +479,27 @@ function EnterPanel({
   )
 }
 
+function BotLink({ row }: { row: UserRow }) {
+  const handle = row.telegram_username ? `@${row.telegram_username}` : "بدون يوزر"
+  const online = Boolean(row.telegram_online)
+  return (
+    <span className="bot-link">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M21 4 3 11l7 2 2 7 3-5 6-11z" />
+        <path d="m10 13 11-9" />
+      </svg>
+      <span className="ds-visually-hidden">مربوط بالبوت</span>
+      <bdi className="bot-link__user" dir="ltr">
+        {handle}
+      </bdi>
+      <span className={online ? "bot-link__state is-on" : "bot-link__state"}>
+        <span className="bot-link__dot" aria-hidden="true" />
+        {online ? "متصل" : "غير متصل"}
+      </span>
+    </span>
+  )
+}
+
 export function UsersPage() {
   const navigate = useNavigate()
   const auth = useAuthOptional()
@@ -519,7 +540,16 @@ export function UsersPage() {
 
   const columns: Column<UserRow>[] = [
     { key: "username", header: "اسم المستخدم", render: (row) => <span dir="ltr">{row.username}</span> },
-    { key: "display_name", header: "الاسم الظاهر", render: (row) => row.display_name || "—" },
+    {
+      key: "display_name",
+      header: "الاسم الظاهر",
+      render: (row) => (
+        <span className="person-name">
+          <span>{row.display_name || "—"}</span>
+          {row.telegram_linked && <BotLink row={row} />}
+        </span>
+      ),
+    },
     { key: "role", header: "الدور", render: (row) => row.role_name || ROLE_NAMES[row.role] || row.role },
     { key: "governorate", header: "المحافظة", render: (row) => nameOf(geo.governorates, row.governorate) },
     { key: "region", header: "المنطقة", render: (row) => nameOf(geo.regions, row.region) },

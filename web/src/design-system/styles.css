@@ -1377,3 +1377,59 @@ input[type="file"].ds-field__control::file-selector-button {
 .ds-note-list small {
   color: var(--ds-ink-soft);
 }
+
+.person-name {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.bot-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.45rem;
+  border: 1px solid var(--ds-line);
+  border-radius: 999px;
+  background: var(--ds-surface-2);
+  color: var(--ds-ink-soft);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.bot-link svg {
+  width: 0.9rem;
+  height: 0.9rem;
+  fill: none;
+  stroke: var(--ds-ink);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.bot-link__user {
+  color: var(--ds-ink);
+  font-weight: 600;
+}
+
+.bot-link__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+}
+
+.bot-link__dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--ds-ink-faint);
+}
+
+.bot-link__state.is-on {
+  color: var(--ds-success);
+}
+
+.bot-link__state.is-on .bot-link__dot {
+  background: var(--ds-success);
+}

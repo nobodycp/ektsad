@@ -6,6 +6,8 @@ from django.utils import timezone
 class TelegramLink(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="telegram_link")
     telegram_id = models.CharField(max_length=255, unique=True)
+    telegram_username = models.CharField(max_length=32, blank=True)
+    last_seen_at = models.DateTimeField(null=True, blank=True)
     linked_at = models.DateTimeField(auto_now_add=True)
 
 

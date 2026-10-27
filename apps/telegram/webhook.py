@@ -1024,6 +1024,8 @@ def handle_update(update):
     chat_id = (message.get("chat") or {}).get("id")
     sender = (update.get("message") or {}).get("from") or callback.get("from") or {}
     user_id = sender.get("id")
+    from apps.telegram.presence import touch
+    touch(user_id, sender.get("username"))
     text = (update.get("message") or {}).get("text") or callback.get("data") or ""
     if chat_id is None:
         return
@@ -1073,6 +1075,7 @@ def handle_update(update):
         return
     if text.startswith("/start "):
         if consume_staff_link(text.split(maxsplit=1)[1], user_id):
+            touch(user_id, sender.get("username"))
             user = _linked_user(user_id)
             name = user.display_name or user.username
             enqueue(chat_id, f"تم ربط الحساب: {name}. الدور: {ROLE_LABELS.get(user.role, user.role)}.")

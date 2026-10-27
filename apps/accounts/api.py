@@ -11,6 +11,7 @@ from django.views.decorators.http import require_http_methods
 from apps.accounts.models import StaffRole, User
 from apps.accounts.permissions import ROLE_FIELDS, allows
 from apps.accounts.services import delete_user_sessions, reset_password, set_user_password
+from apps.telegram.presence import snapshot
 from apps.common.listing import paginate
 from apps.geography.models import Governorate, Region
 
@@ -115,6 +116,7 @@ def _user_payload(user):
         "can_open_field_missions": allows(user, "can_open_field_missions"),
         "can_view_field_missions": allows(user, "can_view_field_missions"),
         "is_active": user.is_active,
+        **snapshot(user),
     }
 
 
@@ -216,7 +218,7 @@ def return_session(request):
 @require_http_methods(["GET", "POST"])
 def users(request):
     if request.method == "GET" and request.user.is_authenticated and request.user.role == User.Role.GOVERNOR:
-        queryset = User.objects.select_related("staff_role").filter(
+        queryset = User.objects.select_related("staff_role", "telegram_link").filter(
             role=User.Role.INSPECTOR, governorate_id=request.user.governorate_id, is_active=True
         )
         if request.GET.get("region"):
@@ -227,7 +229,7 @@ def users(request):
     if not _can_manage_users(request):
         return _forbidden()
     if request.method == "GET":
-        queryset = User.objects.select_related("staff_role")
+        queryset = User.objects.select_related("staff_role", "telegram_link")
         query = (request.GET.get("q") or "").strip()
         if query:
             queryset = queryset.filter(Q(username__icontains=query) | Q(display_name__icontains=query))

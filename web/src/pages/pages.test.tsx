@@ -282,6 +282,20 @@ describe("users", () => {
     is_active: true,
   }
 
+  it("shows the bot mark, messaging username, and presence beside a linked name", async () => {
+    mockFetch((url) => {
+      if (url.startsWith("/api/users/?")) {
+        return page([{ ...staff, telegram_linked: true, telegram_username: "ahmad_1", telegram_online: true }])
+      }
+      return undefined
+    })
+    inRouter(<UsersPage />)
+    expect(await screen.findByText("مفتش")).toBeInTheDocument()
+    expect(screen.getByText("مربوط بالبوت")).toBeInTheDocument()
+    expect(screen.getByText("@ahmad_1")).toBeInTheDocument()
+    expect(screen.getByText("متصل")).toBeInTheDocument()
+  })
+
   it("resets a password and shows the 16 characters once", async () => {
     const generated = "Ab3dEf6hIj9kLm2n"
     const fetchFn = mockFetch((url, init) => {

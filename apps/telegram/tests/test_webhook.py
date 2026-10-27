@@ -52,6 +52,23 @@ class TelegramWebhookTests(TestCase):
         self.assertEqual(Complaint.objects.count(), 0)
         self.assertTrue(TelegramDraft.objects.filter(chat_id="201").exists())
 
+    def test_linked_sender_keeps_the_messaging_username_and_presence(self):
+        from apps.telegram.models import TelegramLink
+        from apps.telegram.webhook import handle_update
+
+        TelegramLink.objects.create(user=self.inspector, telegram_id="770")
+        handle_update({
+            "message": {"chat": {"id": 770}, "from": {"id": 770, "username": "Ahmad_1"}, "text": "/start"},
+        })
+        link = TelegramLink.objects.get(telegram_id="770")
+        self.assertEqual(link.telegram_username, "Ahmad_1")
+        self.assertIsNotNone(link.last_seen_at)
+        from apps.telegram.presence import button_label
+        label = button_label(User.objects.select_related("telegram_link").get(pk=self.inspector.pk))
+        self.assertIn("✈ @Ahmad_1", label)
+        self.assertIn("متصل", label)
+        self.assertLessEqual(len(label), 64)
+
     def test_link_token_is_single_use(self):
         from apps.telegram.links import create_staff_link, consume_staff_link
 
@@ -542,6 +559,27 @@ class TelegramWebhookTests(TestCase):
         self.assertIn("محل", note.text)
         self.assertEqual(self.button_labels(note.markup)[0], "فتح")
         self.assertIn("رجوع", self.button_labels(note.markup))
+
+    def test_system_owner_has_no_reports_button_on_the_bot(self):
+        from apps.telegram.models import TelegramLink, TelegramOutbox
+        from apps.telegram.webhook import handle_update
+
+        admin = User.objects.create_user(
+            username="owner", password="password-long-12", role=User.Role.ADMIN, display_name="مالك النظام",
+        )
+        TelegramLink.objects.create(user=admin, telegram_id="991")
+        handle_update({"message": {"chat": {"id": 991}, "from": {"id": 991}, "text": "/start"}})
+        labels = self.button_labels(TelegramOutbox.objects.get(chat_id="991").markup)
+        self.assertNotIn("التقارير", labels)
+
+        TelegramLink.objects.create(user=self.governor, telegram_id="992")
+        TelegramOutbox.objects.all().delete()
+        handle_update({"message": {"chat": {"id": 992}, "from": {"id": 992}, "text": "/start"}})
+        self.assertIn("التقارير", self.button_labels(TelegramOutbox.objects.get(chat_id="992").markup))
+
+        TelegramOutbox.objects.all().delete()
+        self.press("rp", chat=991, user=991)
+        self.assertEqual(TelegramOutbox.objects.get(chat_id="991").text, "غير مسموح.")
 
     def test_legal_and_redirected_inspector_get_arrival_notices(self):
         from apps.accounts.models import StaffRole

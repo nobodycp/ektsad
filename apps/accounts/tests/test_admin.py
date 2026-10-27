@@ -66,6 +66,7 @@ class UserAdministrationTests(TestCase):
         self.assertEqual(listing.status_code, 200)
         self.assertEqual(set(listing.json()), {"count", "page", "page_size", "results"})
         self.assertEqual(listing.json()["results"][0]["username"], "inspector")
+        self.assertFalse(listing.json()["results"][0]["telegram_linked"])
 
     def test_admin_password_change_invalidates_target_sessions(self):
         self.client.force_login(self.inspector)

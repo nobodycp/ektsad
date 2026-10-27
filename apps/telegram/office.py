@@ -43,6 +43,14 @@ def _save(draft, step, payload):
     draft.save(update_fields=["step", "payload", "updated_at"])
 
 
+def _bot_reports(user):
+    return (
+        user is not None
+        and user.role != User.Role.ADMIN
+        and (user.role == User.Role.GOVERNOR or allows(user, "can_view_reports"))
+    )
+
+
 def extra_rows(user):
     rows = []
     if allows(user, "can_view_field_missions"):
@@ -55,7 +63,7 @@ def extra_rows(user):
             {"text": "نشر الأسعار", "callback_data": "prb"},
             {"text": "نشر المعابر", "callback_data": "crb"},
         ])
-    if user.role == User.Role.GOVERNOR or allows(user, "can_view_reports"):
+    if _bot_reports(user):
         rows.append([{"text": "التقارير", "callback_data": "rp"}])
     if allows(user, "can_manage_users"):
         rows.append([{"text": "المستخدمون", "callback_data": "us:0"}])
@@ -478,7 +486,7 @@ def _publish_crossing(chat_id, user, image):
 
 
 def _report(chat_id, user, week):
-    if user is None or not (user.role == User.Role.GOVERNOR or allows(user, "can_view_reports")):
+    if not _bot_reports(user):
         _say(chat_id, "غير مسموح.")
         return
     from datetime import timedelta
@@ -501,10 +509,12 @@ def _users(chat_id, user, page):
     if user is None or not allows(user, "can_manage_users"):
         _say(chat_id, "غير مسموح.")
         return
-    people = list(User.objects.order_by("username"))
+    from apps.telegram.presence import button_label
+
+    people = list(User.objects.select_related("telegram_link").order_by("username"))
     chunk = people[page * 6:(page + 1) * 6]
     rows = [[
-        {"text": f"{item.username} · {'مفعّل' if item.is_active else 'موقوف'}"[:40], "callback_data": f"ut:{item.pk}"},
+        {"text": button_label(item), "callback_data": f"ut:{item.pk}"},
     ] for item in chunk]
     nav = []
     if page:
