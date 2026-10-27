@@ -68,6 +68,7 @@ def _show_menu(chat_id):
     from apps.telegram.keyboard import reset_place
 
     _clear_field_draft(chat_id)
+    TelegramDraft.objects.filter(chat_id=str(chat_id)).update(step="")
     reset_place(chat_id)
     enqueue(chat_id, "اختر من القائمة.", markup=_menu_markup(chat_id))
 
@@ -1025,7 +1026,10 @@ def handle_update(update):
     sender = (update.get("message") or {}).get("from") or callback.get("from") or {}
     user_id = sender.get("id")
     from apps.telegram.presence import touch
-    touch(user_id, sender.get("username"))
+    try:
+        touch(user_id, sender.get("username"))
+    except Exception:
+        pass
     text = (update.get("message") or {}).get("text") or callback.get("data") or ""
     if chat_id is None:
         return
@@ -1075,7 +1079,10 @@ def handle_update(update):
         return
     if text.startswith("/start "):
         if consume_staff_link(text.split(maxsplit=1)[1], user_id):
-            touch(user_id, sender.get("username"))
+            try:
+                touch(user_id, sender.get("username"))
+            except Exception:
+                pass
             user = _linked_user(user_id)
             name = user.display_name or user.username
             enqueue(chat_id, f"تم ربط الحساب: {name}. الدور: {ROLE_LABELS.get(user.role, user.role)}.")
@@ -1096,6 +1103,21 @@ def handle_update(update):
         if not _rewind_draft(chat_id, user_id):
             _on_callback(chat_id, user_id, "bk")
         return
+    if text == "القائمة":
+        _show_menu(chat_id)
+        return
+    if text in {"شكاوى", "وصلت", "المفتوحة", "🟢 المفتوحة"}:
+        _show_work(chat_id, user_id, "o", 0)
+        return
+    if text in {"معلقة", "المحولة", "↪️ المحولة"}:
+        _show_work(chat_id, user_id, "t", 0)
+        return
+    if text in {"مغلقة", "المغلقة", "🔒 المغلقة"}:
+        _show_work(chat_id, user_id, "c", 0)
+        return
+    if text == "تقديم شكوى":
+        _start_complaint(chat_id)
+        return
     from apps.telegram.keyboard import bound_action
 
     action = bound_action(chat_id, text) if text else None
@@ -1107,15 +1129,7 @@ def handle_update(update):
         return
     if _publications(chat_id, text):
         return
-    if text in {"شكاوى", "وصلت", "المفتوحة", "🟢 المفتوحة"}:
-        _show_work(chat_id, user_id, "o", 0)
-    elif text in {"معلقة", "المحولة", "↪️ المحولة"}:
-        _show_work(chat_id, user_id, "t", 0)
-    elif text in {"مغلقة", "المغلقة", "🔒 المغلقة"}:
-        _show_work(chat_id, user_id, "c", 0)
-    elif text == "تقديم شكوى":
-        _start_complaint(chat_id)
-    elif text and _advance_draft(chat_id, user_id, text):
+    if text and _advance_draft(chat_id, user_id, text):
         return
-    elif text:
+    if text:
         _show_menu(chat_id)

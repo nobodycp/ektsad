@@ -32,9 +32,13 @@ def webhook(request):
     _status_update(last_update_at=timezone.now())
     try:
         handle_update(update)
-    except Exception:
+    except Exception as error:
         from apps.telegram.models import TelegramUpdate
         TelegramUpdate.objects.filter(update_id=update_id).delete()
+        try:
+            _status_update(last_error=str(error)[:500])
+        except Exception:
+            pass
         raise
     return JsonResponse({"ok": True})
 

@@ -52,6 +52,15 @@ class TelegramWebhookTests(TestCase):
         self.assertEqual(Complaint.objects.count(), 0)
         self.assertTrue(TelegramDraft.objects.filter(chat_id="201").exists())
 
+    def test_menu_button_leaves_a_stuck_prompt(self):
+        from apps.telegram.models import TelegramDraft, TelegramOutbox
+        from apps.telegram.webhook import handle_update
+
+        TelegramDraft.objects.create(chat_id="771", step="reject_reason", payload={"reject_complaint": 1})
+        handle_update({"message": {"chat": {"id": 771}, "from": {"id": 771}, "text": "القائمة"}})
+        self.assertEqual(TelegramDraft.objects.get(chat_id="771").step, "")
+        self.assertIn("اختر من القائمة.", TelegramOutbox.objects.latest("pk").text)
+
     def test_linked_sender_keeps_the_messaging_username_and_presence(self):
         from apps.telegram.models import TelegramLink
         from apps.telegram.webhook import handle_update
