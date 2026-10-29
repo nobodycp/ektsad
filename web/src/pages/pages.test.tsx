@@ -4,6 +4,7 @@ import type { ReactNode } from "react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, beforeEach, vi } from "vitest"
 import type { ComplaintRow, SessionUser, UserRow } from "../api"
+import { BotButtonsPage } from "./BotButtonsPage"
 import { ComplaintPage } from "./ComplaintPage"
 import { ComplaintsPage } from "./ComplaintsPage"
 import { FieldMissionPage } from "./FieldMissionPage"
@@ -479,5 +480,35 @@ describe("field missions", () => {
     expect(screen.getByRole("link", { name: "العودة إلى المهمات الميدانية" })).toHaveAttribute("href", "/field-missions/")
     expect(screen.getByRole("list", { name: "سجل حركة المهمة" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "إعادة التوجيه" })).toBeInTheDocument()
+  })
+})
+
+describe("bot buttons", () => {
+  it("saves a button pointed at an existing one", async () => {
+    const fetchFn = mockFetch((url, init) => {
+      if (url === "/api/telegram/buttons/" && init.method !== "POST") {
+        return {
+          status: 200,
+          body: {
+            results: [],
+            actions: [{ id: "ls:a:0", label: "الشكاوى" }],
+            audiences: [{ id: "linked", label: "الحسابات المربوطة" }],
+          },
+        }
+      }
+      if (url === "/api/telegram/buttons/" && init.method === "POST") {
+        return { status: 201, body: { id: 4, label: "المتابعة", target: "ls:a:0" } }
+      }
+      return undefined
+    })
+    inRouter(<BotButtonsPage />)
+    await user.click(await screen.findByRole("button", { name: "زر جديد" }))
+    await user.type(field("الاسم في التلجرام"), "المتابعة")
+    await user.selectOptions(field("الضغطة تفتح"), "ls:a:0")
+    await user.selectOptions(field("من يراه"), "linked")
+    await user.click(screen.getByRole("button", { name: "حفظ" }))
+    expect(await screen.findByText("تمت إضافة الزر.")).toBeInTheDocument()
+    const call = fetchFn.mock.calls.find(([, init]) => init?.method === "POST")
+    expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ label: "المتابعة", target: "ls:a:0", audience: "linked" })
   })
 })

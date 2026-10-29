@@ -61,6 +61,13 @@ def _complaint_data(complaint, detail=False):
         "governorate_name": complaint.governorate.name,
         "region": complaint.region_id, "region_name": complaint.region.name,
         "title": complaint.title, "body": complaint.body,
+        "kind": complaint.kind,
+        "latitude": str(complaint.latitude) if complaint.latitude is not None else None,
+        "longitude": str(complaint.longitude) if complaint.longitude is not None else None,
+        "map_url": (
+            f"https://maps.google.com/maps?q={complaint.latitude},{complaint.longitude}"
+            if complaint.latitude is not None and complaint.longitude is not None else ""
+        ),
         "status": complaint.status, "inspector": complaint.inspector_id,
         "inspector_name": complaint.inspector_name, "created_at": complaint.created_at.isoformat(),
         "is_flagged": complaint.is_flagged,

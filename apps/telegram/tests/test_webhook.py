@@ -179,6 +179,12 @@ class TelegramWebhookTests(TestCase):
             )
 
         send(900, "تقديم شكوى")
+        self.client.post(
+            "/api/telegram/webhook/",
+            {"update_id": 899, "callback_query": {"id": "k", "from": {"id": 900}, "data": "k:price", "message": {"chat": {"id": 900}, "message_id": 1}}},
+            content_type="application/json",
+            **self.secret,
+        )
         send(901, "الخليل")
 
         self.assertEqual(Complaint.objects.count(), 0)
@@ -333,7 +339,8 @@ class TelegramWebhookTests(TestCase):
 
         handle_update({"message": {"chat": {"id": 50}, "from": {"id": 50}, "text": "/start"}})
         labels = self.button_labels(TelegramOutbox.objects.get(chat_id="50").markup)
-        self.assertEqual(labels, ["تقديم شكوى", "حركة المعابر", "القائمة الاسترشادية"])
+        self.assertIn("أهلاً وسهلاً بك عزيز المواطن", TelegramOutbox.objects.get(chat_id="50").text)
+        self.assertEqual(labels, ["تقديم شكوى", "القائمة الاسترشادية", "حركة المعابر"])
         self.assertIn("keyboard", TelegramOutbox.objects.get(chat_id="50").markup)
         self.assertNotIn("رجوع", labels)
 
@@ -345,6 +352,7 @@ class TelegramWebhookTests(TestCase):
         from apps.telegram.models import TelegramDraft, TelegramOutbox
 
         self.say("تقديم شكوى", chat=910, user=910)
+        self.press("k:price", chat=910, user=910)
         self.assertIn("الخليل", self.button_labels(TelegramOutbox.objects.latest("pk").markup))
         self.press(f"g:{self.governorate.pk}", chat=910, user=910)
         self.assertEqual(TelegramDraft.objects.get(chat_id="910").step, "region")
@@ -356,6 +364,7 @@ class TelegramWebhookTests(TestCase):
         self.say("النص", chat=910, user=910)
         self.assertIn("تخطي", self.button_labels(TelegramOutbox.objects.latest("pk").markup))
         self.press("sk", chat=910, user=910)
+        self.press("locskip", chat=910, user=910)
         self.assertIn("تقديم", self.button_labels(TelegramOutbox.objects.latest("pk").markup))
         self.press("ok", chat=910, user=910)
 
@@ -363,7 +372,7 @@ class TelegramWebhookTests(TestCase):
         self.assertEqual(complaint.title, "محل")
         self.assertEqual(complaint.body, "النص")
         self.assertEqual(complaint.region, self.region)
-        self.assertEqual(TelegramOutbox.objects.filter(chat_id="910", text="تم استلام الشكوى.").count(), 1)
+        self.assertEqual(TelegramOutbox.objects.filter(chat_id="910", text__startswith="تم استلام الشكوى.").count(), 1)
 
     def test_complaints_button_opens_the_complaint(self):
         from apps.telegram.models import TelegramLink, TelegramOutbox
@@ -501,7 +510,7 @@ class TelegramWebhookTests(TestCase):
 
         self.press("nw", chat=960, user=960)
         item = TelegramOutbox.objects.get(chat_id="960")
-        self.assertIn("اختر المحافظة.", item.text)
+        self.assertIn("يرجى اختيار نوع الشكوى", item.text)
         self.assertIn("keyboard", item.markup)
         self.assertIn("رجوع", self.button_labels(item.markup))
 

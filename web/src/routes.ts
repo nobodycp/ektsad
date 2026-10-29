@@ -37,6 +37,7 @@ export const APP_ROUTES: AppRoute[] = [
   { id: "regions", path: "/regions/", label: "المناطق", roles: ["admin"], permission: "can_manage_geography", group: "admin" },
   { id: "system-settings", path: "/system-settings/", label: "إعدادات النظام", roles: ["admin"], permission: "can_manage_settings", group: "admin" },
   { id: "telegram-settings", path: "/telegram-settings/", label: "إعدادات تلغرام", roles: ["admin"], permission: "can_manage_settings", group: "admin" },
+  { id: "telegram-buttons", path: "/telegram-buttons/", label: "أزرار البوت", roles: ["admin"], permission: "can_manage_settings", group: "admin" },
   { id: "telegram-health", path: "/telegram-health/", label: "حالة تلغرام", roles: ["admin"], permission: "can_manage_settings", group: "admin" },
   { id: "account", path: "/account/", label: "الإعدادات", roles: ALL, navId: "account" },
 ]

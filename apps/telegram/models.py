@@ -11,6 +11,19 @@ class TelegramLink(models.Model):
     linked_at = models.DateTimeField(auto_now_add=True)
 
 
+class BotButton(models.Model):
+    label = models.CharField(max_length=64)
+    target = models.CharField(max_length=32)
+    audience = models.CharField(max_length=32)
+    row = models.PositiveSmallIntegerField(default=1)
+    position = models.PositiveSmallIntegerField(default=1)
+    enabled = models.BooleanField(default=True)
+    style = models.CharField(max_length=16, blank=True)
+
+    class Meta:
+        ordering = ["row", "position", "pk"]
+
+
 class TelegramLinkToken(models.Model):
     token_hash = models.CharField(max_length=64, unique=True)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="telegram_link_tokens")

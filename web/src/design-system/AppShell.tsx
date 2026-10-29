@@ -33,6 +33,7 @@ const ICONS: Record<string, string[]> = {
   regions: ["M4 6h16v12H4z", "M4 10h16"],
   "system-settings": ["M12 8a4 4 0 1 0 0.01 0", "M12 2v2", "M12 20v2", "M2 12h2", "M20 12h2"],
   "telegram-settings": ["M21 5L3 11l7 2 2 7z"],
+  "telegram-buttons": ["M4 7h16", "M4 12h10", "M4 17h16"],
   "telegram-health": ["M4 12h4l2-5 4 10 2-5h4"],
   account: ["M12 8a4 4 0 1 0 0.01 0", "M4 20a8 8 0 0 1 16 0"],
 }

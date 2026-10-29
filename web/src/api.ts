@@ -42,6 +42,8 @@ export type ComplaintRow = {
   region_name: string
   title: string
   body: string
+  kind?: string
+  map_url?: string
   status: string
   inspector: number | null
   inspector_name: string

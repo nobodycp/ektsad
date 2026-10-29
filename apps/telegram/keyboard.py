@@ -67,6 +67,17 @@ def track(chat_id, data):
     return data
 
 
+def _key_button(button):
+    item = {"text": button["text"]}
+    if button.get("style") in {"danger", "primary", "success"}:
+        item["style"] = button["style"]
+    if button.get("request_location"):
+        item["request_location"] = True
+    if button.get("web_app"):
+        item["web_app"] = button["web_app"]
+    return item
+
+
 def attach_keyboard(chat_id, markup):
     """Turn an inline keyboard into the persistent reply keyboard and remember each label."""
     if not markup or "inline_keyboard" not in markup:
@@ -76,14 +87,17 @@ def attach_keyboard(chat_id, markup):
     is_root = "تقديم شكوى" in labels
     if not is_root and BACK not in labels:
         rows.append([{"text": BACK, "callback_data": "bk"}])
-    mapping = {button["text"]: button["callback_data"] for row in rows for button in row}
+    mapping = {
+        button["text"]: button["callback_data"]
+        for row in rows for button in row if button.get("callback_data")
+    }
     draft = _draft(chat_id)
     payload = dict(draft.payload or {})
     payload["_keys"] = mapping
     draft.payload = payload
     draft.save(update_fields=["payload", "updated_at"])
     return {
-        "keyboard": [[{"text": button["text"]} for button in row] for row in rows],
+        "keyboard": [[_key_button(button) for button in row] for row in rows],
         "resize_keyboard": True,
         "is_persistent": True,
     }
@@ -100,7 +114,7 @@ def as_reply_markup(markup):
     if not markup or "keyboard" in markup or "inline_keyboard" not in markup:
         return markup
     return {
-        "keyboard": [[{"text": button["text"]} for button in row] for row in markup["inline_keyboard"]],
+        "keyboard": [[_key_button(button) for button in row] for row in markup["inline_keyboard"]],
         "resize_keyboard": True,
         "is_persistent": True,
     }

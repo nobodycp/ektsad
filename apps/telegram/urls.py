@@ -9,6 +9,7 @@ from django.views.decorators.http import require_http_methods
 from apps.accounts.models import User
 from apps.telegram.links import NOT_CONFIGURED, create_staff_link
 from apps.telegram.models import TelegramLink, TelegramOutbox, TelegramWebhookStatus
+from apps.telegram.buttons import button_detail, buttons
 from apps.telegram.webhook import _value, _status_update, handle_update, record_update
 
 
@@ -80,5 +81,7 @@ def user_telegram_link(request, pk):
 urlpatterns = [
     path("telegram/webhook/", webhook),
     path("telegram/health/", health),
+    path("telegram/buttons/", buttons),
+    path("telegram/buttons/<int:pk>/", button_detail),
     path("users/<int:pk>/telegram-link/", user_telegram_link),
 ]

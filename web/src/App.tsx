@@ -16,6 +16,7 @@ import { GeographyPage } from "./pages/GeographyPage"
 import { OverviewPage } from "./pages/OverviewPage"
 import { AdminReportsPage, GovernorReportPage } from "./pages/ReportsPage"
 import { PublicationsPage } from "./pages/PublicationsPage"
+import { BotButtonsPage } from "./pages/BotButtonsPage"
 import { SystemSettingsPage, TelegramSettingsPage } from "./pages/SettingsPages"
 import { TelegramHealthPage } from "./pages/TelegramHealthPage"
 import { FieldMissionPage } from "./pages/FieldMissionPage"
@@ -64,6 +65,8 @@ function pageFor(route: AppRoute, user: SessionUser): ReactNode {
       return <SystemSettingsPage />
     case "telegram-settings":
       return <TelegramSettingsPage />
+    case "telegram-buttons":
+      return <BotButtonsPage />
     case "prices":
       return <PublicationsPage kind="prices" user={user} />
     case "crossings":

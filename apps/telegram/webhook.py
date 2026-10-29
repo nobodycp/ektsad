@@ -1,6 +1,8 @@
 import base64
+import json
 import os
 from datetime import timedelta
+from decimal import Decimal
 
 import httpx
 from django.conf import settings
@@ -19,6 +21,11 @@ from apps.publications.models import CrossingReport, PriceReport
 from apps.telegram.links import consume_staff_link
 from apps.telegram.models import (
     TelegramDraft, TelegramLink, TelegramOutbox, TelegramUpdate, TelegramWebhookStatus,
+)
+from apps.telegram.citizen import (
+    COMPLAINT_STEPS, FIXED_KINDS, KIND_LIMIT, KIND_PROMPT, KIND_TEXT_PROMPT, LOCATION_PROMPT,
+    RESUME_PROMPT, WELCOME, confirmation, kind_rows, location_rows, map_link, map_page_url,
+    parse_point, receipt, resume_rows, stepped,
 )
 from apps.telegram.keyboard import attach_keyboard
 from apps.telegram.outbox import enqueue as _enqueue
@@ -45,32 +52,34 @@ def _home_markup():
 
 
 def _menu_markup(chat_id):
-    rows = [
-        [{"text": "تقديم شكوى", "callback_data": "nw"}],
-        [
-            {"text": "حركة المعابر", "callback_data": "cr"},
-            {"text": "القائمة الاسترشادية", "callback_data": "pr"},
-        ],
-    ]
+    from apps.telegram.buttons import rows_for
+
     link = TelegramLink.objects.select_related("user").filter(telegram_id=str(chat_id)).first()
-    if link and link.user.is_active:
-        rows.append([{"text": "الشكاوى", "callback_data": "ls:a:0"}])
-        from apps.telegram.office import extra_rows
-        rows.extend(extra_rows(link.user))
-    return {"inline_keyboard": rows}
+    user = link.user if link and link.user.is_active else None
+    return {"inline_keyboard": rows_for(user)}
 
 
 def _clear_field_draft(chat_id):
     TelegramDraft.objects.filter(chat_id=str(chat_id), step__in=["field_text", "field_dest"]).delete()
 
 
-def _show_menu(chat_id):
+def _show_menu(chat_id, welcome=False):
     from apps.telegram.keyboard import reset_place
 
     _clear_field_draft(chat_id)
     TelegramDraft.objects.filter(chat_id=str(chat_id)).update(step="")
     reset_place(chat_id)
-    enqueue(chat_id, "اختر من القائمة.", markup=_menu_markup(chat_id))
+    text = WELCOME if welcome and _linked_user(chat_id) is None else "اختر من القائمة."
+    enqueue(chat_id, text, markup=_menu_markup(chat_id))
+
+
+def _draft_for(chat_id):
+    return TelegramDraft.objects.filter(chat_id=str(chat_id)).first()
+
+
+def _step_text(chat_id, step, body):
+    draft = _draft_for(chat_id)
+    return stepped(step, draft.payload if draft else {}, body)
 
 
 def _paged(items, page, text_of, data_of, page_prefix, page_size=PAGE_SIZE):
@@ -96,7 +105,7 @@ def _show_governorates(chat_id, page):
         return
     rows = _paged(items, page, lambda item: item.name, lambda item: f"g:{item.pk}", "gp")
     rows.append([{"text": "القائمة", "callback_data": "mn"}])
-    enqueue(chat_id, "اختر المحافظة.", markup={"inline_keyboard": rows})
+    enqueue(chat_id, _step_text(chat_id, "governorate", "اختر المحافظة."), markup={"inline_keyboard": rows})
 
 
 def _show_regions(chat_id, page):
@@ -111,20 +120,55 @@ def _show_regions(chat_id, page):
         {"text": "رجوع", "callback_data": "gp:0"},
         {"text": "القائمة", "callback_data": "mn"},
     ])
-    enqueue(chat_id, "اختر المنطقة.", markup={"inline_keyboard": rows})
+    enqueue(chat_id, _step_text(chat_id, "region", "اختر المنطقة."), markup={"inline_keyboard": rows})
 
 
-def _image_markup(can_submit):
-    row = [{"text": "تقديم", "callback_data": "ok"}] if can_submit else []
-    row.append({"text": "تخطي", "callback_data": "sk"})
-    return {"inline_keyboard": [row, [{"text": "القائمة", "callback_data": "mn"}]]}
+def _image_markup():
+    return {"inline_keyboard": [
+        [{"text": "تخطي", "callback_data": "sk"}],
+        [{"text": "القائمة", "callback_data": "mn"}],
+    ]}
 
 
 def _ask_image(chat_id, saved=False):
+    body = "تم حفظ الصورة." if saved else "أرسل صورة أو اضغط تخطي."
+    enqueue(chat_id, _step_text(chat_id, "image", body), markup=_image_markup())
+
+
+def _ask_title(chat_id):
+    enqueue(chat_id, _step_text(chat_id, "title", "أرسل عنوان الشكوى."), markup=_home_markup())
+
+
+def _ask_body(chat_id):
+    enqueue(chat_id, _step_text(chat_id, "body", "أرسل نص الشكوى."), markup=_home_markup())
+
+
+def _ask_kind_text(chat_id):
+    enqueue(chat_id, _step_text(chat_id, "kind_text", KIND_TEXT_PROMPT), markup=_home_markup())
+
+
+def _show_kinds(chat_id):
+    enqueue(chat_id, _step_text(chat_id, "kind", KIND_PROMPT), markup={"inline_keyboard": kind_rows()})
+
+
+def _ask_location(chat_id, saved=False):
+    body = f"تم حفظ الصورة.\n{LOCATION_PROMPT}" if saved else LOCATION_PROMPT
     enqueue(
         chat_id,
-        "تم حفظ الصورة." if saved else "أرسل صورة أو اضغط تخطي.",
-        markup=_image_markup(saved),
+        _step_text(chat_id, "location", body),
+        markup={"inline_keyboard": location_rows(map_page_url(_value("PUBLIC_BASE_URL")))},
+    )
+
+
+def _show_confirm(chat_id):
+    draft = _draft_for(chat_id)
+    payload = dict(draft.payload) if draft else {}
+    governorate = Governorate.objects.filter(pk=payload.get("governorate")).first()
+    region = Region.objects.filter(pk=payload.get("region")).first()
+    enqueue(
+        chat_id,
+        confirmation(payload, governorate.name if governorate else "", region.name if region else ""),
+        markup={"inline_keyboard": [[{"text": "تقديم", "callback_data": "ok"}]]},
     )
 
 
@@ -212,13 +256,23 @@ def _clip(text, limit=3500):
     return text
 
 
+def _detail_block(complaint, body):
+    lines = []
+    if complaint.kind:
+        lines.append(f"النوع: {complaint.kind}")
+    lines.extend([
+        f"المحافظة: {complaint.governorate.name}",
+        f"المنطقة: {complaint.region.name}",
+        f"العنوان: {complaint.title}",
+        f"المحتوى: {body}",
+    ])
+    if complaint.latitude is not None and complaint.longitude is not None:
+        lines.append(f"الموقع: {map_link(complaint.latitude, complaint.longitude)}")
+    return "\n".join(lines)
+
+
 def notify_new_complaint(complaint):
-    details = (
-        f"المحافظة: {complaint.governorate.name}\n"
-        f"المنطقة: {complaint.region.name}\n"
-        f"العنوان: {complaint.title}\n"
-        f"المحتوى: {_clip(complaint.body)}"
-    )
+    details = _detail_block(complaint, _clip(complaint.body))
     accept = {"inline_keyboard": [[
         {"text": "قبول", "callback_data": f"/accept {complaint.pk}"},
         {"text": "رفض وإرجاع للمدير", "callback_data": f"rj:{complaint.pk}"},
@@ -231,13 +285,7 @@ def notify_new_complaint(complaint):
 
 
 def notify_legal_complaint(complaint):
-    message = (
-        "لديك شكوى جديدة.\n"
-        f"المحافظة: {complaint.governorate.name}\n"
-        f"المنطقة: {complaint.region.name}\n"
-        f"العنوان: {complaint.title}\n"
-        f"المحتوى: {_clip(complaint.body)}"
-    )
+    message = "لديك شكوى جديدة.\n" + _detail_block(complaint, _clip(complaint.body))
     opened = {"inline_keyboard": [[{"text": "فتح", "callback_data": f"op:{complaint.pk}"}]]}
     for user in _linked_staff(User.Role.LEGAL):
         enqueue(user.telegram_link.telegram_id, message, markup=opened)
@@ -282,7 +330,7 @@ def notify_legal_mission(mission):
         enqueue(user.telegram_link.telegram_id, message, markup=opened)
 
 
-def _create_complaint(chat_id, user_id, governorate_id, region_id, title, body, image=None):
+def _create_complaint(chat_id, user_id, governorate_id, region_id, title, body, image=None, kind="", latitude=None, longitude=None):
     try:
         region = Region.objects.select_related("governorate").filter(
             pk=int(region_id), governorate_id=int(governorate_id)
@@ -301,10 +349,13 @@ def _create_complaint(chat_id, user_id, governorate_id, region_id, title, body, 
     with transaction.atomic():
         complaint = Complaint.objects.create(
             governorate=region.governorate, region=region, title=title.strip(), body=body.strip(),
+            kind=(kind or "")[:40],
+            latitude=Decimal(str(latitude)) if latitude is not None else None,
+            longitude=Decimal(str(longitude)) if longitude is not None else None,
             source=Complaint.Source.TELEGRAM, telegram_chat_id=str(chat_id), telegram_user_id=str(user_id), image=image,
         )
         notify_new_complaint(complaint)
-        enqueue(chat_id, RECEIVED, markup=_home_markup())
+        enqueue(chat_id, receipt(complaint.pk), markup=_menu_markup(chat_id))
     return complaint
 
 
@@ -430,13 +481,7 @@ def _complaint_card(complaint):
     body = (complaint.body or "").strip()
     if len(body) > 3000:
         body = body[:3000].rstrip() + "…"
-    text = (
-        f"المحافظة: {complaint.governorate.name}\n"
-        f"المنطقة: {complaint.region.name}\n"
-        f"العنوان: {complaint.title}\n"
-        f"المحتوى: {body}\n"
-        f"الحالة: {complaint.status}"
-    )
+    text = _detail_block(complaint, body) + f"\nالحالة: {complaint.status}"
     if complaint.status == Complaint.Status.RECEIVED and complaint.return_reason:
         text += f"\nسبب الإرجاع: {complaint.return_reason}"
     return text
@@ -718,10 +763,14 @@ def _image_file(draft):
 
 
 def _finish_draft(chat_id, user_id, draft):
-    payload = draft.payload
+    payload = draft.payload or {}
+    if draft.step != "confirm" or not payload.get("kind"):
+        enqueue(chat_id, "بيانات الشكوى غير مكتملة.", markup=_home_markup())
+        return
     result = _create_complaint(
         chat_id, user_id, payload.get("governorate"), payload.get("region"),
         payload.get("title", ""), payload.get("body", ""), _image_file(draft),
+        kind=payload.get("kind", ""), latitude=payload.get("latitude"), longitude=payload.get("longitude"),
     )
     if result:
         draft.delete()
@@ -734,7 +783,7 @@ def _advance_draft(chat_id, user_id, text):
     if consume_text(chat_id, user_id, text):
         return True
     draft = TelegramDraft.objects.filter(chat_id=str(chat_id)).first()
-    if draft is None or draft.step not in {"governorate", "region", "title", "body", "image", "field_text", "field_dest", "reject_reason"}:
+    if draft is None or draft.step not in COMPLAINT_STEPS | {"field_text", "field_dest", "reject_reason"}:
         return False
     cleaned = text.strip()
     payload = dict(draft.payload)
@@ -757,6 +806,20 @@ def _advance_draft(chat_id, user_id, text):
         draft.save(update_fields=["payload", "step", "updated_at"])
         enqueue(chat_id, "اختر جهة الإرسال.", markup=_destination_markup(payload["field_complaint"]))
         return True
+    if draft.step == "kind":
+        _show_kinds(chat_id)
+        return True
+    if draft.step == "kind_text":
+        if not cleaned or len(cleaned) > KIND_LIMIT:
+            _ask_kind_text(chat_id)
+            return True
+        payload["kind"] = cleaned
+        payload["kind_mode"] = "other"
+        draft.step = "governorate"
+        draft.payload = payload
+        draft.save(update_fields=["payload", "step", "updated_at"])
+        _show_governorates(chat_id, 0)
+        return True
     if draft.step == "governorate":
         governorate = Governorate.objects.filter(name=cleaned).first()
         if governorate is None:
@@ -777,36 +840,47 @@ def _advance_draft(chat_id, user_id, text):
         draft.step = "title"
         draft.payload = payload
         draft.save(update_fields=["payload", "step", "updated_at"])
-        enqueue(chat_id, "أرسل عنوان الشكوى.", markup=_home_markup())
+        _ask_title(chat_id)
         return True
     if draft.step == "title":
+        if not cleaned:
+            _ask_title(chat_id)
+            return True
         payload["title"] = cleaned
         draft.step = "body"
         draft.payload = payload
         draft.save(update_fields=["payload", "step", "updated_at"])
-        enqueue(chat_id, "أرسل نص الشكوى.", markup=_home_markup())
+        _ask_body(chat_id)
         return True
     if draft.step == "body":
+        if not cleaned:
+            _ask_body(chat_id)
+            return True
         payload["body"] = cleaned
         draft.step = "image"
         draft.payload = payload
         draft.save(update_fields=["payload", "step", "updated_at"])
         _ask_image(chat_id)
         return True
-    if cleaned == "تخطي":
-        payload.pop("image", None)
-        payload.pop("image_name", None)
-        draft.payload = payload
-        draft.save(update_fields=["payload", "updated_at"])
-        enqueue(chat_id, "اضغط تقديم.", markup=_image_markup(True))
+    if draft.step == "image":
+        if cleaned == "تخطي":
+            _skip_image(chat_id)
+            return True
+        _ask_image(chat_id, saved=bool(payload.get("image")))
         return True
-    if cleaned != "تقديم الشكوى":
-        enqueue(chat_id, "أرسل صورة أو اضغط تخطي.", markup=_image_markup(bool(payload.get("image"))))
+    if draft.step == "location":
+        if cleaned == "تخطي":
+            _skip_location(chat_id)
+            return True
+        _ask_location(chat_id)
         return True
-    draft.payload = payload
-    draft.save(update_fields=["payload", "updated_at"])
-    _finish_draft(chat_id, user_id, draft)
-    return True
+    if draft.step == "confirm":
+        if cleaned == "تقديم":
+            _finish_draft(chat_id, user_id, draft)
+            return True
+        _show_confirm(chat_id)
+        return True
+    return False
 
 
 def _choose_governorate(chat_id, raw_id):
@@ -839,7 +913,7 @@ def _choose_region(chat_id, raw_id):
     draft.step = "title"
     draft.payload = payload
     draft.save(update_fields=["payload", "step", "updated_at"])
-    enqueue(chat_id, "أرسل عنوان الشكوى.", markup=_home_markup())
+    _ask_title(chat_id)
 
 
 def _skip_image(chat_id):
@@ -850,19 +924,110 @@ def _skip_image(chat_id):
     payload = dict(draft.payload)
     payload.pop("image", None)
     payload.pop("image_name", None)
+    draft.step = "location"
     draft.payload = payload
-    draft.save(update_fields=["payload", "updated_at"])
-    enqueue(chat_id, "اضغط تقديم.", markup=_image_markup(True))
+    draft.save(update_fields=["payload", "step", "updated_at"])
+    _ask_location(chat_id)
+
+
+def _skip_location(chat_id):
+    draft = TelegramDraft.objects.filter(chat_id=str(chat_id)).first()
+    if draft is None or draft.step != "location":
+        _show_menu(chat_id)
+        return
+    payload = dict(draft.payload)
+    payload.pop("latitude", None)
+    payload.pop("longitude", None)
+    draft.step = "confirm"
+    draft.payload = payload
+    draft.save(update_fields=["payload", "step", "updated_at"])
+    _show_confirm(chat_id)
+
+
+def _take_location(chat_id, latitude, longitude):
+    draft = TelegramDraft.objects.filter(chat_id=str(chat_id)).first()
+    if draft is None or draft.step != "location":
+        enqueue(chat_id, "الموقع يُرفق في خطوة الموقع.", markup=_home_markup())
+        return
+    point = parse_point(latitude, longitude)
+    if point is None:
+        _ask_location(chat_id)
+        return
+    payload = dict(draft.payload)
+    payload["latitude"], payload["longitude"] = point
+    draft.step = "confirm"
+    draft.payload = payload
+    draft.save(update_fields=["payload", "step", "updated_at"])
+    _show_confirm(chat_id)
+
+
+def _reset_complaint(chat_id):
+    from apps.telegram.keyboard import keep_nav
+
+    draft, _ = TelegramDraft.objects.get_or_create(chat_id=str(chat_id), defaults={"step": "kind", "payload": {}})
+    payload = keep_nav(draft.payload, {})
+    for key in ("kind", "kind_mode", "governorate", "region", "title", "body", "image", "image_name", "latitude", "longitude"):
+        payload.pop(key, None)
+    draft.step = "kind"
+    draft.payload = payload
+    draft.save(update_fields=["step", "payload", "updated_at"])
+    _show_kinds(chat_id)
+
+
+def _show_complaint_step(chat_id):
+    draft = TelegramDraft.objects.filter(chat_id=str(chat_id)).first()
+    step = draft.step if draft else ""
+    if step == "kind":
+        _show_kinds(chat_id)
+    elif step == "kind_text":
+        _ask_kind_text(chat_id)
+    elif step == "governorate":
+        _show_governorates(chat_id, 0)
+    elif step == "region":
+        _show_regions(chat_id, 0)
+    elif step == "title":
+        _ask_title(chat_id)
+    elif step == "body":
+        _ask_body(chat_id)
+    elif step == "image":
+        _ask_image(chat_id, saved=bool((draft.payload or {}).get("image")))
+    elif step == "location":
+        _ask_location(chat_id)
+    elif step == "confirm":
+        _show_confirm(chat_id)
+    else:
+        _reset_complaint(chat_id)
+
+
+def _choose_kind(chat_id, data):
+    draft, _ = TelegramDraft.objects.get_or_create(chat_id=str(chat_id), defaults={"step": "kind", "payload": {}})
+    payload = dict(draft.payload)
+    if data == "k:other":
+        payload["kind_mode"] = "other"
+        payload.pop("kind", None)
+        draft.step = "kind_text"
+        draft.payload = payload
+        draft.save(update_fields=["payload", "step", "updated_at"])
+        _ask_kind_text(chat_id)
+        return
+    label = FIXED_KINDS.get(data)
+    if label is None:
+        _show_kinds(chat_id)
+        return
+    payload["kind"] = label
+    payload["kind_mode"] = "fixed"
+    draft.step = "governorate"
+    draft.payload = payload
+    draft.save(update_fields=["payload", "step", "updated_at"])
+    _show_governorates(chat_id, 0)
 
 
 def _start_complaint(chat_id):
-    from apps.telegram.keyboard import keep_nav
-
-    draft, _ = TelegramDraft.objects.get_or_create(chat_id=str(chat_id), defaults={"step": "governorate", "payload": {}})
-    draft.step = "governorate"
-    draft.payload = keep_nav(draft.payload, {})
-    draft.save(update_fields=["step", "payload", "updated_at"])
-    _show_governorates(chat_id, 0)
+    draft = TelegramDraft.objects.filter(chat_id=str(chat_id)).first()
+    if draft and draft.step in COMPLAINT_STEPS:
+        enqueue(chat_id, RESUME_PROMPT, markup={"inline_keyboard": resume_rows()})
+        return
+    _reset_complaint(chat_id)
 
 
 def _rewind_draft(chat_id, user_id):
@@ -870,6 +1035,27 @@ def _rewind_draft(chat_id, user_id):
     draft = TelegramDraft.objects.filter(chat_id=str(chat_id)).first()
     if draft is None:
         return False
+    payload = dict(draft.payload or {})
+    if draft.step == "kind_text":
+        draft.step = "kind"
+        draft.save(update_fields=["step", "updated_at"])
+        _show_kinds(chat_id)
+        return True
+    if draft.step == "governorate":
+        if payload.get("kind_mode") == "other":
+            draft.step = "kind_text"
+            draft.save(update_fields=["step", "updated_at"])
+            _ask_kind_text(chat_id)
+        else:
+            draft.step = "kind"
+            draft.save(update_fields=["step", "updated_at"])
+            _show_kinds(chat_id)
+        return True
+    if draft.step == "region":
+        draft.step = "governorate"
+        draft.save(update_fields=["step", "updated_at"])
+        _show_governorates(chat_id, 0)
+        return True
     if draft.step == "title":
         draft.step = "region"
         draft.save(update_fields=["step", "updated_at"])
@@ -878,12 +1064,22 @@ def _rewind_draft(chat_id, user_id):
     if draft.step == "body":
         draft.step = "title"
         draft.save(update_fields=["step", "updated_at"])
-        enqueue(chat_id, "أرسل عنوان الشكوى.", markup=_home_markup())
+        _ask_title(chat_id)
         return True
     if draft.step == "image":
         draft.step = "body"
         draft.save(update_fields=["step", "updated_at"])
-        enqueue(chat_id, "أرسل نص الشكوى.", markup=_home_markup())
+        _ask_body(chat_id)
+        return True
+    if draft.step == "location":
+        draft.step = "image"
+        draft.save(update_fields=["step", "updated_at"])
+        _ask_image(chat_id, saved=bool(payload.get("image")))
+        return True
+    if draft.step == "confirm":
+        draft.step = "location"
+        draft.save(update_fields=["step", "updated_at"])
+        _ask_location(chat_id)
         return True
     if draft.step == "field_dest":
         draft.step = "field_text"
@@ -916,6 +1112,14 @@ def _on_callback(chat_id, user_id, data):
             _show_menu(chat_id)
         elif data == "nw":
             _start_complaint(chat_id)
+        elif data in FIXED_KINDS or data == "k:other":
+            _choose_kind(chat_id, data)
+        elif data == "resume":
+            _show_complaint_step(chat_id)
+        elif data == "restart":
+            _reset_complaint(chat_id)
+        elif data == "locskip":
+            _skip_location(chat_id)
         elif data == "pr":
             _publications(chat_id, "قائمة الأسعار")
         elif data == "cr":
@@ -1033,7 +1237,19 @@ def handle_update(update):
     text = (update.get("message") or {}).get("text") or callback.get("data") or ""
     if chat_id is None:
         return
-    photo = (update.get("message") or {}).get("photo")
+    incoming = update.get("message") or {}
+    if not callback.get("data") and incoming.get("location"):
+        point = incoming["location"]
+        _take_location(chat_id, point.get("latitude"), point.get("longitude"))
+        return
+    if not callback.get("data") and incoming.get("web_app_data"):
+        try:
+            sent = json.loads(incoming["web_app_data"].get("data") or "")
+        except json.JSONDecodeError:
+            sent = {}
+        _take_location(chat_id, sent.get("latitude"), sent.get("longitude"))
+        return
+    photo = incoming.get("photo")
     if photo and not callback.get("data"):
         from apps.telegram.office import consume_photo
         if consume_photo(chat_id, user_id, photo):
@@ -1049,7 +1265,12 @@ def handle_update(update):
                 draft.payload = {**draft.payload, **downloaded}
                 draft.save(update_fields=["payload", "updated_at"])
         if draft and draft.step == "image":
-            _ask_image(chat_id, saved=bool(downloaded))
+            if downloaded:
+                draft.step = "location"
+                draft.save(update_fields=["step", "updated_at"])
+                _ask_location(chat_id, saved=True)
+            else:
+                _ask_image(chat_id)
         elif draft and draft.step == "field_dest":
             enqueue(chat_id, "تم حفظ الصورة. اختر جهة الإرسال." if downloaded else "اختر جهة الإرسال.", markup=_destination_markup(draft.payload.get("field_complaint")))
         elif draft and draft.step == "field_text":
@@ -1097,7 +1318,7 @@ def handle_update(update):
         _staff_action(chat_id, user_id, text)
         return
     if text == "/start":
-        _show_menu(chat_id)
+        _show_menu(chat_id, welcome=True)
         return
     if text == "رجوع":
         if not _rewind_draft(chat_id, user_id):

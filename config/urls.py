@@ -11,6 +11,7 @@ from apps.complaints.api import (
 from apps.geography.api import (
     governorate_detail, governorates, public_governorates, public_regions, region_detail, regions,
 )
+from apps.telegram.map_page import map_page
 from config.spa import spa
 
 def health(request):
@@ -23,6 +24,7 @@ def health(request):
 
 urlpatterns = [
     path("health/", health),
+    path("telegram/map/", map_page),
     path("api/auth/login/", login_view),
     path("api/auth/logout/", logout_view),
     path("api/auth/return/", return_session),

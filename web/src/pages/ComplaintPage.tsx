@@ -377,7 +377,8 @@ function ComplaintView({ complaint, user, reload }: { complaint: ComplaintDetail
   const place = [complaint.governorate_name, complaint.region_name].filter(Boolean).join("، ")
   const channel = complaint.source === "telegram" ? "تلغرام" : "الموقع"
   const submitter = complaint.telegram_user_id || complaint.submitter_ip || ""
-  const facts: { label: string; value: string; ltr?: boolean }[] = [
+  const facts: { label: string; value: string; ltr?: boolean; href?: string }[] = [
+    ...(complaint.kind ? [{ label: "النوع", value: complaint.kind }] : []),
     { label: "المكان", value: place || "غير محدد" },
     { label: "وقت التقديم", value: `${formatDateTime(complaint.created_at)} · ${channel}` },
     { label: "الاستلام", value: complaint.inspector_name || "لم تُستلم بعد" },
@@ -389,6 +390,7 @@ function ComplaintView({ complaint, user, reload }: { complaint: ComplaintDetail
   if (complaint.legal_referred_at) facts.push({ label: "إحالة الشؤون القانونية", value: formatDateTime(complaint.legal_referred_at) })
   if (complaint.closed_at) facts.push({ label: "وقت الإغلاق", value: formatDateTime(complaint.closed_at) })
   if (submitter) facts.push({ label: "مقدّم الشكوى", value: submitter, ltr: true })
+  if (complaint.map_url) facts.push({ label: "الموقع", value: "فتح الخريطة", href: complaint.map_url })
   const actions = [
     user.role === "inspector" && status === "واردة" && !complaint.returned_at && <AcceptAction key="accept" {...props} />,
     user.role === "governor" && status === "واردة" && (
@@ -434,7 +436,15 @@ function ComplaintView({ complaint, user, reload }: { complaint: ComplaintDetail
           {facts.map((fact) => (
             <div key={fact.label}>
               <dt>{fact.label}</dt>
-              <dd>{fact.ltr ? <bdi dir="ltr">{fact.value}</bdi> : fact.value}</dd>
+              <dd>
+                {fact.href ? (
+                  <a className="app-link" href={fact.href} target="_blank" rel="noreferrer">{fact.value}</a>
+                ) : fact.ltr ? (
+                  <bdi dir="ltr">{fact.value}</bdi>
+                ) : (
+                  fact.value
+                )}
+              </dd>
             </div>
           ))}
         </dl>
