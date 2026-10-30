@@ -12,6 +12,7 @@ from apps.geography.api import (
     governorate_detail, governorates, public_governorates, public_regions, region_detail, regions,
 )
 from apps.telegram.map_page import map_page
+from apps.whatsapp.webhook import webhook as whatsapp_webhook
 from config.spa import spa
 
 def health(request):
@@ -54,5 +55,6 @@ urlpatterns = [
     path("api/", include("apps.publications.urls")),
     path("api/", include("apps.reports.urls")),
     path("api/", include("apps.telegram.urls")),
+    path("api/whatsapp/webhook/", whatsapp_webhook),
     re_path(r"^(?P<resource>.*)$", spa),
 ]
