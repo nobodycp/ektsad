@@ -205,7 +205,7 @@ export function ComplaintsPage({ user }: { user: SessionUser }) {
     { key: "created_at", header: "وقت التقديم", render: (row) => formatDateTime(row.created_at) },
     ...(isInspector
       ? [
-          { key: "source", header: "القناة", render: (row: ComplaintRow) => (row.source === "telegram" ? "تلغرام" : "الموقع") },
+          { key: "source", header: "القناة", render: (row: ComplaintRow) => (row.source === "telegram" ? "تلغرام" : row.source === "whatsapp" ? "واتساب" : "الموقع") },
           {
             key: "contact",
             header: "مقدّم الشكوى",

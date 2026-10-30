@@ -473,6 +473,10 @@ def notify_citizen_resolved(complaint):
 
 
 def _citizen_resolution(complaint):
+    if complaint.source == "whatsapp" and complaint.telegram_chat_id:
+        from apps.whatsapp.client import send_text
+        send_text(complaint.telegram_chat_id, f"تم التعامل مع الشكوى تبعك: {complaint.title}.")
+        return
     if complaint.source == Complaint.Source.TELEGRAM and complaint.telegram_chat_id:
         enqueue(complaint.telegram_chat_id, f"تم التعامل مع الشكوى تبعك: {complaint.title}.", markup=_home_markup())
 

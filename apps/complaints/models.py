@@ -13,6 +13,7 @@ class Complaint(models.Model):
     class Source(models.TextChoices):
         WEB = "web", "Web"
         TELEGRAM = "telegram", "Telegram"
+        WHATSAPP = "whatsapp", "WhatsApp"
 
     governorate = models.ForeignKey("geography.Governorate", on_delete=models.PROTECT)
     region = models.ForeignKey("geography.Region", on_delete=models.PROTECT)

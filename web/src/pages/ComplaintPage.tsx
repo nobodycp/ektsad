@@ -375,7 +375,7 @@ function ComplaintView({ complaint, user, reload }: { complaint: ComplaintDetail
   const props = { complaint, onDone }
   const canFlag = user.role === "admin" || (user.role === "governor" && user.governorate === complaint.governorate)
   const place = [complaint.governorate_name, complaint.region_name].filter(Boolean).join("، ")
-  const channel = complaint.source === "telegram" ? "تلغرام" : "الموقع"
+  const channel = complaint.source === "telegram" ? "تلغرام" : complaint.source === "whatsapp" ? "واتساب" : "الموقع"
   const submitter = complaint.telegram_user_id || complaint.submitter_ip || ""
   const facts: { label: string; value: string; ltr?: boolean; href?: string }[] = [
     ...(complaint.kind ? [{ label: "النوع", value: complaint.kind }] : []),
