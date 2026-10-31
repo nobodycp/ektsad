@@ -138,6 +138,11 @@ class WhatsAppComplaintFlowTests(TestCase):
         self.assertIn("تكمل الشكوى", self.sent[-1][1])
         self.assertEqual(self.sent[-1][2], ["resume", "restart"])
 
+    def test_a_real_whatsapp_message_id_is_stored(self):
+        long_id = "wamid." + ("A" * 180)
+        self.post(long_id, {"type": "text", "text": {"body": "مرحبا"}})
+        self.assertIn("عزيز المواطن", self.sent[-1][1])
+
     def test_price_list_without_a_report_says_so(self):
         self.post("d1", {"type": "interactive", "interactive": {"type": "button_reply", "button_reply": {"id": "pr"}}})
         self.assertEqual(self.sent[-1], ("text", "لا توجد قائمة أسعار منشورة."))

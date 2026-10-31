@@ -9,5 +9,5 @@ class WhatsAppSession(models.Model):
 
 
 class WhatsAppInbound(models.Model):
-    message_id = models.CharField(max_length=128, unique=True)
+    message_id = models.CharField(max_length=512, unique=True)
     received_at = models.DateTimeField(auto_now_add=True)
