@@ -29,12 +29,22 @@ RATE_LIMITED = "تجاوزت الحد المسموح لتقديم الشكاوى
 PAGE = 9
 
 
+def _choice_id(message):
+    interactive = message.get("interactive") or {}
+    for key in ("list_reply", "button_reply"):
+        chosen = interactive.get(key) or {}
+        if chosen.get("id"):
+            return chosen["id"]
+        if chosen.get("title"):
+            return chosen["title"]
+    button = message.get("button") or {}
+    return button.get("payload") or button.get("text") or ""
+
+
 def handle_message(phone, message):
     kind = message.get("type")
-    if kind == "interactive":
-        reply = (message.get("interactive") or {})
-        chosen = (reply.get("list_reply") or reply.get("button_reply") or {})
-        _on_choice(phone, chosen.get("id") or "")
+    if kind == "interactive" or kind == "button":
+        _on_choice(phone, _choice_id(message))
         return
     if kind == "location":
         point = message.get("location") or {}
@@ -241,6 +251,8 @@ def _on_choice(phone, data):
         _resume(phone)
     elif data == "restart":
         _restart(phone)
+    elif data in {"mn", "القائمة"}:
+        _menu(phone)
     elif data in {"back", "رجوع"}:
         _rewind(phone)
     elif data == "ok":
@@ -255,7 +267,7 @@ def _on_choice(phone, data):
         _show_places(phone, "region", int(data.split(":")[1]))
     elif data.startswith("n:"):
         _pick_region(phone, data.split(":")[1])
-    else:
+    elif not _choose_named(phone, data):
         _menu(phone, welcome=True)
 
 
@@ -276,6 +288,8 @@ def _on_text(phone, text):
         _rewind(phone)
         return
     row = _session(phone)
+    if _choose_named(phone, text):
+        return
     if row.step == "kind_text":
         if not text or len(text) > KIND_LIMIT:
             _ask_kind_text(phone)
@@ -321,7 +335,30 @@ def _on_text(phone, text):
     if not row.step:
         _menu(phone, welcome=True)
         return
-    send_text(phone, "اكتب رجوع للعودة، أو القائمة للبداية.")
+    send_buttons(phone, "اكتب رجوع للعودة، أو القائمة للبداية.", [
+        {"id": "back", "title": "رجوع"},
+        {"id": "mn", "title": "القائمة"},
+    ])
+
+
+def _choose_named(phone, text):
+    row = _session(phone)
+    labels = {label: key for key, label in FIXED_KINDS.items()}
+    labels["أخرى"] = "k:other"
+    if row.step == "kind" and text in labels:
+        _choose_kind(phone, labels[text])
+        return True
+    if row.step == "governorate":
+        governorate = Governorate.objects.filter(name=text).first()
+        if governorate:
+            _pick_governorate(phone, str(governorate.pk))
+            return True
+    if row.step == "region":
+        region = Region.objects.filter(governorate_id=(row.payload or {}).get("governorate"), name=text).first()
+        if region:
+            _pick_region(phone, str(region.pk))
+            return True
+    return False
 
 
 def _pick_governorate(phone, raw):

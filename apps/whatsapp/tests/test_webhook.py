@@ -5,6 +5,7 @@ from django.test import TestCase, override_settings
 
 from apps.complaints.models import Complaint
 from apps.geography.models import Governorate, Region
+from apps.whatsapp.client import GraphError
 
 
 class WhatsAppWebhookTests(TestCase):
@@ -30,6 +31,18 @@ class WhatsAppWebhookTests(TestCase):
     def test_incoming_messages_are_accepted(self):
         response = self.client.post("/api/whatsapp/webhook/", data=b"{}", content_type="application/json")
         self.assertEqual(response.status_code, 200)
+
+    def test_a_rejected_reply_is_explained_instead_of_silence(self):
+        with patch("apps.whatsapp.webhook.handle_message", side_effect=GraphError("القائمة مرفوضة")), patch(
+            "apps.whatsapp.webhook.send_text"
+        ) as sent:
+            response = self.client.post(
+                "/api/whatsapp/webhook/",
+                data=json.dumps(_envelope("m-err", "1555", {"type": "text", "text": {"body": "مرحبا"}})),
+                content_type="application/json",
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("القائمة مرفوضة", sent.call_args[0][1])
 
 
 def _envelope(mid, phone, message):
@@ -142,6 +155,18 @@ class WhatsAppComplaintFlowTests(TestCase):
         long_id = "wamid." + ("A" * 180)
         self.post(long_id, {"type": "text", "text": {"body": "مرحبا"}})
         self.assertIn("عزيز المواطن", self.sent[-1][1])
+
+    def test_text_during_a_step_offers_back_and_the_menu(self):
+        self.post("e1", {"type": "interactive", "interactive": {"type": "button_reply", "button_reply": {"id": "nw"}}})
+        self.post("e2", {"type": "text", "text": {"body": "مرحبا"}})
+        self.assertIn("رجوع", self.sent[-1][1])
+        self.assertEqual(self.sent[-1][2], ["back", "mn"])
+
+    def test_a_governorate_name_continues_the_complaint(self):
+        self.post("f1", {"type": "interactive", "interactive": {"type": "button_reply", "button_reply": {"id": "nw"}}})
+        self.post("f2", {"type": "interactive", "interactive": {"type": "list_reply", "list_reply": {"id": "k:price"}}})
+        self.post("f3", {"type": "text", "text": {"body": "الخليل"}})
+        self.assertIn(f"n:{self.region.pk}", self.sent[-1][2])
 
     def test_price_list_without_a_report_says_so(self):
         self.post("d1", {"type": "interactive", "interactive": {"type": "button_reply", "button_reply": {"id": "pr"}}})

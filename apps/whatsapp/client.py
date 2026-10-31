@@ -18,13 +18,23 @@ def _headers():
     return {"Authorization": f"Bearer {_token()}"}
 
 
+class GraphError(Exception):
+    pass
+
+
 def send(phone, payload):
     token, phone_id = _token(), _phone_id()
     if not token or not phone_id:
         return False
     body = {"messaging_product": "whatsapp", "to": phone, **payload}
     response = httpx.post(f"{GRAPH}/{phone_id}/messages", headers=_headers(), json=body, timeout=20)
-    response.raise_for_status()
+    if response.status_code >= 400:
+        detail = ""
+        try:
+            detail = (response.json().get("error") or {}).get("message") or ""
+        except ValueError:
+            detail = ""
+        raise GraphError((detail or f"HTTP {response.status_code}")[:300])
     return True
 
 
