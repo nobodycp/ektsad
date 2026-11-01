@@ -11,6 +11,7 @@ from apps.complaints.api import (
 from apps.geography.api import (
     governorate_detail, governorates, public_governorates, public_regions, region_detail, regions,
 )
+from apps.publications.crossing_page import crossing_page, crossing_sheet_file
 from apps.telegram.map_page import map_page
 from apps.whatsapp.webhook import webhook as whatsapp_webhook
 from config.spa import spa
@@ -56,5 +57,7 @@ urlpatterns = [
     path("api/", include("apps.reports.urls")),
     path("api/", include("apps.telegram.urls")),
     path("api/whatsapp/webhook/", whatsapp_webhook),
+    path("crossings/<int:year>-<int:month>-<int:day>/sheet.png", crossing_sheet_file),
+    path("crossings/<int:year>-<int:month>-<int:day>/", crossing_page),
     re_path(r"^(?P<resource>.*)$", spa),
 ]

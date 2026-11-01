@@ -71,6 +71,7 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 SPA_DIST = BASE_DIR / "web" / "dist"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "https://vdt-gaza.org").rstrip("/")
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "accounts.User"
 WHATSAPP_VERIFY_TOKEN = os.environ.get("WHATSAPP_VERIFY_TOKEN", "")

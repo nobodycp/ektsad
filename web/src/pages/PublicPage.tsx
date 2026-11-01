@@ -171,13 +171,13 @@ export function ComplaintForm({ onSubmitted }: { onSubmitted?: () => void } = {}
   )
 }
 
-function Bulletin({ latest, mediaPath, alt }: { latest: Latest; mediaPath: string; alt: string }) {
+function Bulletin({ latest, mediaPath, alt, sheet = false }: { latest: Latest; mediaPath: string; alt: string; sheet?: boolean }) {
   if (latest.status === "loading") return <LoadingState />
   if (latest.status === "none") return <p className="public__empty">{latest.text}</p>
   const { item } = latest
   return (
     <figure className="public__figure">
-      {item.body && <p className="public__text">{item.body}</p>}
+      {item.body && !(sheet && item.has_image) && <p className="public__text">{item.body}</p>}
       {item.has_image && <img className="public__image" src={`${mediaPath}?v=${item.id}`} alt={alt} />}
       <figcaption className="public__caption">نُشر في {formatDateTime(item.published_at)}</figcaption>
     </figure>
@@ -241,7 +241,7 @@ export function PublicPage() {
           </section>
           <section className="portal__card" id="crossings" aria-labelledby="crossings-title">
             <h2 id="crossings-title">حركة المعابر</h2>
-            <Bulletin latest={crossing} mediaPath="/api/media/crossings/latest/" alt="حركة المعابر الحالية" />
+            <Bulletin latest={crossing} mediaPath="/api/media/crossings/latest/" alt="حركة المعابر الحالية" sheet />
           </section>
         </div>
       </main>

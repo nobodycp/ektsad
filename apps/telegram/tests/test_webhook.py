@@ -516,7 +516,7 @@ class TelegramWebhookTests(TestCase):
         self.assertIn("keyboard", item.markup)
         self.assertIn("رجوع", self.button_labels(item.markup))
 
-    def test_inspector_menu_counts_open_complaints_and_splits_finished_from_closed(self):
+    def test_inspector_menu_opens_the_old_scrollable_complaint_list(self):
         from apps.telegram.models import TelegramLink, TelegramOutbox
 
         TelegramLink.objects.create(user=self.inspector, telegram_id="971")
@@ -528,6 +528,11 @@ class TelegramWebhookTests(TestCase):
             governorate=self.governorate, region=self.region, title="ميدانية", body="النص",
             inspector=self.inspector, status=Complaint.Status.FIELD,
         )
+        for index in range(15):
+            Complaint.objects.create(
+                governorate=self.governorate, region=self.region, title=f"مغلقة {index}", body="النص",
+                inspector=self.inspector, status=Complaint.Status.RESOLVED,
+            )
         Complaint.objects.create(
             governorate=self.governorate, region=self.region, title="خلصت ميدانياً", body="النص",
             inspector=self.inspector, status=Complaint.Status.FINISHED,
@@ -535,6 +540,10 @@ class TelegramWebhookTests(TestCase):
         Complaint.objects.create(
             governorate=self.governorate, region=self.region, title="أُغلقت", body="النص",
             inspector=self.inspector, status=Complaint.Status.RESOLVED,
+        )
+        Complaint.objects.create(
+            governorate=self.governorate, region=self.region, title="عند القانونية", body="النص",
+            inspector=self.inspector, status=Complaint.Status.LEGAL,
         )
         self.say("/start", chat=971, user=971)
         menu = TelegramOutbox.objects.get(chat_id="971").markup["keyboard"]
@@ -547,18 +556,41 @@ class TelegramWebhookTests(TestCase):
         self.assertNotIn("رجوع", self.button_labels(TelegramOutbox.objects.get(chat_id="971").markup))
 
         self.say("طلبات شكاوي 🟢 2", chat=971, user=971)
-        self.assertEqual(
-            self.button_labels(TelegramOutbox.objects.latest("pk").markup)[:3],
-            ["المفتوحة", "المنتهية", "المغلقة"],
-        )
-        self.say("المنتهية", chat=971, user=971)
-        finished = self.button_labels(TelegramOutbox.objects.latest("pk").markup)
-        self.assertTrue(any("خلصت ميدانياً" in label for label in finished))
-        self.assertFalse(any("أُغلقت" in label for label in finished))
+        opened = self.button_labels(TelegramOutbox.objects.latest("pk").markup)
+        self.assertEqual(opened[:3], ["🟢 المفتوحة", "↪️ المحولة", "🔒 المغلقة"])
+        self.assertTrue(any("واردة" in label for label in opened))
+        self.assertTrue(any("ميدانية" in label for label in opened))
+
         self.say("المغلقة", chat=971, user=971)
         closed = self.button_labels(TelegramOutbox.objects.latest("pk").markup)
+        self.assertTrue(any("خلصت ميدانياً" in label for label in closed))
         self.assertTrue(any("أُغلقت" in label for label in closed))
-        self.assertFalse(any("خلصت ميدانياً" in label for label in closed))
+        self.assertIn("التالي", closed)
+        self.assertNotIn("عند القانونية", " ".join(closed))
+
+        self.say("المحولة", chat=971, user=971)
+        transferred = self.button_labels(TelegramOutbox.objects.latest("pk").markup)
+        self.assertTrue(any("عند القانونية" in label for label in transferred))
+        self.assertFalse(any("أُغلقت" in label for label in transferred))
+
+    def test_opening_a_complaint_sends_its_image(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        from apps.telegram.models import TelegramLink, TelegramOutbox
+
+        TelegramLink.objects.create(user=self.inspector, telegram_id="972")
+        complaint = Complaint.objects.create(
+            governorate=self.governorate, region=self.region, title="مع صورة", body="النص الكامل",
+            inspector=self.inspector, status=Complaint.Status.FIELD,
+            image=SimpleUploadedFile("shot.jpg", b"img", content_type="image/jpeg"),
+        )
+        self.press(f"op:{complaint.pk}", chat=972, user=972)
+        rows = list(TelegramOutbox.objects.filter(chat_id="972").order_by("pk"))
+        self.assertTrue(any("shot" in row.photo for row in rows))
+        card = rows[-1]
+        self.assertIn("مع صورة", card.text)
+        self.assertEqual(card.photo, "")
+        self.assertIn("رد", self.button_labels(card.markup))
 
     def test_complaints_button_opens_pending_work_when_nothing_is_incoming(self):
         from apps.telegram.models import TelegramLink, TelegramOutbox

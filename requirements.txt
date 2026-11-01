@@ -4,4 +4,7 @@ gunicorn
 whitenoise
 psycopg[binary]
 Pillow
+arabic-reshaper
+python-bidi
+segno
 httpx

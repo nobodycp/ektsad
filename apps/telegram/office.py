@@ -10,7 +10,7 @@ from apps.common.models import SystemSettings
 from apps.field_missions.models import FieldMission
 from apps.field_missions.services import MissionError, close_mission, open_mission, redirect_mission, reply_mission, visible_missions
 from apps.geography.models import Governorate, Region
-from apps.publications.models import CrossingReport, PriceReport
+from apps.publications.models import PriceReport
 from apps.telegram.models import TelegramDraft, TelegramWebhookStatus
 
 
@@ -61,7 +61,7 @@ def extra_rows(user):
     if allows(user, "can_publish"):
         rows.append([
             {"text": "نشر الأسعار", "callback_data": "prb"},
-            {"text": "نشر المعابر", "callback_data": "crb"},
+            {"text": "إدخال تقرير", "callback_data": "crb"},
         ])
     if _bot_reports(user):
         rows.append([{"text": "التقارير", "callback_data": "rp"}])
@@ -164,12 +164,10 @@ def consume_text(chat_id, user_id, text):
         payload["details"] = cleaned
         _create_mission(chat_id, user, draft, payload)
     elif step == "office_cross":
-        payload["body"] = cleaned
-        _save(draft, "office_cross_ready", payload)
-        _say(chat_id, "اضغط نشر، أو أرسل صورة مع النص.", markup={"inline_keyboard": [
-            [{"text": "نشر", "callback_data": "crok"}],
-            [{"text": "القائمة", "callback_data": "mn"}],
-        ]})
+        _review_crossing(chat_id, draft, cleaned)
+    elif step == "office_cross_fix":
+        from apps.publications.crossing_text import apply_correction
+        _review_crossing(chat_id, draft, apply_correction(payload.get("body") or "", payload.get("issue") or {}, cleaned))
     elif step == "office_user_name":
         payload["username"] = cleaned
         _save(draft, "office_user_password", payload)
@@ -201,8 +199,11 @@ def consume_text(chat_id, user_id, text):
 
 def consume_photo(chat_id, user_id, photo):
     draft = TelegramDraft.objects.filter(chat_id=str(chat_id)).first()
-    if draft is None or draft.step not in {"office_price", "office_cross_ready"}:
+    if draft is None or draft.step not in {"office_price", "office_cross", "office_cross_fix", "office_cross_ready"}:
         return False
+    if draft.step != "office_price":
+        _say(chat_id, "أرسل نص التقرير. الورقة تُرسم من النص.")
+        return True
     from apps.telegram.webhook import _download_photo
     try:
         downloaded = _download_photo(photo)
@@ -220,8 +221,6 @@ def consume_photo(chat_id, user_id, photo):
         PriceReport.objects.create(image=image, publisher=user, publisher_name=user.display_name or user.username)
         draft.delete()
         _say(chat_id, "تم نشر قائمة الأسعار.")
-    else:
-        _publish_crossing(chat_id, user, image)
     return True
 
 
@@ -471,18 +470,52 @@ def _ask_crossing(chat_id, user):
     _say(chat_id, "أرسل نص حركة المعابر.")
 
 
-def _publish_crossing(chat_id, user, image):
+def _review_crossing(chat_id, draft, body):
+    from apps.publications.crossing_text import parse_crossing
+    from apps.publications.models import CrossingReport
+
+    parsed = parse_crossing(body)
+    if parsed.movement_date and CrossingReport.objects.filter(movement_date=parsed.movement_date).exists():
+        _save(draft, "office_cross", {"body": body})
+        _say(chat_id, "تم إرسال تقرير هذا التاريخ سابقاً")
+        return
+    if parsed.issues:
+        _save(draft, "office_cross_fix", {"body": body, "issue": parsed.issues[0].as_dict()})
+        _say(chat_id, parsed.issues[0].message)
+        return
+    _save(draft, "office_cross_ready", {"body": body})
+    _say(chat_id, "النص جاهز. اضغط نشر.", markup={"inline_keyboard": [
+        [{"text": "نشر", "callback_data": "crok"}],
+        [{"text": "القائمة", "callback_data": "mn"}],
+    ]})
+
+
+def _publish_crossing(chat_id, user, image=None):
+    from apps.publications.crossing_sheet import store_crossing
+    from apps.publications.crossing_text import parse_crossing
+
     draft = TelegramDraft.objects.filter(chat_id=str(chat_id)).first()
     body = (draft.payload.get("body") or "").strip() if draft else ""
-    if user is None or not allows(user, "can_publish") or (not body and image is None):
+    if user is None or not allows(user, "can_publish") or not body:
         _say(chat_id, "أرسل نص حركة المعابر.")
         return
-    CrossingReport.objects.create(
-        body=body, image=image, publisher=user, publisher_name=user.display_name or user.username,
-    )
+    parsed = parse_crossing(body)
+    if not parsed.ready:
+        if draft is not None:
+            _review_crossing(chat_id, draft, body)
+        else:
+            _say(chat_id, parsed.issues[0].message if parsed.issues else "أرسل نص حركة المعابر.")
+        return
+    report = store_crossing(parsed, body, user)
+    if report is None:
+        _say(chat_id, "تم إرسال تقرير هذا التاريخ سابقاً")
+        return
     if draft:
         draft.delete()
-    _say(chat_id, "تم نشر حركة المعابر.")
+    _say(chat_id, f"تم نشر تقرير {parsed.movement_date.strftime('%d/%m/%Y')}.")
+    if report.image:
+        from apps.telegram.webhook import enqueue
+        enqueue(chat_id, photo=report.image.name, markup=_home())
 
 
 def _report(chat_id, user, week):
