@@ -84,7 +84,7 @@ def attach_keyboard(chat_id, markup):
         return markup
     rows = [list(row) for row in markup["inline_keyboard"]]
     labels = [button["text"] for row in rows for button in row]
-    is_root = "تقديم شكوى" in labels
+    is_root = "تقديم شكوى" in labels or any(label.startswith("طلبات شكاوي") for label in labels)
     if not is_root and BACK not in labels:
         rows.append([{"text": BACK, "callback_data": "bk"}])
     mapping = {

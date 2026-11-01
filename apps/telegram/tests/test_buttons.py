@@ -17,6 +17,10 @@ class BotButtonTests(TestCase):
             username="inspector", password="password-long-12", role=User.Role.INSPECTOR,
             governorate=self.governorate, region=self.region, display_name="المفتش",
         )
+        self.governor = User.objects.create_user(
+            username="governor", password="password-long-12", role=User.Role.GOVERNOR,
+            governorate=self.governorate, display_name="المدير",
+        )
         self.client.force_login(self.admin)
 
     def test_new_button_opens_the_button_it_points_at(self):
@@ -44,7 +48,7 @@ class BotButtonTests(TestCase):
         )
         self.assertEqual(denied.status_code, 400)
 
-        TelegramLink.objects.create(user=self.inspector, telegram_id="440")
+        TelegramLink.objects.create(user=self.governor, telegram_id="440")
         handle_update({"message": {"chat": {"id": 440}, "from": {"id": 440}, "text": "/start"}})
         labels = [
             button["text"]

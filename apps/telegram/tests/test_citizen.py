@@ -48,7 +48,8 @@ class CitizenComplaintTests(TestCase):
         self.say("/start", chat=51, user=51)
         item = self.latest("51")
         self.assertNotIn("عزيز المواطن", item.text)
-        self.assertIn("الشكاوى", self.labels(item.markup))
+        self.assertIn("فتح مهمة ميدانية", self.labels(item.markup))
+        self.assertNotIn("تقديم شكوى", self.labels(item.markup))
 
     def test_fixed_kind_reaches_confirmation_then_stores_a_number(self):
         self.say("تقديم شكوى")

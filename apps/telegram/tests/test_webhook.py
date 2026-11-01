@@ -346,7 +346,9 @@ class TelegramWebhookTests(TestCase):
 
         TelegramLink.objects.create(user=self.inspector, telegram_id="51")
         handle_update({"message": {"chat": {"id": 51}, "from": {"id": 51}, "text": "/start"}})
-        self.assertIn("الشكاوى", self.button_labels(TelegramOutbox.objects.get(chat_id="51").markup))
+        inspector_labels = self.button_labels(TelegramOutbox.objects.get(chat_id="51").markup)
+        self.assertIn("فتح مهمة ميدانية", inspector_labels)
+        self.assertNotIn("تقديم شكوى", inspector_labels)
 
     def test_complaint_choices_are_buttons_and_text_is_only_title_and_body(self):
         from apps.telegram.models import TelegramDraft, TelegramOutbox
@@ -514,6 +516,50 @@ class TelegramWebhookTests(TestCase):
         self.assertIn("keyboard", item.markup)
         self.assertIn("رجوع", self.button_labels(item.markup))
 
+    def test_inspector_menu_counts_open_complaints_and_splits_finished_from_closed(self):
+        from apps.telegram.models import TelegramLink, TelegramOutbox
+
+        TelegramLink.objects.create(user=self.inspector, telegram_id="971")
+        Complaint.objects.create(
+            governorate=self.governorate, region=self.region, title="واردة", body="النص",
+            status=Complaint.Status.RECEIVED,
+        )
+        Complaint.objects.create(
+            governorate=self.governorate, region=self.region, title="ميدانية", body="النص",
+            inspector=self.inspector, status=Complaint.Status.FIELD,
+        )
+        Complaint.objects.create(
+            governorate=self.governorate, region=self.region, title="خلصت ميدانياً", body="النص",
+            inspector=self.inspector, status=Complaint.Status.FINISHED,
+        )
+        Complaint.objects.create(
+            governorate=self.governorate, region=self.region, title="أُغلقت", body="النص",
+            inspector=self.inspector, status=Complaint.Status.RESOLVED,
+        )
+        self.say("/start", chat=971, user=971)
+        menu = TelegramOutbox.objects.get(chat_id="971").markup["keyboard"]
+        self.assertEqual(
+            [row[0]["text"] for row in menu],
+            ["فتح مهمة ميدانية", "طلبات شكاوي 🟢 2", "القائمة الاسترشادية", "حركة المعابر"],
+        )
+        self.assertEqual(menu[0][0]["style"], "danger")
+        self.assertEqual(menu[1][0]["style"], "primary")
+        self.assertNotIn("رجوع", self.button_labels(TelegramOutbox.objects.get(chat_id="971").markup))
+
+        self.say("طلبات شكاوي 🟢 2", chat=971, user=971)
+        self.assertEqual(
+            self.button_labels(TelegramOutbox.objects.latest("pk").markup)[:3],
+            ["المفتوحة", "المنتهية", "المغلقة"],
+        )
+        self.say("المنتهية", chat=971, user=971)
+        finished = self.button_labels(TelegramOutbox.objects.latest("pk").markup)
+        self.assertTrue(any("خلصت ميدانياً" in label for label in finished))
+        self.assertFalse(any("أُغلقت" in label for label in finished))
+        self.say("المغلقة", chat=971, user=971)
+        closed = self.button_labels(TelegramOutbox.objects.latest("pk").markup)
+        self.assertTrue(any("أُغلقت" in label for label in closed))
+        self.assertFalse(any("خلصت ميدانياً" in label for label in closed))
+
     def test_complaints_button_opens_pending_work_when_nothing_is_incoming(self):
         from apps.telegram.models import TelegramLink, TelegramOutbox
 
@@ -547,14 +593,17 @@ class TelegramWebhookTests(TestCase):
         from apps.telegram.models import TelegramLink, TelegramOutbox
         from apps.telegram.webhook import handle_update
 
-        role = StaffRole.objects.create(
-            name="مفتش التجربة", kind=StaffRole.Kind.INSPECTOR, can_view_field_missions=True,
+        clerk = User.objects.create_user(
+            username="clerk-menu", password="password-long-12", role=User.Role.CUSTOM, display_name="الموظف",
         )
-        self.inspector.staff_role = role
-        self.inspector.save(update_fields=["staff_role"])
-        TelegramLink.objects.create(user=self.inspector, telegram_id="990")
-        handle_update({"message": {"chat": {"id": 990}, "from": {"id": 990}, "text": "/start"}})
-        labels = self.button_labels(TelegramOutbox.objects.get(chat_id="990").markup)
+        role = StaffRole.objects.create(
+            name="موظف التجربة", kind=StaffRole.Kind.CUSTOM, can_view_field_missions=True,
+        )
+        clerk.staff_role = role
+        clerk.save(update_fields=["staff_role"])
+        TelegramLink.objects.create(user=clerk, telegram_id="989")
+        handle_update({"message": {"chat": {"id": 989}, "from": {"id": 989}, "text": "/start"}})
+        labels = self.button_labels(TelegramOutbox.objects.get(chat_id="989").markup)
         self.assertIn("المهمات", labels)
         self.assertNotIn("إنشاء مهمة", labels)
         self.assertNotIn("التقارير", labels)
@@ -563,10 +612,17 @@ class TelegramWebhookTests(TestCase):
         role.can_view_reports = True
         role.save(update_fields=["can_open_field_missions", "can_view_reports"])
         TelegramOutbox.objects.all().delete()
-        handle_update({"message": {"chat": {"id": 990}, "from": {"id": 990}, "text": "/start"}})
-        labels = self.button_labels(TelegramOutbox.objects.get(chat_id="990").markup)
+        handle_update({"message": {"chat": {"id": 989}, "from": {"id": 989}, "text": "/start"}})
+        labels = self.button_labels(TelegramOutbox.objects.get(chat_id="989").markup)
         self.assertIn("إنشاء مهمة", labels)
         self.assertIn("التقارير", labels)
+
+        opener = StaffRole.objects.create(
+            name="يفتح المهمات", kind=StaffRole.Kind.INSPECTOR, can_open_field_missions=True,
+        )
+        self.inspector.staff_role = opener
+        self.inspector.save(update_fields=["staff_role"])
+        TelegramLink.objects.create(user=self.inspector, telegram_id="990")
 
         TelegramOutbox.objects.all().delete()
         open_mission(self.inspector, {

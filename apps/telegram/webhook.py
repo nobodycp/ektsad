@@ -540,6 +540,18 @@ def _complaint_mark(status):
     return "🟢"
 
 
+def _inspector_complaint_buttons(chat_id, telegram_id):
+    user = _linked_user(telegram_id)
+    if user is None or user.role != User.Role.INSPECTOR:
+        enqueue(chat_id, "غير مسموح.", markup=_home_markup())
+        return
+    enqueue(chat_id, "اختر حالة الشكاوى.", markup={"inline_keyboard": [
+        [{"text": "المفتوحة", "callback_data": "ls:o:0"}],
+        [{"text": "المنتهية", "callback_data": "ls:f:0"}],
+        [{"text": "المغلقة", "callback_data": "ls:d:0"}],
+    ]})
+
+
 def _show_work(chat_id, telegram_id, filt, page):
     _clear_field_draft(chat_id)
     user = _linked_user(telegram_id)
@@ -549,34 +561,62 @@ def _show_work(chat_id, telegram_id, filt, page):
     open_statuses = [Complaint.Status.RECEIVED, Complaint.Status.FIELD]
     transferred = [Complaint.Status.LEGAL]
     closed = [Complaint.Status.FINISHED, Complaint.Status.RESOLVED]
+    inspector = user.role == User.Role.INSPECTOR
     if filt == "a":
         visible = visible_complaints(user)
         if visible.filter(status__in=open_statuses).exists():
             filt = "o"
+        elif inspector and visible.filter(status=Complaint.Status.FINISHED).exists():
+            filt = "f"
         elif visible.filter(status__in=transferred).exists():
             filt = "t"
         else:
-            filt = "c"
+            filt = "d" if inspector else "c"
     filt = {"r": "o", "p": "t"}.get(filt, filt)
-    buckets = {"o": open_statuses, "t": transferred, "c": closed}
+    if inspector:
+        buckets = {
+            "o": open_statuses,
+            "f": [Complaint.Status.FINISHED],
+            "d": [Complaint.Status.RESOLVED],
+            "t": transferred,
+            "c": closed,
+        }
+        titles = {
+            "o": "🟢 المفتوحة", "f": "المنتهية", "d": "المغلقة",
+            "t": "↪️ المحولة", "c": "🔒 المغلقة",
+        }
+        empty = {
+            "o": "لا توجد شكاوى مفتوحة.",
+            "f": "لا توجد شكاوى منتهية.",
+            "d": "لا توجد شكاوى مغلقة.",
+            "t": "لا توجد شكاوى محوّلة.",
+            "c": "لا توجد شكاوى مغلقة.",
+        }
+        filters = [
+            [{"text": "المفتوحة", "callback_data": "ls:o:0"}],
+            [{"text": "المنتهية", "callback_data": "ls:f:0"}],
+            [{"text": "المغلقة", "callback_data": "ls:d:0"}],
+        ]
+    else:
+        buckets = {"o": open_statuses, "t": transferred, "c": closed}
+        titles = {"o": "🟢 المفتوحة", "t": "↪️ المحولة", "c": "🔒 المغلقة"}
+        empty = {
+            "o": "لا توجد شكاوى مفتوحة.",
+            "t": "لا توجد شكاوى محوّلة.",
+            "c": "لا توجد شكاوى مغلقة.",
+        }
+        filters = [[
+            {"text": "🟢 المفتوحة", "callback_data": "ls:o:0"},
+            {"text": "↪️ المحولة", "callback_data": "ls:t:0"},
+            {"text": "🔒 المغلقة", "callback_data": "ls:c:0"},
+        ]]
     statuses = buckets.get(filt)
-    titles = {"o": "🟢 المفتوحة", "t": "↪️ المحولة", "c": "🔒 المغلقة"}
-    empty = {
-        "o": "لا توجد شكاوى مفتوحة.",
-        "t": "لا توجد شكاوى محوّلة.",
-        "c": "لا توجد شكاوى مغلقة.",
-    }
     if statuses is None:
         enqueue(chat_id, "بيانات غير صالحة.", markup=_home_markup())
         return
     items = list(
         visible_complaints(user).filter(status__in=statuses).select_related("region").order_by("-created_at")
     )
-    filters = [[
-        {"text": "🟢 المفتوحة", "callback_data": "ls:o:0"},
-        {"text": "↪️ المحولة", "callback_data": "ls:t:0"},
-        {"text": "🔒 المغلقة", "callback_data": "ls:c:0"},
-    ]]
     footer = [[{"text": "القائمة", "callback_data": "mn"}]]
     if not items:
         enqueue(chat_id, empty[filt], markup={"inline_keyboard": filters + footer})
@@ -1144,6 +1184,8 @@ def _on_callback(chat_id, user_id, data):
                 enqueue(chat_id, "بيانات الشكوى غير مكتملة.", markup=_home_markup())
             else:
                 _finish_draft(chat_id, user_id, draft)
+        elif data == "cq":
+            _inspector_complaint_buttons(chat_id, user_id)
         elif data.startswith("ls:"):
             _, filt, page = data.split(":")
             _show_work(chat_id, user_id, filt, int(page))
@@ -1331,14 +1373,19 @@ def handle_update(update):
     if text == "القائمة":
         _show_menu(chat_id)
         return
+    linked = _linked_user(user_id)
+    inspector = linked is not None and linked.role == User.Role.INSPECTOR
     if text in {"شكاوى", "وصلت", "المفتوحة", "🟢 المفتوحة"}:
-        _show_work(chat_id, user_id, "o", 0)
+        _on_callback(chat_id, user_id, "ls:o:0")
         return
     if text in {"معلقة", "المحولة", "↪️ المحولة"}:
-        _show_work(chat_id, user_id, "t", 0)
+        _on_callback(chat_id, user_id, "ls:t:0")
+        return
+    if inspector and text in {"المنتهية", "منتهية"}:
+        _on_callback(chat_id, user_id, "ls:f:0")
         return
     if text in {"مغلقة", "المغلقة", "🔒 المغلقة"}:
-        _show_work(chat_id, user_id, "c", 0)
+        _on_callback(chat_id, user_id, "ls:d:0" if inspector else "ls:c:0")
         return
     if text == "تقديم شكوى":
         _start_complaint(chat_id)

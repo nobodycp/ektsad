@@ -94,7 +94,24 @@ def _menu_button(label, target, style):
     return item
 
 
+def _inspector_rows(user):
+    from apps.complaints.models import Complaint
+    from apps.complaints.services import visible_complaints
+
+    open_count = visible_complaints(user).filter(
+        status__in=[Complaint.Status.RECEIVED, Complaint.Status.FIELD],
+    ).count()
+    return [
+        [_menu_button("فتح مهمة ميدانية", "mc", "danger")],
+        [_menu_button(f"طلبات شكاوي 🟢 {open_count}", "cq", "primary")],
+        [_menu_button("القائمة الاسترشادية", "pr", "")],
+        [_menu_button("حركة المعابر", "cr", "")],
+    ]
+
+
 def rows_for(user):
+    if user is not None and user.role == User.Role.INSPECTOR:
+        return _inspector_rows(user)
     if not BotButton.objects.exists():
         return _builtin_rows(user)
     grouped = []
