@@ -228,6 +228,20 @@ def _overview_period(params):
     return _period(params)
 
 
+def telegram_summary(user, start_day, end_day):
+    """Three counts for the bot. The full overview is too heavy for the one web worker."""
+    _start_day, _end_day, start, end = _period({
+        "date_from": start_day.isoformat(),
+        "date_to": end_day.isoformat(),
+    })
+    scope = _overview_scope(user, {})
+    return {
+        "created": scope.filter(created_at__gte=start, created_at__lt=end).count(),
+        "done": scope.filter(closed_at__gte=start, closed_at__lt=end, status__in=DONE_STATUSES).count(),
+        "pending_at_end": _pending(scope, end).count(),
+    }
+
+
 def overview(user, params):
     start_day, end_day, start, end = _overview_period(params)
     span = (end_day - start_day).days + 1

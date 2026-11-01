@@ -490,18 +490,23 @@ def _report(chat_id, user, week):
         _say(chat_id, "غير مسموح.")
         return
     from datetime import timedelta
-    from apps.reports.queries import _today, overview
+    from apps.reports.queries import _today, telegram_summary
     today = _today()
     start = today - timedelta(days=6) if week else today
-    data = overview(user, {"date_from": start.isoformat(), "date_to": today.isoformat()})
     label = "آخر 7 أيام" if week else "اليوم"
+    buttons = {"inline_keyboard": [
+        [{"text": "اليوم", "callback_data": "rp"}, {"text": "آخر 7 أيام", "callback_data": "rpw"}],
+        [{"text": "القائمة", "callback_data": "mn"}],
+    ]}
+    try:
+        data = telegram_summary(user, start, today)
+    except Exception:
+        _say(chat_id, "تعذر إظهار التقرير.", markup=buttons)
+        return
     _say(
         chat_id,
         f"تقرير {label}\nالجديدة: {data['created']}\nالمنجزة: {data['done']}\nالمعلقة: {data['pending_at_end']}",
-        markup={"inline_keyboard": [
-            [{"text": "اليوم", "callback_data": "rp"}, {"text": "آخر 7 أيام", "callback_data": "rpw"}],
-            [{"text": "القائمة", "callback_data": "mn"}],
-        ]},
+        markup=buttons,
     )
 
 

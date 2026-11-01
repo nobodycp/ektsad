@@ -655,6 +655,31 @@ class TelegramWebhookTests(TestCase):
         self.press("rp", chat=991, user=991)
         self.assertEqual(TelegramOutbox.objects.get(chat_id="991").text, "غير مسموح.")
 
+    def test_report_button_answers_and_the_menu_still_works(self):
+        from apps.telegram.models import TelegramLink, TelegramOutbox
+
+        TelegramLink.objects.create(user=self.governor, telegram_id="993")
+        Complaint.objects.create(
+            governorate=self.governorate, region=self.region, title="جديدة", body="النص",
+        )
+        self.press("rp", chat=993, user=993)
+        report = TelegramOutbox.objects.get(chat_id="993")
+        self.assertIn("تقرير اليوم", report.text)
+        self.assertIn("الجديدة: 1", report.text)
+        self.say("القائمة", chat=993, user=993)
+        self.assertIn("التقارير", self.button_labels(TelegramOutbox.objects.latest("pk").markup))
+
+    def test_a_failed_report_still_replies(self):
+        from unittest.mock import patch
+        from apps.telegram.models import TelegramLink, TelegramOutbox
+
+        TelegramLink.objects.create(user=self.governor, telegram_id="994")
+        with patch("apps.reports.queries.telegram_summary", side_effect=RuntimeError("slow")):
+            self.press("rp", chat=994, user=994)
+        self.assertEqual(TelegramOutbox.objects.get(chat_id="994").text, "تعذر إظهار التقرير.")
+        self.say("القائمة", chat=994, user=994)
+        self.assertIn("التقارير", self.button_labels(TelegramOutbox.objects.latest("pk").markup))
+
     def test_legal_and_redirected_inspector_get_arrival_notices(self):
         from apps.accounts.models import StaffRole
         from apps.complaints.services import accept_complaint, submit_field_report
