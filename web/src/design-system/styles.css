@@ -731,6 +731,31 @@ input[type="file"].ds-field__control::file-selector-button {
   width: 1%;
   white-space: nowrap;
   text-align: end;
+  position: sticky;
+  inset-inline-end: 0;
+  background: var(--ds-surface);
+  border-inline-start: 1px solid var(--ds-line);
+  z-index: 1;
+}
+
+.ds-table thead .ds-table__actions {
+  background: var(--ds-surface-2);
+  z-index: 2;
+}
+
+.ds-table tbody tr:hover .ds-table__actions {
+  background: var(--ds-surface-2);
+}
+
+.ds-table tbody tr[aria-selected="true"] .ds-table__actions {
+  background: var(--ds-accent-soft);
+}
+
+@media (max-width: 768px) {
+  .ds-table__actions {
+    position: static;
+    border-inline-start: 0;
+  }
 }
 
 .ds-table input[type="checkbox"] {
@@ -779,7 +804,13 @@ input[type="file"].ds-field__control::file-selector-button {
 /* ---------- RowActions ---------- */
 .ds-rowactions {
   display: inline-flex;
-  gap: var(--ds-space-1);
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: var(--ds-space-2);
+}
+
+.ds-rowactions .ds-btn {
+  white-space: nowrap;
 }
 
 .ds-icon-btn svg.ds-rowmenu__dots {

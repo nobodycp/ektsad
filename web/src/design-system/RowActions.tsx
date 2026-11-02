@@ -85,7 +85,7 @@ export function RowActions({ actions, menu = false }: { actions: RowAction[]; me
         <Button
           key={a.id}
           size="sm"
-          variant={a.tone === "danger" ? "danger" : "ghost"}
+          variant={a.tone === "danger" ? "danger" : "secondary"}
           disabled={a.disabled}
           onClick={a.onSelect}
         >
