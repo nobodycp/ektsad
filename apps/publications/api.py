@@ -40,13 +40,29 @@ def _price_data(report):
 
 
 def _crossing_data(report):
+    from apps.publications.crossing_text import WEEKDAYS
+
+    weekday = WEEKDAYS[report.movement_date.weekday()] if report.movement_date else report.weekday
     return {
         "id": report.pk,
         "published_at": report.published_at.isoformat(),
         "publisher_name": report.publisher_name,
         "body": report.body,
+        "movement_date": report.movement_date.isoformat() if report.movement_date else None,
+        "weekday": weekday,
         "has_image": bool(report.image),
     }
+
+
+def _owner(user):
+    return getattr(user, "is_authenticated", False) and user.role == User.Role.ADMIN
+
+
+def _remove_report(report):
+    stored = report.image
+    report.delete()
+    if stored:
+        stored.delete(save=False)
 
 
 @require_http_methods(["GET", "POST"])
@@ -71,6 +87,17 @@ def prices(request):
         image=image, publisher=request.user, publisher_name=_publisher_name(request.user)
     )
     return JsonResponse(_price_data(report), status=201)
+
+
+@require_http_methods(["DELETE"])
+def price_detail(request, pk):
+    if not _owner(request.user):
+        return JsonResponse({"detail": "Forbidden"}, status=403)
+    report = PriceReport.objects.filter(pk=pk).first()
+    if report is None:
+        return JsonResponse({"detail": "غير موجود."}, status=404)
+    _remove_report(report)
+    return JsonResponse({}, status=204)
 
 
 @require_http_methods(["GET", "POST"])
@@ -100,6 +127,17 @@ def crossings(request):
         body=body, image=image, publisher=request.user, publisher_name=_publisher_name(request.user)
     )
     return JsonResponse(_crossing_data(report), status=201)
+
+
+@require_http_methods(["DELETE"])
+def crossing_detail(request, pk):
+    if not _owner(request.user):
+        return JsonResponse({"detail": "Forbidden"}, status=403)
+    report = CrossingReport.objects.filter(pk=pk).first()
+    if report is None:
+        return JsonResponse({"detail": "غير موجود."}, status=404)
+    _remove_report(report)
+    return JsonResponse({}, status=204)
 
 
 @require_http_methods(["GET"])

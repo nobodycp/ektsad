@@ -387,11 +387,11 @@ def _history_rows(items, page, text_of, data_of, page_prefix):
 
 
 def _crossing_history_label(report):
+    from apps.publications.crossing_text import WEEKDAYS
+
     if report.movement_date:
-        label = report.movement_date.strftime("%d/%m/%Y")
-        if report.weekday:
-            return f"{label} {report.weekday}"
-        return label
+        day = WEEKDAYS[report.movement_date.weekday()]
+        return f"{report.movement_date.strftime('%d/%m/%Y')} {day}"
     return timezone.localtime(report.published_at).strftime("%d/%m/%Y")
 
 

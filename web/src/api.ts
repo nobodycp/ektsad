@@ -138,7 +138,15 @@ export type FieldMission = {
 
 export type ActionResult = { succeeded: number[]; failed: { id: number; detail: string }[] }
 
-export type Publication = { id: number; published_at: string; publisher_name: string; has_image: boolean; body?: string }
+export type Publication = {
+  id: number
+  published_at: string
+  publisher_name: string
+  has_image: boolean
+  body?: string
+  movement_date?: string | null
+  weekday?: string
+}
 
 type Method = "GET" | "POST" | "PATCH" | "DELETE"
 

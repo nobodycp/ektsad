@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react"
-import { Button, DataTable, Dialog, FileField, TextArea, type Column } from "../design-system"
+import { Button, DataTable, Dialog, FileField, TextArea, type Column, type RowAction } from "../design-system"
 import { apiRequest, apiUpload, withQuery, type Page, type Publication, type SessionUser } from "../api"
 import { Loaded, NoticeLine, PAGE_SIZE, Section, failureText, formatDateTime, useLoad, type Notice } from "./common"
 import { NO_CROSSINGS, NO_PRICES } from "./PublicPage"
@@ -28,6 +28,19 @@ const COPY = {
 } as const
 
 const rowId = (row: Publication) => row.id
+
+function dayLabel(value: string | null | undefined) {
+  if (!value) return ""
+  const [year, month, day] = value.split("-")
+  if (!year || !month || !day) return value
+  return `${day}/${month}/${year}`
+}
+
+function publicationLabel(kind: Kind, row: Publication) {
+  const day = dayLabel(row.movement_date)
+  if (kind === "crossings" && day) return row.weekday ? `${day} ${row.weekday}` : day
+  return formatDateTime(row.published_at)
+}
 
 function PublishForm({ kind, onDone }: { kind: Kind; onDone: (notice: Notice) => void }) {
   const copy = COPY[kind]
@@ -90,7 +103,10 @@ export function PublicationsPage({ kind, user }: { kind: Kind; user: SessionUser
   const [page, setPage] = useState(1)
   const [notice, setNotice] = useState<Notice>(null)
   const [publishing, setPublishing] = useState(false)
+  const [removing, setRemoving] = useState<Publication | null>(null)
+  const [busy, setBusy] = useState(false)
   const canPublish = Boolean(user[copy.flag])
+  const canDelete = user.role === "admin"
 
   const { state, reload } = useLoad(
     () => apiRequest<Page<Publication>>(withQuery(`/api/${kind}/`, { page, page_size: PAGE_SIZE })),
@@ -101,8 +117,30 @@ export function PublicationsPage({ kind, user }: { kind: Kind; user: SessionUser
     { key: "published_at", header: "وقت النشر", render: (row) => formatDateTime(row.published_at) },
     { key: "publisher", header: "الناشر", render: (row) => row.publisher_name || "—" },
   ]
-  if (kind === "crossings") columns.push({ key: "body", header: "النص", render: (row) => row.body || "—" })
+  if (kind === "crossings") {
+    columns.push({
+      key: "movement_date",
+      header: "التاريخ",
+      render: (row) => {
+        const day = dayLabel(row.movement_date)
+        if (!day) return "—"
+        return row.weekday ? `${day} ${row.weekday}` : day
+      },
+    })
+    columns.push({ key: "body", header: "النص", render: (row) => row.body || "—" })
+  }
   columns.push({ key: "image", header: "صورة", render: (row) => (row.has_image ? "مرفقة" : "—") })
+
+  const remove = async (row: Publication) => {
+    setNotice(null)
+    setBusy(true)
+    const result = await apiRequest(`/api/${kind}/${row.id}/`, { method: "DELETE" })
+    setBusy(false)
+    const label = publicationLabel(kind, row)
+    const done = kind === "prices" ? "تم حذف قائمة الأسعار." : `تم حذف حركة ${label}.`
+    setNotice(result.ok ? { tone: "ok", text: done } : { tone: "error", text: failureText(result) })
+    if (result.ok) reload()
+  }
 
   return (
     <div className="page">
@@ -125,6 +163,31 @@ export function PublicationsPage({ kind, user }: { kind: Kind; user: SessionUser
           />
         </Dialog>
       )}
+      {removing && (
+        <Dialog title={kind === "prices" ? "حذف قائمة الأسعار" : "حذف حركة المعابر"} onClose={() => setRemoving(null)}>
+          <p>
+            {kind === "prices"
+              ? `ستُحذف القائمة المنشورة في ${publicationLabel(kind, removing)} ولن يراها الزائر.`
+              : `ستُحذف حركة ${publicationLabel(kind, removing)} ولن يراها الزائر. يمكن إدخال هذا التاريخ من جديد.`}
+          </p>
+          <div className="sheet__actions">
+            <Button
+              variant="danger"
+              loading={busy}
+              onClick={async () => {
+                const row = removing
+                setRemoving(null)
+                await remove(row)
+              }}
+            >
+              تأكيد الحذف
+            </Button>
+            <Button variant="ghost" onClick={() => setRemoving(null)}>
+              إلغاء
+            </Button>
+          </div>
+        </Dialog>
+      )}
       <NoticeLine notice={notice} />
       <Loaded state={state} onRetry={reload}>
         {(data) => {
@@ -142,6 +205,13 @@ export function PublicationsPage({ kind, user }: { kind: Kind; user: SessionUser
                 rows={data.results}
                 getRowId={rowId}
                 emptyTitle={copy.empty}
+                rowActions={
+                  canDelete
+                    ? (row): RowAction[] => [
+                        { id: "delete", label: "حذف", tone: "danger", onSelect: () => setRemoving(row) },
+                      ]
+                    : undefined
+                }
                 pagination={{ page: data.page, pageSize: data.page_size, total: data.count, onPageChange: setPage }}
               />
             </>

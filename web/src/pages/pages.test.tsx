@@ -9,6 +9,7 @@ import { ComplaintPage } from "./ComplaintPage"
 import { ComplaintsPage } from "./ComplaintsPage"
 import { FieldMissionPage } from "./FieldMissionPage"
 import { FieldMissionsPage } from "./FieldMissionsPage"
+import { PublicationsPage } from "./PublicationsPage"
 import { PublicPage } from "./PublicPage"
 import { TelegramHealthPage } from "./TelegramHealthPage"
 import { RolesPage } from "./RolesPage"
@@ -480,6 +481,49 @@ describe("field missions", () => {
     expect(screen.getByRole("link", { name: "العودة إلى المهمات الميدانية" })).toHaveAttribute("href", "/field-missions/")
     expect(screen.getByRole("list", { name: "سجل حركة المهمة" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "إعادة التوجيه" })).toBeInTheDocument()
+  })
+})
+
+describe("publications", () => {
+  const crossing = {
+    id: 4,
+    published_at: "2026-11-01T10:00:00+00:00",
+    publisher_name: "موظف المعابر",
+    has_image: true,
+    body: "نص",
+    movement_date: "2026-11-01",
+    weekday: "الأحد",
+  }
+
+  it("asks the owner before deleting a crossing day", async () => {
+    const fetchFn = mockFetch((url, init) => {
+      if (url.startsWith("/api/crossings/?") && init.method !== "DELETE") return page([crossing])
+      if (url === "/api/crossings/4/" && init.method === "DELETE") return { status: 200, body: { detail: "ok" } }
+      return undefined
+    })
+    inRouter(<PublicationsPage kind="crossings" user={base} />)
+    await user.click(await screen.findByRole("button", { name: "حذف" }))
+    expect(fetchFn.mock.calls.some(([, init]) => init?.method === "DELETE")).toBe(false)
+    const dialog = screen.getByRole("dialog")
+    expect(dialog).toHaveTextContent("01/11/2026")
+    await user.click(within(dialog).getByRole("button", { name: "تأكيد الحذف" }))
+    expect(await screen.findByText("تم حذف حركة 01/11/2026 الأحد.")).toBeInTheDocument()
+    expect(fetchFn.mock.calls.some(([url, init]) => url === "/api/crossings/4/" && init?.method === "DELETE")).toBe(true)
+  })
+
+  it("hides deletion from the publisher", async () => {
+    mockFetch((url) => {
+      if (url.startsWith("/api/crossings/?")) return page([crossing])
+      return undefined
+    })
+    inRouter(
+      <PublicationsPage
+        kind="crossings"
+        user={{ ...base, role: "inspector", can_publish_crossings: true }}
+      />,
+    )
+    expect(await screen.findByText("01/11/2026 الأحد")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "حذف" })).not.toBeInTheDocument()
   })
 })
 

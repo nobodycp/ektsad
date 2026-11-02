@@ -82,6 +82,20 @@ class CrossingTextTests(TestCase):
         self.assertTrue(all(count == 0 for _name, count in sheet["quiet"]))
         self.assertIn("طرود غذائية", [line["item"] for line in parsed.aid_lines])
 
+    def test_the_written_day_must_match_the_date(self):
+        broken = SAMPLE.replace("الأحد", "الاثنين", 1)
+        parsed = parse_crossing(broken)
+        self.assertFalse(parsed.ready)
+        self.assertIn("التاريخ 01/11/2026 يوافق الأحد", parsed.issues[0].message)
+        self.assertIn("الاثنين", parsed.issues[0].message)
+        by_name = parse_crossing(apply_correction(broken, parsed.issues[0].as_dict(), "الأحد"))
+        self.assertTrue(by_name.ready)
+        self.assertEqual(by_name.weekday, "الأحد")
+        by_date = parse_crossing(apply_correction(broken, parsed.issues[0].as_dict(), "02/11/2026"))
+        self.assertTrue(by_date.ready)
+        self.assertEqual(by_date.movement_date.isoformat(), "2026-11-02")
+        self.assertEqual(by_date.weekday, "الاثنين")
+
     def test_a_wrong_total_names_that_item_and_a_number_clears_it(self):
         broken = SAMPLE.replace("تجاري 144شاحنة", "تجاري 140شاحنة", 1)
         parsed = parse_crossing(broken)
@@ -136,7 +150,11 @@ class CrossingPublishTests(TestCase):
 
         from django.core.files.base import ContentFile
 
+        from apps.publications.crossing_text import WEEKDAYS
         from apps.telegram.webhook import handle_update
+
+        def label(day):
+            return f"{day.strftime('%d/%m/%Y')} {WEEKDAYS[day.weekday()]}"
 
         for offset in range(16):
             day = date(2026, 1, 1) + timedelta(days=offset)
@@ -148,16 +166,17 @@ class CrossingPublishTests(TestCase):
         handle_update({"message": {"chat": {"id": 501}, "from": {"id": 501}, "text": "سجل الحركات"}})
         first = TelegramOutbox.objects.filter(chat_id="501").latest("pk")
         labels = [button["text"] for row in first.markup["keyboard"] for button in row]
-        self.assertEqual(len([label for label in labels if "/2026" in label]), 15)
+        self.assertEqual(len([item for item in labels if "/2026" in item]), 15)
         self.assertIn("التالي", labels)
-        self.assertIn("16/01/2026 الأحد", labels)
-        self.assertNotIn("01/01/2026 الأحد", labels)
+        self.assertIn(label(date(2026, 1, 16)), labels)
+        self.assertNotIn(label(date(2026, 1, 1)), labels)
         handle_update({"message": {"chat": {"id": 501}, "from": {"id": 501}, "text": "التالي"}})
         second = TelegramOutbox.objects.filter(chat_id="501").latest("pk")
         older = [button["text"] for row in second.markup["keyboard"] for button in row]
-        self.assertIn("01/01/2026 الأحد", older)
+        oldest = label(date(2026, 1, 1))
+        self.assertIn(oldest, older)
         self.assertIn("السابق", older)
-        handle_update({"message": {"chat": {"id": 501}, "from": {"id": 501}, "text": "01/01/2026 الأحد"}})
+        handle_update({"message": {"chat": {"id": 501}, "from": {"id": 501}, "text": oldest}})
         opened = TelegramOutbox.objects.filter(chat_id="501").latest("pk")
         self.assertIn("2026-01-01", opened.photo)
 

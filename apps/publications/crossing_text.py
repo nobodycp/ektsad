@@ -92,12 +92,39 @@ def _crossing(folded):
     return ""
 
 
-def _weekday(text, movement):
+_WEEKDAY_KEYS = (
+    ("الاثنين", "الاثنين"),
+    ("الثلاثاء", "الثلاثاء"),
+    ("الاربعاء", "الأربعاء"),
+    ("الخميس", "الخميس"),
+    ("الجمعه", "الجمعة"),
+    ("السبت", "السبت"),
+    ("الاحد", "الأحد"),
+)
+
+
+def _written_weekday(text):
     folded = squash(text)
-    for name in ("الاحد", "الاثنين", "الثلاثاء", "الاربعاء", "الخميس", "الجمعه", "السبت"):
-        if name in folded:
-            return WEEKDAYS[{"الاحد": 6, "الاثنين": 0, "الثلاثاء": 1, "الاربعاء": 2, "الخميس": 3, "الجمعه": 4, "السبت": 5}[name]]
-    return WEEKDAYS[movement.weekday()] if movement else ""
+    found = []
+    for key, pretty in _WEEKDAY_KEYS:
+        start = 0
+        while True:
+            index = folded.find(key, start)
+            if index < 0:
+                break
+            found.append((index, pretty))
+            start = index + len(key)
+    if not found:
+        return ""
+    found.sort()
+    return found[-1][1]
+
+
+def _replace_weekday(text, pretty):
+    pattern = r"الأحد|الاحد|الإثنين|الاثنين|الأثنين|الثلاثاء|الأربعاء|الاربعاء|الإربعاء|الخميس|الجمعة|الجمعه|السبت"
+    if re.search(pattern, text):
+        return re.sub(pattern, pretty, text, count=1)
+    return f"{text.rstrip()}\n{pretty}"
 
 
 def _section(line):
@@ -125,7 +152,18 @@ def parse_crossing(text):
             parsed.issues.append(Issue("التاريخ المكتوب غير صالح.", "date"))
     else:
         parsed.issues.append(Issue("لم أجد التاريخ. أرسل السطر الذي فيه اليوم بهذا الشكل: 01/11/2026.", "date"))
-    parsed.weekday = _weekday(raw, parsed.movement_date)
+    written = _written_weekday(raw)
+    if parsed.movement_date:
+        actual = WEEKDAYS[parsed.movement_date.weekday()]
+        parsed.weekday = actual
+        if written and squash(written) != squash(actual):
+            label = parsed.movement_date.strftime("%d/%m/%Y")
+            parsed.issues.insert(0, Issue(
+                f"التاريخ {label} يوافق {actual}، والنص يقول {written}. أرسل اسم اليوم أو التاريخ الصحيح.",
+                "date",
+            ))
+    else:
+        parsed.weekday = written
 
     mode = "gates"
     gate = None
@@ -239,9 +277,9 @@ def _check_totals(parsed):
         ))
 
 
-def date_label(movement, weekday):
+def date_label(movement, weekday=None):
     return {
-        "weekday": weekday or WEEKDAYS[movement.weekday()],
+        "weekday": WEEKDAYS[movement.weekday()],
         "year": str(movement.year),
         "month": f"{MONTHS[movement.month]} / {movement.month}",
         "day": str(movement.day),
@@ -308,10 +346,28 @@ def present(parsed):
     }
 
 
+def _replace_date(text, cleaned):
+    found = re.search(r"(\d{1,2})\s*/\s*(\d{1,2})\s*/\s*(\d{4})", cleaned.translate(DIGITS))
+    if not found:
+        return text
+    day, month, year = found.groups()
+    replacement = f"{int(day):02d}/{int(month):02d}/{year}"
+    if re.search(r"\d{1,2}\s*/\s*\d{1,2}\s*/\s*\d{4}", text):
+        return re.sub(r"\d{1,2}\s*/\s*\d{1,2}\s*/\s*\d{4}", replacement, text, count=1)
+    return f"{text.rstrip()}\n{replacement}"
+
+
 def apply_correction(text, issue, reply):
     kind = issue.get("kind") if isinstance(issue, dict) else issue.kind
     key = issue.get("key") if isinstance(issue, dict) else issue.key
     cleaned = str(reply or "").strip()
+    if kind == "date":
+        updated = _replace_date(text, cleaned)
+        written = _written_weekday(cleaned)
+        if written:
+            updated = _replace_weekday(updated, written)
+        if updated != text:
+            return updated
     digits = cleaned.translate(DIGITS)
     if kind == "stated" and re.fullmatch(r"\d+", digits):
         return _replace_total(text, key, int(digits))

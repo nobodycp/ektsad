@@ -85,3 +85,43 @@ class PublicationsApiTests(TestCase):
         response = self.client.get("/api/prices/")
 
         self.assertEqual(response.status_code, 403)
+
+    def test_owner_deletes_a_price_and_a_publisher_cannot(self):
+        report = PriceReport.objects.create(
+            image=SimpleUploadedFile("price.png", b"image", content_type="image/png"),
+            publisher=self.publisher, publisher_name="ناشر الأسعار",
+        )
+        self.client.force_login(self.publisher)
+        denied = self.client.delete(f"/api/prices/{report.pk}/")
+        self.assertEqual(denied.status_code, 403)
+        self.assertEqual(PriceReport.objects.count(), 1)
+
+        self.client.force_login(self.admin)
+        removed = self.client.delete(f"/api/prices/{report.pk}/")
+        self.assertEqual(removed.status_code, 204)
+        self.assertEqual(PriceReport.objects.count(), 0)
+        latest = self.client.get("/api/prices/latest/")
+        self.assertEqual(latest.json(), {"detail": "لا توجد قائمة أسعار منشورة."})
+
+    def test_owner_deletes_a_crossing_day_so_it_can_be_entered_again(self):
+        from apps.publications.models import CrossingGate
+
+        report = CrossingReport.objects.create(
+            body="نص", movement_date="2026-11-01", weekday="الأحد",
+            image=SimpleUploadedFile("sheet.png", b"png", content_type="image/png"),
+        )
+        CrossingGate.objects.create(report=report, name="كرم أبو سالم", commercial=1)
+        self.client.force_login(self.admin)
+        self.assertEqual(self.client.get("/crossings/2026-11-01/").status_code, 200)
+
+        removed = self.client.delete(f"/api/crossings/{report.pk}/")
+        self.assertEqual(removed.status_code, 204)
+        self.assertEqual(CrossingReport.objects.count(), 0)
+        self.assertEqual(self.client.get("/crossings/2026-11-01/").status_code, 404)
+        CrossingReport.objects.create(body="جديد", movement_date="2026-11-01", weekday="الأحد")
+        self.assertEqual(CrossingReport.objects.get().movement_date.isoformat(), "2026-11-01")
+
+    def test_missing_publication_is_not_found(self):
+        self.client.force_login(self.admin)
+        self.assertEqual(self.client.delete("/api/prices/9/").status_code, 404)
+        self.assertEqual(self.client.delete("/api/crossings/9/").status_code, 404)
