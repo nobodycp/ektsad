@@ -8,7 +8,8 @@ ROLE_FIELDS = (
     "can_view_reports",
     "can_manage_users",
     "can_manage_geography",
-    "can_publish",
+    "can_publish_prices",
+    "can_publish_crossings",
     "can_view_field_missions",
     "can_open_field_missions",
     "can_manage_settings",
@@ -24,8 +25,12 @@ def allows(user, name):
         return True
     role = getattr(user, "staff_role", None)
     if role is not None:
-        if name in {"can_publish_prices", "can_publish_crossings"}:
-            return bool(role.can_publish)
+        if name == "can_publish_prices":
+            return bool(role.can_publish_prices)
+        if name == "can_publish_crossings":
+            return bool(role.can_publish_crossings)
+        if name == "can_publish":
+            return bool(role.can_publish_prices or role.can_publish_crossings)
         if name in {"can_open_field_missions", "can_view_field_missions"}:
             return bool(getattr(role, name, False))
         if name == "can_field_missions":

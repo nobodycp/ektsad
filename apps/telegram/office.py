@@ -58,11 +58,15 @@ def extra_rows(user):
         if user.role != User.Role.LEGAL and allows(user, "can_open_field_missions"):
             row.append({"text": "إنشاء مهمة", "callback_data": "mc"})
         rows.append(row)
-    if allows(user, "can_publish"):
-        rows.append([
-            {"text": "نشر الأسعار", "callback_data": "prb"},
-            {"text": "إدخال تقرير", "callback_data": "crb"},
-        ])
+    publish = []
+    if allows(user, "can_publish_prices"):
+        publish.append({"text": "نشر الأسعار", "callback_data": "prb"})
+        publish.append({"text": "سجل الأسعار", "callback_data": "ph:0"})
+    if allows(user, "can_publish_crossings"):
+        publish.append({"text": "إدخال تقرير", "callback_data": "crb"})
+        publish.append({"text": "سجل الحركات", "callback_data": "xh:0"})
+    if publish:
+        rows.append(publish)
     if _bot_reports(user):
         rows.append([{"text": "التقارير", "callback_data": "rp"}])
     if allows(user, "can_manage_users"):
@@ -215,7 +219,7 @@ def consume_photo(chat_id, user_id, photo):
         return True
     image = _image(downloaded)
     if draft.step == "office_price":
-        if not allows(user, "can_publish"):
+        if not allows(user, "can_publish_prices"):
             _say(chat_id, "غير مسموح.")
             return True
         PriceReport.objects.create(image=image, publisher=user, publisher_name=user.display_name or user.username)
@@ -228,12 +232,12 @@ def _missions(chat_id, user, page):
     if user is None or not allows(user, "can_view_field_missions"):
         _say(chat_id, "غير مسموح.")
         return
-    items = list(visible_missions(user).order_by("-created_at"))
+    items = list(visible_missions(user).prefetch_related("assignees").order_by("-created_at"))
     if not items:
         _say(chat_id, "لا توجد مهمات.")
         return
     from apps.telegram.webhook import _paged
-    rows = _paged(items, page, lambda item: f"{item.place_name} · {item.status}", lambda item: f"mo:{item.pk}", "ms")
+    rows = _paged(items, page, _mission_label, lambda item: f"mo:{item.pk}", "ms")
     rows.append([{"text": "القائمة", "callback_data": "mn"}])
     _say(chat_id, "اختر المهمة.", markup={"inline_keyboard": rows})
 
@@ -246,10 +250,31 @@ def _open_mission_card(chat_id, user, pk):
     _say(chat_id, _mission_text(mission), markup=_mission_actions(user, mission))
 
 
+def _mission_label(mission):
+    names = [item.display_name for item in mission.assignees.all() if item.display_name]
+    if names:
+        return f"{mission.place_name} · {names[0]}"
+    return f"{mission.place_name} · {mission.status}"
+
+
 def _mission_text(mission):
     details = (mission.details or "").strip()
     if len(details) > 2500:
         details = details[:2500].rstrip() + "…"
+    names = [item.display_name for item in mission.assignees.all() if item.display_name]
+    inspector = f"\nالمفتش: {'، '.join(names)}" if names else ""
+    finding = (
+        mission.follow_ups.filter(place="field")
+        .order_by("-pk")
+        .values_list("body", flat=True)
+        .first()
+    )
+    note = ""
+    if finding and finding.strip():
+        text = finding.strip()
+        if len(text) > 800:
+            text = text[:800].rstrip() + "…"
+        note = f"\nنتيجة الكشف: {text}"
     return (
         f"النوع: {mission.kind}\n"
         f"الأولوية: {mission.priority}\n"
@@ -257,6 +282,8 @@ def _mission_text(mission):
         f"الجوال: {mission.phone}\n"
         f"التفاصيل: {details}\n"
         f"الحالة: {mission.status}"
+        f"{inspector}"
+        f"{note}"
     )
 
 
@@ -453,7 +480,7 @@ def _choice_buttons(chat_id, title, values, prefix):
 
 
 def _ask_price(chat_id, user):
-    if user is None or not allows(user, "can_publish"):
+    if user is None or not allows(user, "can_publish_prices"):
         _say(chat_id, "غير مسموح.")
         return
     draft = _draft(chat_id)
@@ -462,7 +489,7 @@ def _ask_price(chat_id, user):
 
 
 def _ask_crossing(chat_id, user):
-    if user is None or not allows(user, "can_publish"):
+    if user is None or not allows(user, "can_publish_crossings"):
         _say(chat_id, "غير مسموح.")
         return
     draft = _draft(chat_id)
@@ -496,7 +523,7 @@ def _publish_crossing(chat_id, user, image=None):
 
     draft = TelegramDraft.objects.filter(chat_id=str(chat_id)).first()
     body = (draft.payload.get("body") or "").strip() if draft else ""
-    if user is None or not allows(user, "can_publish") or not body:
+    if user is None or not allows(user, "can_publish_crossings") or not body:
         _say(chat_id, "أرسل نص حركة المعابر.")
         return
     parsed = parse_crossing(body)
@@ -536,11 +563,33 @@ def _report(chat_id, user, week):
     except Exception:
         _say(chat_id, "تعذر إظهار التقرير.", markup=buttons)
         return
-    _say(
-        chat_id,
-        f"تقرير {label}\nالجديدة: {data['created']}\nالمنجزة: {data['done']}\nالمعلقة: {data['pending_at_end']}",
-        markup=buttons,
+    _say(chat_id, _report_text(label, data), markup=buttons)
+
+
+def _report_text(label, data):
+    text = (
+        f"تقرير {label}\n"
+        f"الجديدة: {data['created']}\n"
+        f"المنجزة: {data['done']}\n"
+        f"المعلقة: {data['pending_at_end']}"
     )
+    blocks = data.get("governorates")
+    if blocks is not None:
+        chunks = []
+        for block in blocks:
+            chunk = f"{block['name']}: جديدة {block['created']}، منجزة {block['done']}، معلقة {block['pending']}"
+            if block["inspectors"]:
+                chunk += "\n" + "\n".join(block["inspectors"])
+            chunks.append(chunk)
+        if chunks:
+            text += "\n\n" + "\n\n".join(chunks)
+    else:
+        lines = data.get("inspectors") or []
+        if lines:
+            text += "\n\nالمفتشون\n" + "\n".join(lines)
+    if len(text) > 3500:
+        text = text[:3500].rstrip() + "…"
+    return text
 
 
 def _users(chat_id, user, page):

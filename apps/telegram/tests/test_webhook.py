@@ -486,6 +486,36 @@ class TelegramWebhookTests(TestCase):
         self.assertEqual(menu["reply_markup"]["keyboard"][0][0]["text"], "الخليل")
         self.assertNotIn("inline_keyboard", menu["reply_markup"])
 
+    def test_the_same_outbox_row_is_delivered_once(self):
+        import os
+        from apps.telegram.models import TelegramOutbox
+        from apps.telegram.outbox import send_pending_item, send_telegram_outbox
+
+        item = TelegramOutbox.objects.create(chat_id="1", text="اختر من القائمة.")
+        sent = Mock()
+        sent.raise_for_status.return_value = None
+        with patch.dict(os.environ, {"TELEGRAM_BOT_TOKEN": "token"}):
+            with patch("apps.telegram.outbox.httpx.post", return_value=sent) as post:
+                self.assertTrue(send_pending_item(item))
+                self.assertFalse(send_pending_item(item))
+                self.assertEqual(send_telegram_outbox(), 0)
+        self.assertEqual(post.call_count, 1)
+        item.refresh_from_db()
+        self.assertEqual(item.status, TelegramOutbox.Status.SENT)
+
+    def test_enqueue_leaves_delivery_to_the_worker(self):
+        import os
+        from apps.telegram.models import TelegramOutbox
+        from apps.telegram.webhook import enqueue
+
+        with patch.dict(os.environ, {"TELEGRAM_BOT_TOKEN": "token"}):
+            with patch("apps.telegram.outbox.httpx.post") as post:
+                enqueue(1, "مرحبا")
+        self.assertEqual(post.call_count, 0)
+        row = TelegramOutbox.objects.get()
+        self.assertEqual(row.status, TelegramOutbox.Status.PENDING)
+        self.assertEqual(row.text, "مرحبا")
+
     def say(self, text, chat, user):
         from apps.telegram.webhook import handle_update
 
@@ -698,6 +728,7 @@ class TelegramWebhookTests(TestCase):
         report = TelegramOutbox.objects.get(chat_id="993")
         self.assertIn("تقرير اليوم", report.text)
         self.assertIn("الجديدة: 1", report.text)
+        self.assertIn("المفتش: بيده 0، أنجز 0", report.text)
         self.say("القائمة", chat=993, user=993)
         self.assertIn("التقارير", self.button_labels(TelegramOutbox.objects.latest("pk").markup))
 

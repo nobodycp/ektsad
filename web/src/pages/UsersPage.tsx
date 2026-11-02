@@ -131,7 +131,12 @@ function UserForm({
 
   const selected = roles.find((role) => String(role.id) === draft.roleId)
   const kind = draft.roleId === "admin" ? "admin" : selected?.kind
-  const needsGovernorate = kind === "governor" || kind === "inspector"
+  const needsGovernorate =
+    kind === "governor" ||
+    kind === "inspector" ||
+    (kind === "custom" &&
+      !selected?.can_view_all_complaints &&
+      Boolean(selected?.can_view_field_missions || selected?.can_view_reports))
   const needsRegion = kind === "inspector"
   const regionOptions = optionsOf(geo.regions.filter((r) => String(r.governorate) === draft.governorate))
   const roleOptions = [

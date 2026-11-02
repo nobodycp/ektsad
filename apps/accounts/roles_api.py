@@ -40,9 +40,13 @@ def _apply(role, payload):
         if StaffRole.objects.exclude(pk=role.pk).filter(name=name).exists():
             return "اسم الدور مستخدم."
         role.name = name
+    if "can_publish" in payload and "can_publish_prices" not in payload and "can_publish_crossings" not in payload:
+        role.can_publish_prices = bool(payload["can_publish"])
+        role.can_publish_crossings = bool(payload["can_publish"])
     for field in ROLE_FIELDS:
         if field in payload:
             setattr(role, field, bool(payload[field]))
+    role.can_publish = bool(role.can_publish_prices or role.can_publish_crossings)
     if "can_field_missions" in payload:
         both = bool(payload["can_field_missions"])
         if "can_view_field_missions" not in payload:

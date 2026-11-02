@@ -29,15 +29,13 @@ from apps.telegram.citizen import (
 )
 from apps.telegram.keyboard import attach_keyboard
 from apps.telegram.outbox import enqueue as _enqueue
-from apps.telegram.outbox import send_pending_item
 
 
 def enqueue(chat_id, text="", photo="", markup=None):
+    """Queue the message. The outbox worker delivers it, so this request returns at once."""
     if markup:
         markup = attach_keyboard(chat_id, markup)
-    row = _enqueue(chat_id, text, photo=photo, markup=markup)
-    send_pending_item(row)
-    return row
+    return _enqueue(chat_id, text, photo=photo, markup=markup)
 
 
 UNLINKED = "هذا الحساب غير مربوط. اطلب رابط الربط من مدير النظام."
@@ -379,6 +377,96 @@ def _publications(chat_id, text):
     return False
 
 
+HISTORY_PAGE = 15
+
+
+def _history_rows(items, page, text_of, data_of, page_prefix):
+    rows = _paged(items, page, text_of, data_of, page_prefix, page_size=HISTORY_PAGE)
+    rows.append([{"text": "القائمة", "callback_data": "mn"}])
+    return rows
+
+
+def _crossing_history_label(report):
+    if report.movement_date:
+        label = report.movement_date.strftime("%d/%m/%Y")
+        if report.weekday:
+            return f"{label} {report.weekday}"
+        return label
+    return timezone.localtime(report.published_at).strftime("%d/%m/%Y")
+
+
+def _price_history_label(report):
+    stamp = timezone.localtime(report.published_at).strftime("%d/%m/%Y %H:%M")
+    return f"{stamp} ({report.pk})"
+
+
+def _crossing_history(chat_id, telegram_id, page):
+    from apps.accounts.permissions import allows
+    from django.db.models import F
+
+    user = _linked_user(telegram_id)
+    if user is None or not allows(user, "can_publish_crossings"):
+        enqueue(chat_id, "غير مسموح.", markup=_home_markup())
+        return
+    items = list(CrossingReport.objects.order_by(F("movement_date").desc(nulls_last=True), "-published_at", "-pk"))
+    if not items:
+        enqueue(chat_id, "لا توجد حركة معابر منشورة.", markup=_home_markup())
+        return
+    enqueue(chat_id, "سجل الحركات", markup={"inline_keyboard": _history_rows(
+        items, page, _crossing_history_label, lambda item: f"xi:{item.pk}", "xh",
+    )})
+
+
+def _price_history(chat_id, telegram_id, page):
+    from apps.accounts.permissions import allows
+
+    user = _linked_user(telegram_id)
+    if user is None or not allows(user, "can_publish_prices"):
+        enqueue(chat_id, "غير مسموح.", markup=_home_markup())
+        return
+    items = list(PriceReport.objects.order_by("-published_at", "-pk"))
+    if not items:
+        enqueue(chat_id, "لا توجد قائمة أسعار منشورة.", markup=_home_markup())
+        return
+    enqueue(chat_id, "سجل الأسعار", markup={"inline_keyboard": _history_rows(
+        items, page, _price_history_label, lambda item: f"pi:{item.pk}", "ph",
+    )})
+
+
+def _open_crossing_history(chat_id, telegram_id, pk):
+    from apps.accounts.permissions import allows
+
+    user = _linked_user(telegram_id)
+    report = CrossingReport.objects.filter(pk=pk).first()
+    if user is None or not allows(user, "can_publish_crossings") or report is None:
+        enqueue(chat_id, "غير مسموح.", markup=_home_markup())
+        return
+    back = {"inline_keyboard": [
+        [{"text": "سجل الحركات", "callback_data": "xh:0"}],
+        [{"text": "القائمة", "callback_data": "mn"}],
+    ]}
+    if report.image:
+        enqueue(chat_id, photo=report.image.name, markup=back)
+    elif report.body:
+        enqueue(chat_id, report.body, markup=back)
+    else:
+        enqueue(chat_id, "لا توجد ورقة لهذا التاريخ.", markup=back)
+
+
+def _open_price_history(chat_id, telegram_id, pk):
+    from apps.accounts.permissions import allows
+
+    user = _linked_user(telegram_id)
+    report = PriceReport.objects.filter(pk=pk).first()
+    if user is None or not allows(user, "can_publish_prices") or report is None or not report.image:
+        enqueue(chat_id, "غير مسموح.", markup=_home_markup())
+        return
+    enqueue(chat_id, photo=report.image.name, markup={"inline_keyboard": [
+        [{"text": "سجل الأسعار", "callback_data": "ph:0"}],
+        [{"text": "القائمة", "callback_data": "mn"}],
+    ]})
+
+
 def _staff_action(chat_id, telegram_id, text):
     user = _linked_user(telegram_id)
     if user is None:
@@ -480,11 +568,30 @@ def _citizen_resolution(complaint):
         enqueue(complaint.telegram_chat_id, f"تم التعامل مع الشكوى تبعك: {complaint.title}.", markup=_home_markup())
 
 
+def _note(text, limit=800):
+    text = (text or "").strip()
+    if len(text) > limit:
+        return text[:limit].rstrip() + "…"
+    return text
+
+
 def _complaint_card(complaint):
+    from apps.complaints.models import FollowUp
+
     body = (complaint.body or "").strip()
     if len(body) > 3000:
         body = body[:3000].rstrip() + "…"
     text = _detail_block(complaint, body) + f"\nالحالة: {complaint.status}"
+    if complaint.inspector_name:
+        text += f"\nالمفتش: {complaint.inspector_name}"
+    finding = (
+        complaint.follow_ups.filter(place=FollowUp.Place.FIELD)
+        .order_by("-pk")
+        .values_list("body", flat=True)
+        .first()
+    )
+    if finding and finding.strip():
+        text += f"\nنتيجة الكشف: {_note(finding)}"
     if complaint.status == Complaint.Status.RECEIVED and complaint.return_reason:
         text += f"\nسبب الإرجاع: {complaint.return_reason}"
     return text
@@ -588,7 +695,10 @@ def _show_work(chat_id, telegram_id, filt, page):
         return
     buttons = _paged(
         items, page,
-        lambda item: f"{_complaint_mark(item.status)} {item.pk} {item.title}",
+        lambda item: (
+            f"{_complaint_mark(item.status)} {item.pk} {item.title}"
+            + (f" · {item.inspector_name}" if item.inspector_name else "")
+        ),
         lambda item: f"op:{item.pk}",
         f"ls:{filt}",
         COMPLAINT_PAGE,
@@ -1133,6 +1243,14 @@ def _on_callback(chat_id, user_id, data):
             _publications(chat_id, "قائمة الأسعار")
         elif data == "cr":
             _publications(chat_id, "حركة المعابر")
+        elif data.startswith("xh:"):
+            _crossing_history(chat_id, user_id, int(data.split(":")[1]))
+        elif data.startswith("xi:"):
+            _open_crossing_history(chat_id, user_id, int(data.split(":")[1]))
+        elif data.startswith("ph:"):
+            _price_history(chat_id, user_id, int(data.split(":")[1]))
+        elif data.startswith("pi:"):
+            _open_price_history(chat_id, user_id, int(data.split(":")[1]))
         elif data.startswith("gp:"):
             _show_governorates(chat_id, int(data.split(":")[1]))
         elif data.startswith("g:"):
@@ -1352,6 +1470,15 @@ def handle_update(update):
         return
     if text in {"إدخال تقرير", "نشر المعابر"}:
         _on_callback(chat_id, user_id, "crb")
+        return
+    if text == "نشر الأسعار":
+        _on_callback(chat_id, user_id, "prb")
+        return
+    if text == "سجل الحركات":
+        _on_callback(chat_id, user_id, "xh:0")
+        return
+    if text == "سجل الأسعار":
+        _on_callback(chat_id, user_id, "ph:0")
         return
     from apps.telegram.keyboard import bound_action
 

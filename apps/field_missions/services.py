@@ -28,8 +28,15 @@ def may_view(user):
 def visible_missions(user):
     if not may_view(user):
         return FieldMission.objects.none()
-    if user.role in {User.Role.ADMIN, User.Role.LEGAL, User.Role.CUSTOM}:
+    if user.role in {User.Role.ADMIN, User.Role.LEGAL}:
         return FieldMission.objects.all()
+    if user.role == User.Role.CUSTOM:
+        from apps.accounts.permissions import allows
+        if allows(user, "can_view_all_complaints"):
+            return FieldMission.objects.all()
+        if user.governorate_id:
+            return FieldMission.objects.filter(governorate_id=user.governorate_id)
+        return FieldMission.objects.none()
     if user.role == User.Role.GOVERNOR:
         return FieldMission.objects.filter(governorate_id=user.governorate_id)
     if user.role == User.Role.INSPECTOR:

@@ -20,6 +20,8 @@ class StaffRole(models.Model):
     can_manage_users = models.BooleanField(default=False)
     can_manage_geography = models.BooleanField(default=False)
     can_publish = models.BooleanField(default=False)
+    can_publish_prices = models.BooleanField(default=False)
+    can_publish_crossings = models.BooleanField(default=False)
     can_field_missions = models.BooleanField(default=False)
     can_view_field_missions = models.BooleanField(default=False)
     can_open_field_missions = models.BooleanField(default=False)
@@ -65,8 +67,11 @@ class User(AbstractUser):
 
     def clean(self):
         super().clean()
-        no_geography_roles = {self.Role.ADMIN, self.Role.LEGAL, self.Role.CUSTOM}
-        if self.role in no_geography_roles and (self.governorate_id or self.region_id):
+        if self.role == self.Role.CUSTOM:
+            if self.region_id:
+                raise ValidationError("هذا الدور لا يرتبط بمنطقة.")
+            return
+        if self.role in {self.Role.ADMIN, self.Role.LEGAL} and (self.governorate_id or self.region_id):
             raise ValidationError("هذا الدور لا يرتبط بنطاق جغرافي.")
         if self.role == self.Role.GOVERNOR and not self.governorate_id:
             raise ValidationError("المحافظة مطلوبة.")

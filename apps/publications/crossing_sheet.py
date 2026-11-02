@@ -79,11 +79,17 @@ def _rule(draw, left, right, top, color):
     draw.line((left, top, right, top), fill=color, width=max(1, S // 2))
 
 
+def _span(font):
+    ascent, descent = font.getmetrics()
+    return ascent + descent
+
+
 def _heading(draw, title, left, right, top):
-    _draw_rtl(draw, title, right, top, _font(700, 14 * S), INK)
-    top += 14 * S + 4 * S
+    font = _font(700, 14 * S)
+    _draw_rtl(draw, title, right, top, font, INK)
+    top += _span(font) + 3 * S
     draw.line((left, top, right, top), fill=INK, width=S)
-    return top + 6 * S
+    return top + 8 * S
 
 
 def _rows(draw, pairs, left, right, top, columns, fill):
@@ -92,8 +98,9 @@ def _rows(draw, pairs, left, right, top, columns, fill):
     gap = 14 * S
     span = right - left
     column_width = (span - gap * (columns - 1)) / columns
-    row_height = int(11 * S * 1.45) + 6 * S
     font = _font(500, 11 * S)
+    block = _span(font)
+    row_height = block + 8 * S
     for index, (name, number) in enumerate(pairs):
         column = index % columns
         row = index // columns
@@ -101,14 +108,15 @@ def _rows(draw, pairs, left, right, top, columns, fill):
         cell_left = cell_right - column_width
         y = top + row * row_height
         _pair(draw, name, number, cell_left, cell_right, y, font, fill)
-        _rule(draw, cell_left, cell_right, y + row_height - 3 * S, HAIR)
+        _rule(draw, cell_left, cell_right, y + block + 3 * S, HAIR)
     rows = (len(pairs) + columns - 1) // columns
     return top + rows * row_height
 
 
 def _gate_block(draw, gate, left, right, top):
-    _draw_rtl(draw, gate["name"], right, top, _font(600, 12 * S), INK)
-    top += 12 * S + 6 * S
+    font = _font(600, 12 * S)
+    _draw_rtl(draw, gate["name"], right, top, font, INK)
+    top += _span(font) + 4 * S
     return _rows(draw, gate["lines"], left, right, top, 1, INK)
 
 
@@ -123,7 +131,7 @@ def _header(image, draw, parsed, url):
 
     lines = ("وزارة الاقتصاد الوطني", "حركة الشاحنات الواردة من المعابر", "الإدارة العامة للتجارة والمعابر")
     font = _font(500, 13 * S)
-    line_height = int(13 * S * 1.7)
+    line_height = _span(font) + 2 * S
     text_top = top + (logo_size - line_height * len(lines)) // 2
     for index, line in enumerate(lines):
         _draw_rtl(draw, line, WIDTH - PAD, text_top + index * line_height, font, INK)

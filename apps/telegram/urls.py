@@ -31,11 +31,13 @@ def webhook(request):
     if not record_update(update_id):
         return JsonResponse({"ok": True})
     _status_update(last_update_at=timezone.now())
+    queued_before = TelegramOutbox.objects.order_by("-pk").values_list("pk", flat=True).first() or 0
     try:
         handle_update(update)
     except Exception as error:
         from apps.telegram.models import TelegramUpdate
-        TelegramUpdate.objects.filter(update_id=update_id).delete()
+        if not TelegramOutbox.objects.filter(pk__gt=queued_before).exists():
+            TelegramUpdate.objects.filter(update_id=update_id).delete()
         try:
             _status_update(last_error=str(error)[:500])
         except Exception:

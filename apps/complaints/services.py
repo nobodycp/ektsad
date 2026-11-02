@@ -156,6 +156,8 @@ def visible_complaints(user):
         )
     if user.role == User.Role.GOVERNOR:
         return queryset.filter(governorate_id=user.governorate_id)
+    if user.role == User.Role.CUSTOM and user.governorate_id and allows(user, "can_view_reports"):
+        return queryset.filter(governorate_id=user.governorate_id)
     if user.role == User.Role.LEGAL:
         return queryset.filter(legal_referred_at__isnull=False)
     return queryset.none()

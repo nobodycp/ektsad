@@ -228,17 +228,104 @@ def _overview_period(params):
     return _period(params)
 
 
+def _by_governorate(queryset):
+    return {
+        row["governorate_id"]: row["count"]
+        for row in queryset.values("governorate_id").annotate(count=Count("id"))
+    }
+
+
+def _inspector_stats(user, scope, start, end):
+    from apps.accounts.permissions import allows
+    from apps.field_missions.models import FieldMission, FieldMissionAssignee
+    from apps.field_missions.services import visible_missions
+
+    people = User.objects.filter(role=User.Role.INSPECTOR, is_active=True).select_related("governorate")
+    if user.governorate_id and not allows(user, "can_view_all_complaints"):
+        people = people.filter(governorate_id=user.governorate_id)
+    people = list(people.order_by("display_name", "username"))
+    if not people:
+        return []
+    ids = [person.pk for person in people]
+    open_complaints = {
+        row["inspector_id"]: row["count"]
+        for row in scope.filter(status=Complaint.Status.FIELD, inspector_id__in=ids)
+        .values("inspector_id").annotate(count=Count("id"))
+    }
+    done_complaints = {
+        row["inspector_id"]: row["count"]
+        for row in scope.filter(
+            inspector_id__in=ids, closed_at__gte=start, closed_at__lt=end, status__in=DONE_STATUSES,
+        ).values("inspector_id").annotate(count=Count("id"))
+    }
+    missions = visible_missions(user)
+    done_mission_statuses = (FieldMission.Status.FINISHED, FieldMission.Status.RESOLVED)
+    open_missions = {
+        row["user_id"]: row["count"]
+        for row in FieldMissionAssignee.objects.filter(
+            user_id__in=ids, mission__in=missions.filter(status=FieldMission.Status.FIELD),
+        ).values("user_id").annotate(count=Count("mission_id", distinct=True))
+    }
+    done_missions = {
+        row["user_id"]: row["count"]
+        for row in FieldMissionAssignee.objects.filter(
+            user_id__in=ids,
+            mission__in=missions.filter(closed_at__gte=start, closed_at__lt=end, status__in=done_mission_statuses),
+        ).values("user_id").annotate(count=Count("mission_id", distinct=True))
+    }
+    stats = []
+    for person in people:
+        stats.append({
+            "name": person.display_name or person.username,
+            "governorate_id": person.governorate_id,
+            "holding": open_complaints.get(person.pk, 0) + open_missions.get(person.pk, 0),
+            "finished": done_complaints.get(person.pk, 0) + done_missions.get(person.pk, 0),
+        })
+    return stats
+
+
+def _inspector_line(person):
+    return f"{person['name']}: بيده {person['holding']}، أنجز {person['finished']}"
+
+
+def _governorate_blocks(scope, start, end, stats):
+    from apps.geography.models import Governorate
+
+    created = _by_governorate(scope.filter(created_at__gte=start, created_at__lt=end))
+    done = _by_governorate(scope.filter(closed_at__gte=start, closed_at__lt=end, status__in=DONE_STATUSES))
+    pending = _by_governorate(_pending(scope, end))
+    ids = set(created) | set(done) | set(pending) | {person["governorate_id"] for person in stats}
+    ids.discard(None)
+    blocks = []
+    for governorate in Governorate.objects.filter(pk__in=ids).order_by("name"):
+        people = [person for person in stats if person["governorate_id"] == governorate.pk]
+        blocks.append({
+            "name": governorate.name,
+            "created": created.get(governorate.pk, 0),
+            "done": done.get(governorate.pk, 0),
+            "pending": pending.get(governorate.pk, 0),
+            "inspectors": [_inspector_line(person) for person in people],
+        })
+    return blocks
+
+
 def telegram_summary(user, start_day, end_day):
-    """Three counts for the bot. The full overview is too heavy for the one web worker."""
+    """Counts for the bot. A director also gets one block per governorate."""
+    from apps.accounts.permissions import allows
+
     _start_day, _end_day, start, end = _period({
         "date_from": start_day.isoformat(),
         "date_to": end_day.isoformat(),
     })
     scope = _overview_scope(user, {})
+    stats = _inspector_stats(user, scope, start, end)
+    everywhere = allows(user, "can_view_all_complaints")
     return {
         "created": scope.filter(created_at__gte=start, created_at__lt=end).count(),
         "done": scope.filter(closed_at__gte=start, closed_at__lt=end, status__in=DONE_STATUSES).count(),
         "pending_at_end": _pending(scope, end).count(),
+        "inspectors": [_inspector_line(person) for person in stats],
+        "governorates": _governorate_blocks(scope, start, end, stats) if everywhere else None,
     }
 
 

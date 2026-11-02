@@ -15,7 +15,9 @@ ACTIONS = (
     ("ms:0", "المهمات"),
     ("mc", "إنشاء مهمة"),
     ("prb", "نشر الأسعار"),
+    ("ph:0", "سجل الأسعار"),
     ("crb", "إدخال تقرير"),
+    ("xh:0", "سجل الحركات"),
     ("rp", "التقارير"),
     ("us:0", "المستخدمون"),
     ("gv:0", "المحافظات"),
@@ -28,7 +30,8 @@ AUDIENCES = (
     ("linked", "الحسابات المربوطة"),
     ("can_view_field_missions", "من يرى المهمات"),
     ("can_open_field_missions", "من ينشئ مهمات"),
-    ("can_publish", "من ينشر"),
+    ("can_publish_prices", "من ينشر الأسعار"),
+    ("can_publish_crossings", "من يدخل المعابر"),
     ("reports", "من يرى التقارير"),
     ("can_manage_users", "من يدير المستخدمين"),
     ("can_manage_geography", "من يدير المحافظات"),
@@ -42,8 +45,10 @@ DEFAULTS = (
     (4, 1, "الشكاوى", "ls:a:0", "linked", ""),
     (5, 1, "المهمات", "ms:0", "can_view_field_missions", ""),
     (5, 2, "إنشاء مهمة", "mc", "can_open_field_missions", ""),
-    (6, 1, "نشر الأسعار", "prb", "can_publish", ""),
-    (6, 2, "إدخال تقرير", "crb", "can_publish", ""),
+    (6, 1, "نشر الأسعار", "prb", "can_publish_prices", ""),
+    (6, 2, "إدخال تقرير", "crb", "can_publish_crossings", ""),
+    (6, 3, "سجل الأسعار", "ph:0", "can_publish_prices", ""),
+    (6, 4, "سجل الحركات", "xh:0", "can_publish_crossings", ""),
     (7, 1, "التقارير", "rp", "reports", ""),
     (8, 1, "المستخدمون", "us:0", "can_manage_users", ""),
     (9, 1, "المحافظات", "gv:0", "can_manage_geography", ""),
@@ -109,9 +114,40 @@ def _inspector_rows(user):
     ]
 
 
+def _focused_publish_rows(user):
+    role = getattr(user, "staff_role", None)
+    if user is None or role is None:
+        return None
+    prices = allows(user, "can_publish_prices")
+    crossings = allows(user, "can_publish_crossings")
+    if not prices and not crossings:
+        return None
+    if any(getattr(role, name, False) for name in (
+        "can_view_all_complaints", "can_view_reports", "can_manage_users", "can_manage_geography",
+        "can_view_field_missions", "can_open_field_missions", "can_manage_settings", "can_impersonate",
+    )):
+        return None
+    if crossings and not prices:
+        return [
+            [_menu_button("إدخال تقرير", "crb", "")],
+            [_menu_button("سجل الحركات", "xh:0", "")],
+            [_menu_button("حركة المعابر", "cr", "")],
+        ]
+    if prices and not crossings:
+        return [
+            [_menu_button("نشر الأسعار", "prb", "")],
+            [_menu_button("سجل الأسعار", "ph:0", "")],
+            [_menu_button("القائمة الاسترشادية", "pr", "")],
+        ]
+    return None
+
+
 def rows_for(user):
     if user is not None and user.role == User.Role.INSPECTOR:
         return _inspector_rows(user)
+    focused = _focused_publish_rows(user)
+    if focused is not None:
+        return focused
     if not BotButton.objects.exists():
         return _builtin_rows(user)
     grouped = []

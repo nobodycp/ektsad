@@ -72,11 +72,23 @@ def _deliver(item, token):
     response.raise_for_status()
 
 
+LEASE = timedelta(seconds=90)
+
+
 def send_pending_item(item):
-    """Send one outbox row now. Failures stay pending for the background retry."""
+    """Send one outbox row now. One claim, so the request and the worker cannot both deliver it."""
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-    if not token or item.status != TelegramOutbox.Status.PENDING:
+    if not token:
         return False
+    now = timezone.now()
+    claimed = TelegramOutbox.objects.filter(
+        pk=item.pk,
+        status=TelegramOutbox.Status.PENDING,
+        next_attempt_at__lte=now,
+    ).update(next_attempt_at=now + LEASE)
+    if not claimed:
+        return False
+    item.refresh_from_db()
     try:
         _deliver(item, token)
     except Exception as error:

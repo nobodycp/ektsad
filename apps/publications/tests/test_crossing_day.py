@@ -130,3 +130,64 @@ class CrossingPublishTests(TestCase):
         self.assertEqual(image.status_code, 200)
         self.assertEqual(image["Content-Type"], "image/png")
         self.assertEqual(self.client.get("/crossings/2026-11-02/").status_code, 404)
+
+    def test_history_shows_fifteen_then_the_older_sheet(self):
+        from datetime import date, timedelta
+
+        from django.core.files.base import ContentFile
+
+        from apps.telegram.webhook import handle_update
+
+        for offset in range(16):
+            day = date(2026, 1, 1) + timedelta(days=offset)
+            CrossingReport.objects.create(
+                movement_date=day, weekday="الأحد", body="نص",
+                image=ContentFile(b"png", name=f"{day.isoformat()}.png"),
+                publisher=self.user, publisher_name="موظف التجارة",
+            )
+        handle_update({"message": {"chat": {"id": 501}, "from": {"id": 501}, "text": "سجل الحركات"}})
+        first = TelegramOutbox.objects.filter(chat_id="501").latest("pk")
+        labels = [button["text"] for row in first.markup["keyboard"] for button in row]
+        self.assertEqual(len([label for label in labels if "/2026" in label]), 15)
+        self.assertIn("التالي", labels)
+        self.assertIn("16/01/2026 الأحد", labels)
+        self.assertNotIn("01/01/2026 الأحد", labels)
+        handle_update({"message": {"chat": {"id": 501}, "from": {"id": 501}, "text": "التالي"}})
+        second = TelegramOutbox.objects.filter(chat_id="501").latest("pk")
+        older = [button["text"] for row in second.markup["keyboard"] for button in row]
+        self.assertIn("01/01/2026 الأحد", older)
+        self.assertIn("السابق", older)
+        handle_update({"message": {"chat": {"id": 501}, "from": {"id": 501}, "text": "01/01/2026 الأحد"}})
+        opened = TelegramOutbox.objects.filter(chat_id="501").latest("pk")
+        self.assertIn("2026-01-01", opened.photo)
+
+        handle_update({"message": {"chat": {"id": 501}, "from": {"id": 501}, "text": "سجل الأسعار"}})
+        self.assertEqual(TelegramOutbox.objects.filter(chat_id="501").latest("pk").text, "غير مسموح.")
+
+    def test_price_history_shows_fifteen_then_opens_one_list(self):
+        from django.core.files.base import ContentFile
+
+        from apps.accounts.models import StaffRole
+        from apps.publications.models import PriceReport
+        from apps.telegram.webhook import handle_update
+
+        role = StaffRole.objects.get(name="موظف الأسعار")
+        prices = User.objects.create_user(
+            username="prices", password="password-long-12", role=role.kind, staff_role=role, display_name="الأسعار",
+        )
+        TelegramLink.objects.create(user=prices, telegram_id="502")
+        for index in range(16):
+            PriceReport.objects.create(
+                image=ContentFile(b"jpg", name=f"list-{index}.jpg"), publisher=prices, publisher_name="الأسعار",
+            )
+        handle_update({"message": {"chat": {"id": 502}, "from": {"id": 502}, "text": "سجل الأسعار"}})
+        first = TelegramOutbox.objects.filter(chat_id="502").latest("pk")
+        labels = [button["text"] for row in first.markup["keyboard"] for button in row]
+        self.assertEqual(len([label for label in labels if "(" in label]), 15)
+        self.assertIn("التالي", labels)
+        handle_update({"message": {"chat": {"id": 502}, "from": {"id": 502}, "text": "التالي"}})
+        second = TelegramOutbox.objects.filter(chat_id="502").latest("pk")
+        older = [button["text"] for row in second.markup["keyboard"] for button in row]
+        chosen = next(label for label in older if "(" in label)
+        handle_update({"message": {"chat": {"id": 502}, "from": {"id": 502}, "text": chosen}})
+        self.assertIn("list-", TelegramOutbox.objects.filter(chat_id="502").latest("pk").photo)
