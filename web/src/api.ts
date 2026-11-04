@@ -22,6 +22,7 @@ export type SessionUser = {
   can_manage_settings?: boolean
   can_impersonate?: boolean
   is_preview?: boolean
+  linked_complaint_button?: boolean
   impersonator?: { id: number; username: string; display_name: string } | null
 }
 

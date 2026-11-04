@@ -9,6 +9,7 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
 from apps.accounts.models import StaffRole, User
+from apps.common.models import SystemSettings
 from apps.accounts.permissions import ROLE_FIELDS, allows
 from apps.accounts.services import delete_user_sessions, reset_password, set_user_password
 from apps.telegram.presence import snapshot
@@ -96,6 +97,7 @@ def _me_payload(user, request):
         "can_manage_settings": allows(user, "can_manage_settings"),
         "can_impersonate": allows(user, "can_impersonate"),
         "is_preview": bool(getattr(user, "is_preview", False)),
+        "linked_complaint_button": SystemSettings.current().linked_complaint_button,
         "impersonator": _impersonator_payload(request),
     }
 

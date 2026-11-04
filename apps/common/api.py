@@ -22,6 +22,7 @@ def _admin_payload(row):
         "telegram_bot_configured": bool(row.telegram_bot_token),
         "telegram_webhook_secret_configured": bool(row.telegram_webhook_secret),
         "linked_complaint_button": row.linked_complaint_button,
+        "linked_bulletin_buttons": row.linked_bulletin_buttons,
     }
 
 
@@ -45,6 +46,8 @@ def system_settings(request):
         row.web_complaints_enabled = bool(payload["web_complaints_enabled"])
     if "linked_complaint_button" in payload:
         row.linked_complaint_button = bool(payload["linked_complaint_button"])
+    if "linked_bulletin_buttons" in payload:
+        row.linked_bulletin_buttons = bool(payload["linked_bulletin_buttons"])
     if "telegram_bot_username" in payload:
         row.telegram_bot_username = str(payload.get("telegram_bot_username") or "").lstrip("@").strip()
     token = str(payload.get("telegram_bot_token") or "").strip()

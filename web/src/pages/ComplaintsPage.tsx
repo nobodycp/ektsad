@@ -230,9 +230,11 @@ export function ComplaintsPage({ user }: { user: SessionUser }) {
 
   return (
     <div className="page">
-      <div className="page__bar">
-        <Button onClick={() => setFiling(true)}>تقديم شكوى</Button>
-      </div>
+      {user.linked_complaint_button && (
+        <div className="page__bar">
+          <Button onClick={() => setFiling(true)}>تقديم شكوى</Button>
+        </div>
+      )}
       {returning && (
         <Dialog
           title="رفض وإرجاع للمدير"

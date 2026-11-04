@@ -427,6 +427,11 @@ def _create_complaint(chat_id, user_id, governorate_id, region_id, title, body, 
     return complaint
 
 
+def _public_button_open(telegram_id, target):
+    from apps.telegram.buttons import public_button_open
+    return public_button_open(_linked_user(telegram_id), target)
+
+
 def _publications(chat_id, text):
     if text in {"القائمة الاسترشادية", "قائمة الأسعار", "prices", "/prices"}:
         report = PriceReport.objects.order_by("-published_at").first()
@@ -731,6 +736,14 @@ def _open_complaint(chat_id, telegram_id, pk):
     _send_complaint(chat_id, user, complaint)
 
 
+def _status_filters(prefix, counts):
+    labels = (("o", "🟢 المفتوحة"), ("t", "↪️ المحولة"), ("c", "🔒 المغلقة"))
+    return [[
+        {"text": f"{label} {counts[key]}", "callback_data": f"{prefix}:{key}:0"}
+        for key, label in labels
+    ]]
+
+
 def _complaint_mark(status):
     if status == Complaint.Status.LEGAL:
         return "↪️"
@@ -787,11 +800,11 @@ def _show_work(chat_id, telegram_id, filt, page, governorate_id=None):
         "c": "لا توجد شكاوى مغلقة.",
     }
     prefix = f"ld:{place.pk}" if place is not None else "ls"
-    filters = [[
-        {"text": "🟢 المفتوحة", "callback_data": f"{prefix}:o:0"},
-        {"text": "↪️ المحولة", "callback_data": f"{prefix}:t:0"},
-        {"text": "🔒 المغلقة", "callback_data": f"{prefix}:c:0"},
-    ]]
+    filters = _status_filters(prefix, {
+        "o": scope.filter(status__in=open_statuses).count(),
+        "t": scope.filter(status__in=transferred).count(),
+        "c": scope.filter(status__in=closed).count(),
+    })
     statuses = buckets.get(filt)
     if statuses is None:
         enqueue(chat_id, "بيانات غير صالحة.", markup=_home_markup())
@@ -1426,7 +1439,10 @@ def _on_callback(chat_id, user_id, data):
         elif data == "pv" or data.startswith("pv:"):
             _preview_callback(chat_id, user_id, data)
         elif data == "nw":
-            _start_complaint(chat_id)
+            if _public_button_open(user_id, "nw"):
+                _start_complaint(chat_id)
+            else:
+                _show_menu(chat_id)
         elif data in FIXED_KINDS or data == "k:other":
             _choose_kind(chat_id, data)
         elif data == "resume":
@@ -1436,9 +1452,15 @@ def _on_callback(chat_id, user_id, data):
         elif data == "locskip":
             _skip_location(chat_id)
         elif data == "pr":
-            _publications(chat_id, "قائمة الأسعار")
+            if _public_button_open(user_id, "pr"):
+                _publications(chat_id, "قائمة الأسعار")
+            else:
+                _show_menu(chat_id)
         elif data == "cr":
-            _publications(chat_id, "حركة المعابر")
+            if _public_button_open(user_id, "cr"):
+                _publications(chat_id, "حركة المعابر")
+            else:
+                _show_menu(chat_id)
         elif data.startswith("xh:"):
             _crossing_history(chat_id, user_id, int(data.split(":")[1]))
         elif data.startswith("xi:"):
@@ -1669,7 +1691,10 @@ def handle_update(update):
         _on_callback(chat_id, user_id, "ls:c:0")
         return
     if text == "تقديم شكوى":
-        _start_complaint(chat_id)
+        if _public_button_open(user_id, "nw"):
+            _start_complaint(chat_id)
+        else:
+            _show_menu(chat_id)
         return
     if text in {"إدخال تقرير", "نشر المعابر"}:
         _on_callback(chat_id, user_id, "crb")
@@ -1691,6 +1716,12 @@ def handle_update(update):
             _staff_action(chat_id, user_id, action)
         elif not _on_callback(chat_id, user_id, action):
             enqueue(chat_id, "بيانات غير صالحة.", markup=_home_markup())
+        return
+    if text in {"القائمة الاسترشادية", "قائمة الأسعار", "prices", "/prices"} and not _public_button_open(user_id, "pr"):
+        _show_menu(chat_id)
+        return
+    if text in {"حركة المعابر", "crossings", "/crossings"} and not _public_button_open(user_id, "cr"):
+        _show_menu(chat_id)
         return
     if _publications(chat_id, text):
         return

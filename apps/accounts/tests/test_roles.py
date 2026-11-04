@@ -111,12 +111,18 @@ class StaffRoleApiTests(TestCase):
         )
         self.assertEqual(
             [[button["text"] for button in row] for row in rows_for(crossings)],
-            [["إدخال تقرير"], ["سجل الحركات"], ["حركة المعابر"]],
+            [["إدخال تقرير"], ["سجل الحركات"]],
         )
         self.assertEqual(
             [[button["text"] for button in row] for row in rows_for(prices)],
-            [["نشر الأسعار"], ["سجل الأسعار"], ["القائمة الاسترشادية"]],
+            [["نشر الأسعار"], ["سجل الأسعار"]],
         )
+        from apps.common.models import SystemSettings
+        row = SystemSettings.current()
+        row.linked_bulletin_buttons = True
+        row.save(update_fields=["linked_bulletin_buttons"])
+        self.assertEqual(rows_for(crossings)[-1][0]["text"], "حركة المعابر")
+        self.assertEqual(rows_for(prices)[-1][0]["text"], "القائمة الاسترشادية")
 
     def test_governors_director_sees_every_governorate(self):
         from apps.complaints.models import Complaint

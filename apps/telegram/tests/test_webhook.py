@@ -353,6 +353,16 @@ class TelegramWebhookTests(TestCase):
         inspector_labels = self.button_labels(TelegramOutbox.objects.get(chat_id="51").markup)
         self.assertIn("فتح مهمة ميدانية", inspector_labels)
         self.assertNotIn("تقديم شكوى", inspector_labels)
+        self.assertNotIn("القائمة الاسترشادية", inspector_labels)
+        self.assertNotIn("حركة المعابر", inspector_labels)
+
+        TelegramOutbox.objects.all().delete()
+        self.say("القائمة الاسترشادية", chat=50, user=50)
+        self.assertIn("لا توجد قائمة أسعار منشورة.", TelegramOutbox.objects.filter(chat_id="50").latest("pk").text)
+        self.say("القائمة الاسترشادية", chat=51, user=51)
+        staff_reply = TelegramOutbox.objects.filter(chat_id="51").latest("pk")
+        self.assertNotIn("قائمة أسعار", staff_reply.text)
+        self.assertIn("فتح مهمة ميدانية", self.button_labels(staff_reply.markup))
 
     def test_complaint_choices_are_buttons_and_text_is_only_title_and_body(self):
         from apps.telegram.models import TelegramDraft, TelegramOutbox
@@ -592,7 +602,7 @@ class TelegramWebhookTests(TestCase):
         menu = TelegramOutbox.objects.get(chat_id="971").markup["keyboard"]
         self.assertEqual(
             [row[0]["text"] for row in menu],
-            ["فتح مهمة ميدانية", "طلبات شكاوي 🟢 2", "مهماتي", "القائمة الاسترشادية", "حركة المعابر"],
+            ["فتح مهمة ميدانية", "طلبات شكاوي 🟢 2", "مهماتي"],
         )
         self.assertEqual(menu[0][0]["style"], "danger")
         self.assertEqual(menu[1][0]["style"], "primary")
@@ -600,7 +610,7 @@ class TelegramWebhookTests(TestCase):
 
         self.say("طلبات شكاوي 🟢 2", chat=971, user=971)
         opened = self.button_labels(TelegramOutbox.objects.latest("pk").markup)
-        self.assertEqual(opened[:3], ["🟢 المفتوحة", "↪️ المحولة", "🔒 المغلقة"])
+        self.assertEqual(opened[:3], ["🟢 المفتوحة 2", "↪️ المحولة 1", "🔒 المغلقة 17"])
         self.assertTrue(any("واردة" in label for label in opened))
         self.assertTrue(any("ميدانية" in label for label in opened))
 
@@ -850,6 +860,7 @@ class TelegramWebhookTests(TestCase):
         self.assertIn("غزة", self.button_labels(TelegramOutbox.objects.filter(chat_id="710").latest("pk").markup))
         self.press(f"mw:{other.pk}:0", chat=710, user=710)
         gaza_missions = self.button_labels(TelegramOutbox.objects.filter(chat_id="710").latest("pk").markup)
+        self.assertEqual(gaza_missions[:3], ["🟢 المفتوحة 1", "↪️ المحولة 0", "🔒 المغلقة 0"])
         self.assertTrue(any("محل غزة" in label for label in gaza_missions))
         self.assertFalse(any("محل الخليل" in label for label in gaza_missions))
 

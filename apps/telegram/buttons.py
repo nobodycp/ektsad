@@ -77,11 +77,20 @@ def seed_buttons():
     ])
 
 
+def public_button_open(user, target):
+    """Citizens always see these. Linked accounts see them only after the setting is on."""
+    if user is None or target not in {"nw", "pr", "cr"}:
+        return True
+    from apps.common.models import SystemSettings
+    row = SystemSettings.current()
+    if target == "nw":
+        return bool(row.linked_complaint_button)
+    return bool(row.linked_bulletin_buttons)
+
+
 def shown(user, button):
-    if button.target == "nw" and user is not None:
-        from apps.common.models import SystemSettings
-        if not SystemSettings.current().linked_complaint_button:
-            return False
+    if not public_button_open(user, button.target):
+        return False
     if button.audience == "everyone":
         return True
     if user is None or not getattr(user, "is_active", False):
@@ -114,10 +123,8 @@ def _inspector_rows(user):
         [_menu_button("فتح مهمة ميدانية", "mc", "danger")],
         [_menu_button(f"طلبات شكاوي 🟢 {open_count}", "cq", "primary")],
         [_menu_button("مهماتي", "ms:0", "")],
-        [_menu_button("القائمة الاسترشادية", "pr", "")],
-        [_menu_button("حركة المعابر", "cr", "")],
     ]
-    return _with_linked_complaint(rows)
+    return _with_linked_complaint(_with_bulletins(rows, ("pr", "cr")))
 
 
 def _focused_publish_rows(user):
@@ -134,18 +141,24 @@ def _focused_publish_rows(user):
     )):
         return None
     if crossings and not prices:
-        return _with_linked_complaint([
+        return _with_linked_complaint(_with_bulletins([
             [_menu_button("إدخال تقرير", "crb", "")],
             [_menu_button("سجل الحركات", "xh:0", "")],
-            [_menu_button("حركة المعابر", "cr", "")],
-        ])
+        ], ("cr",)))
     if prices and not crossings:
-        return _with_linked_complaint([
+        return _with_linked_complaint(_with_bulletins([
             [_menu_button("نشر الأسعار", "prb", "")],
             [_menu_button("سجل الأسعار", "ph:0", "")],
-            [_menu_button("القائمة الاسترشادية", "pr", "")],
-        ])
+        ], ("pr",)))
     return None
+
+
+def _with_bulletins(rows, targets):
+    from apps.common.models import SystemSettings
+    if not SystemSettings.current().linked_bulletin_buttons:
+        return rows
+    labels = {"pr": "القائمة الاسترشادية", "cr": "حركة المعابر"}
+    return [*rows, *[[_menu_button(labels[target], target, "")] for target in targets]]
 
 
 def _with_linked_complaint(rows):

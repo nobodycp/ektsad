@@ -86,10 +86,19 @@ def handle_callback(chat_id, user_id, data):
     if data.startswith("mv:"):
         _mission_governorates(chat_id, int(data.split(":")[1]))
     elif data.startswith("mw:"):
-        _, governorate_id, page = data.split(":")
-        _missions(chat_id, user, int(page), governorate_id=int(governorate_id))
+        parts = data.split(":")
+        if len(parts) == 3:
+            _, governorate_id, page = parts
+            _missions(chat_id, user, int(page), governorate_id=int(governorate_id))
+        else:
+            _, governorate_id, filt, page = parts
+            _missions(chat_id, user, int(page), governorate_id=int(governorate_id), filt=filt)
     elif data.startswith("ms:"):
-        _missions(chat_id, user, int(data.split(":")[1]))
+        parts = data.split(":")
+        if len(parts) == 2:
+            _missions(chat_id, user, int(parts[1]))
+        else:
+            _missions(chat_id, user, int(parts[2]), filt=parts[1])
     elif data.startswith("mo:"):
         _open_mission_card(chat_id, user, int(data.split(":")[1]))
     elif data.startswith("my:"):
@@ -245,8 +254,9 @@ def _mission_governorates(chat_id, page):
     _say(chat_id, "اختر المحافظة.", markup={"inline_keyboard": rows})
 
 
-def _missions(chat_id, user, page, governorate_id=None):
+def _missions(chat_id, user, page, governorate_id=None, filt="a"):
     from apps.accounts.permissions import spans_governorates
+    from apps.telegram.webhook import _paged, _status_filters
 
     if user is None or not allows(user, "can_view_field_missions"):
         _say(chat_id, "غير مسموح.")
@@ -262,19 +272,41 @@ def _missions(chat_id, user, page, governorate_id=None):
             _say(chat_id, "المحافظة غير موجودة.")
             return
         queryset = queryset.filter(governorate_id=place.pk)
-    items = list(queryset.prefetch_related("assignees").order_by("-created_at"))
+    open_statuses = [FieldMission.Status.OFFICE, FieldMission.Status.FIELD]
+    transferred = [FieldMission.Status.LEGAL]
+    closed = [FieldMission.Status.FINISHED, FieldMission.Status.RESOLVED]
+    if filt == "a":
+        if queryset.filter(status__in=open_statuses).exists():
+            filt = "o"
+        elif queryset.filter(status__in=transferred).exists():
+            filt = "t"
+        else:
+            filt = "c"
+    buckets = {"o": open_statuses, "t": transferred, "c": closed}
+    empty = {"o": "مفتوحة", "t": "محوّلة", "c": "مغلقة"}
+    statuses = buckets.get(filt)
+    if statuses is None:
+        _say(chat_id, "بيانات غير صالحة.")
+        return
+    prefix = f"mw:{place.pk}" if place is not None else "ms"
+    filters = _status_filters(prefix, {
+        "o": queryset.filter(status__in=open_statuses).count(),
+        "t": queryset.filter(status__in=transferred).count(),
+        "c": queryset.filter(status__in=closed).count(),
+    })
     footer = []
     if place is not None and spans_governorates(user):
         footer.append([{"text": "المحافظات", "callback_data": "mv:0"}])
     footer.append([{"text": "القائمة", "callback_data": "mn"}])
+    items = list(queryset.filter(status__in=statuses).prefetch_related("assignees").order_by("-created_at"))
     if not items:
-        _say(chat_id, "لا توجد مهمات." if place is None else f"لا توجد مهمات في {place.name}.", markup={"inline_keyboard": footer})
+        where = f" في {place.name}" if place is not None else ""
+        note = f"لا توجد مهمات {empty[filt]}{where}."
+        _say(chat_id, note, markup={"inline_keyboard": filters + footer})
         return
-    from apps.telegram.webhook import _paged
-    prefix = f"mw:{place.pk}" if place is not None else "ms"
-    rows = _paged(items, page, _mission_label, lambda item: f"mo:{item.pk}", prefix)
+    rows = _paged(items, page, _mission_label, lambda item: f"mo:{item.pk}", f"{prefix}:{filt}")
     title = f"{place.name} — اختر المهمة." if place is not None else "اختر المهمة."
-    _say(chat_id, title, markup={"inline_keyboard": rows + footer})
+    _say(chat_id, title, markup={"inline_keyboard": filters + rows + footer})
 
 
 def _open_mission_card(chat_id, user, pk):
