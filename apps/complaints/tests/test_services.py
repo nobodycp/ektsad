@@ -9,6 +9,7 @@ from apps.complaints.services import (
     assign_complaint,
     close_legal,
     return_complaint,
+    decide_complaint,
     submit_field_report,
     unread_incoming,
     visible_complaints,
@@ -76,7 +77,11 @@ class ComplaintServiceTests(TestCase):
         complaint = self.complaint()
         assign_complaint(complaint, self.governor, self.inspector, channel="web", ip="1", telegram_id=None)
         self.assertEqual(complaint.status, Complaint.Status.FIELD)
-        submit_field_report(complaint, self.inspector, "تمت المعاينة", [], "legal")
+        submit_field_report(complaint, self.inspector, "تمت المعاينة", [])
+        self.assertEqual(complaint.status, Complaint.Status.FIELD)
+        with self.assertRaisesMessage(ValidationError, "بانتظار قرار مدير المحافظة."):
+            submit_field_report(complaint, self.inspector, "رد ثانٍ", [])
+        decide_complaint(complaint, self.governor, "legal")
         self.assertEqual(complaint.status, Complaint.Status.LEGAL)
         close_legal(complaint, self.legal, "", channel="web", ip="1", telegram_id=None)
         self.assertEqual(complaint.status, Complaint.Status.RESOLVED)
@@ -85,15 +90,16 @@ class ComplaintServiceTests(TestCase):
         complaint = self.complaint()
         accept_complaint(complaint, self.inspector, channel="web", ip="1", telegram_id=None)
         with self.assertRaises(ValidationError):
-            submit_field_report(complaint, self.inspector, "", [], "governor")
+            submit_field_report(complaint, self.inspector, "", [])
         files = [SimpleUploadedFile(f"{i}.png", b"image", content_type="image/png") for i in range(6)]
         with self.assertRaises(ValidationError):
-            submit_field_report(complaint, self.inspector, "نص", files, "governor")
+            submit_field_report(complaint, self.inspector, "نص", files)
 
     def test_legal_empty_notes_and_followup_are_immutable(self):
         complaint = self.complaint()
         accept_complaint(complaint, self.inspector, channel="web", ip="1", telegram_id=None)
-        submit_field_report(complaint, self.inspector, "نص", [], "legal")
+        submit_field_report(complaint, self.inspector, "نص", [])
+        decide_complaint(complaint, self.governor, "legal")
         close_legal(complaint, self.legal, "", channel="web", ip="1", telegram_id=None)
         line = FollowUp.objects.get(place=FollowUp.Place.LEGAL)
         self.assertEqual(line.body, "تم الانجاز")

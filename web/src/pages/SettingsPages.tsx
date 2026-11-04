@@ -6,6 +6,7 @@ import { TelegramHealthPage } from "./TelegramHealthPage"
 
 type Settings = {
   web_complaints_enabled: boolean
+  linked_complaint_button: boolean
   telegram_bot_username: string
   telegram_bot_configured: boolean
   telegram_webhook_secret_configured: boolean
@@ -30,7 +31,25 @@ export function SystemSettingsPage() {
     }
   }
 
+  const saveLinked = async (enabled: boolean) => {
+    setBusy(true)
+    const result = await apiRequest<Settings>("/api/system-settings/", {
+      method: "PATCH",
+      body: { linked_complaint_button: enabled },
+    })
+    setBusy(false)
+    if (!result.ok) setNotice({ tone: "error", text: failureText(result) })
+    else {
+      setNotice({
+        tone: "ok",
+        text: enabled ? "زر تقديم الشكوى ظاهر للحسابات المربوطة." : "زر تقديم الشكوى مخفي عن الحسابات المربوطة.",
+      })
+      reload()
+    }
+  }
+
   const enabled = state.status === "ready" ? state.data.web_complaints_enabled : true
+  const linked = state.status === "ready" ? state.data.linked_complaint_button : false
   return (
     <div className="page">
       <NoticeLine notice={notice} />
@@ -39,6 +58,13 @@ export function SystemSettingsPage() {
         <p className="account__note">عند الإيقاف تبقى صفحة الجمهور ظاهرة، ويرفض الموقع أي شكوى جديدة من الويب. تلغرام لا يتأثر.</p>
         <Button loading={busy} onClick={() => save(!enabled)}>
           {enabled ? "إيقاف الشكاوى عبر الموقع" : "تفعيل الشكاوى عبر الموقع"}
+        </Button>
+      </section>
+      <section className="sheet">
+        <h2 className="account__heading">تقديم شكوى للحسابات المربوطة</h2>
+        <p className="account__note">المواطن يرى الزر دائماً. الحساب المربوط لا يراه إلا بعد تشغيل هذا الخيار، فيظهر لكل الحسابات المربوطة معاً.</p>
+        <Button variant="secondary" loading={busy} onClick={() => saveLinked(!linked)}>
+          {linked ? "إخفاء زر تقديم الشكوى عن الحسابات المربوطة" : "إظهار زر تقديم الشكوى للحسابات المربوطة"}
         </Button>
       </section>
     </div>

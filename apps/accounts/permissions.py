@@ -23,6 +23,10 @@ def allows(user, name):
         return False
     if getattr(user, "role", None) == User.Role.ADMIN:
         return True
+    if getattr(user, "role", None) == User.Role.INSPECTOR and name in {"can_view_field_missions", "can_open_field_missions"}:
+        return True
+    if getattr(user, "role", None) == User.Role.GOVERNOR and name == "can_view_field_missions":
+        return True
     role = getattr(user, "staff_role", None)
     if role is not None:
         if name == "can_publish_prices":

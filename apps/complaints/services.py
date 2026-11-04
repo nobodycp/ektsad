@@ -80,13 +80,13 @@ def return_complaint(complaint, actor, reason, *, channel, ip, telegram_id):
 
 
 @transaction.atomic
-def submit_field_report(complaint, actor, text, files, destination, *, channel="web", ip=None, telegram_id=""):
+def submit_field_report(complaint, actor, text, files, *, channel="web", ip=None, telegram_id=""):
     if actor.role != User.Role.INSPECTOR or complaint.inspector_id != actor.pk:
         raise ValidationError("غير مسموح.")
     if complaint.status != Complaint.Status.FIELD or not text or not text.strip():
         raise ValidationError("نص المتابعة مطلوب.")
-    if destination not in {"governor", "legal"}:
-        raise ValidationError("وجهة غير صالحة.")
+    if FollowUp.objects.filter(complaint=complaint, place=FollowUp.Place.FIELD).exists():
+        raise ValidationError("بانتظار قرار مدير المحافظة.")
     files = list(files)
     if len(files) > 5:
         raise ValidationError("الحد الأقصى خمسة ملفات.")
@@ -99,15 +99,36 @@ def submit_field_report(complaint, actor, text, files, destination, *, channel="
     )
     for upload in files:
         FollowUpFile.objects.create(follow_up=follow_up, file=upload)
-    if destination == "governor":
+    from apps.telegram.webhook import notify_complaint_reply
+    notify_complaint_reply(complaint)
+
+
+@transaction.atomic
+def decide_complaint(complaint, actor, decision, *, channel="web", ip=None, telegram_id=""):
+    if actor.role != User.Role.GOVERNOR or actor.governorate_id != complaint.governorate_id:
+        raise ValidationError("غير مسموح.")
+    if complaint.status != Complaint.Status.FIELD:
+        raise ValidationError("لا يمكن البت في هذه الشكوى.")
+    if not FollowUp.objects.filter(complaint=complaint, place=FollowUp.Place.FIELD).exists():
+        raise ValidationError("لا يوجد رد من المفتش.")
+    if decision not in {"close", "legal"}:
+        raise ValidationError("اختر إغلاق الشكوى أو إحالتها.")
+    FollowUp.objects.create(
+        complaint=complaint, author=actor, author_name=_name(actor),
+        place=FollowUp.Place.DECISION,
+        body="أُغلقت الشكوى وأُنهيت." if decision == "close" else "أُحيلت إلى الشؤون القانونية.",
+        channel=channel, author_ip=ip, author_telegram_id=telegram_id or "",
+    )
+    if decision == "close":
         complaint.status = Complaint.Status.FINISHED
         complaint.closed_at = timezone.now()
     else:
         complaint.status = Complaint.Status.LEGAL
         complaint.legal_referred_at = timezone.now()
     complaint.save()
-    if destination == "legal":
-        from apps.telegram.webhook import notify_legal_complaint
+    from apps.telegram.webhook import notify_complaint_decision, notify_legal_complaint
+    notify_complaint_decision(complaint, decision)
+    if decision == "legal":
         notify_legal_complaint(complaint)
 
 

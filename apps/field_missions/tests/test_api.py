@@ -74,13 +74,16 @@ class FieldMissionApiTests(TestCase):
         return [row["place_name"] for row in self.client.get("/api/field-missions/").json()["results"]]
 
     def test_view_permission_hides_the_list_and_scope_follows_role(self):
-        self.client.force_login(self.inspector)
-        self.inspector.can_view_field_missions = False
-        self.inspector.save(update_fields=["can_view_field_missions"])
+        stranger = User.objects.create_user(
+            username="stranger", password="stranger-password-12", role=User.Role.CUSTOM, display_name="غريب",
+        )
+        self.client.force_login(stranger)
         self.assertEqual(self.client.get("/api/field-missions/").status_code, 403)
 
-        self.inspector.can_view_field_missions = True
+        self.inspector.can_view_field_missions = False
         self.inspector.save(update_fields=["can_view_field_missions"])
+        self.client.force_login(self.inspector)
+        self.assertEqual(self.client.get("/api/field-missions/").status_code, 200)
         own = self._open(self.inspector)
         self.assertEqual(own.status_code, 201)
         self.assertEqual(own.json()["assignees"], [{"id": self.inspector.pk, "name": "المفتش"}])

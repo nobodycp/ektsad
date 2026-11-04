@@ -78,6 +78,10 @@ def seed_buttons():
 
 
 def shown(user, button):
+    if button.target == "nw" and user is not None:
+        from apps.common.models import SystemSettings
+        if not SystemSettings.current().linked_complaint_button:
+            return False
     if button.audience == "everyone":
         return True
     if user is None or not getattr(user, "is_active", False):
@@ -106,12 +110,14 @@ def _inspector_rows(user):
     open_count = visible_complaints(user).filter(
         status__in=[Complaint.Status.RECEIVED, Complaint.Status.FIELD],
     ).count()
-    return [
+    rows = [
         [_menu_button("فتح مهمة ميدانية", "mc", "danger")],
         [_menu_button(f"طلبات شكاوي 🟢 {open_count}", "cq", "primary")],
+        [_menu_button("مهماتي", "ms:0", "")],
         [_menu_button("القائمة الاسترشادية", "pr", "")],
         [_menu_button("حركة المعابر", "cr", "")],
     ]
+    return _with_linked_complaint(rows)
 
 
 def _focused_publish_rows(user):
@@ -128,18 +134,25 @@ def _focused_publish_rows(user):
     )):
         return None
     if crossings and not prices:
-        return [
+        return _with_linked_complaint([
             [_menu_button("إدخال تقرير", "crb", "")],
             [_menu_button("سجل الحركات", "xh:0", "")],
             [_menu_button("حركة المعابر", "cr", "")],
-        ]
+        ])
     if prices and not crossings:
-        return [
+        return _with_linked_complaint([
             [_menu_button("نشر الأسعار", "prb", "")],
             [_menu_button("سجل الأسعار", "ph:0", "")],
             [_menu_button("القائمة الاسترشادية", "pr", "")],
-        ]
+        ])
     return None
+
+
+def _with_linked_complaint(rows):
+    from apps.common.models import SystemSettings
+    if not SystemSettings.current().linked_complaint_button:
+        return rows
+    return [*rows, [_menu_button("تقديم شكوى", "nw", "danger")]]
 
 
 def rows_for(user):

@@ -21,6 +21,7 @@ def _admin_payload(row):
         "telegram_bot_username": row.telegram_bot_username,
         "telegram_bot_configured": bool(row.telegram_bot_token),
         "telegram_webhook_secret_configured": bool(row.telegram_webhook_secret),
+        "linked_complaint_button": row.linked_complaint_button,
     }
 
 
@@ -42,6 +43,8 @@ def system_settings(request):
         return JsonResponse({"detail": "بيانات غير صالحة."}, status=400)
     if "web_complaints_enabled" in payload:
         row.web_complaints_enabled = bool(payload["web_complaints_enabled"])
+    if "linked_complaint_button" in payload:
+        row.linked_complaint_button = bool(payload["linked_complaint_button"])
     if "telegram_bot_username" in payload:
         row.telegram_bot_username = str(payload.get("telegram_bot_username") or "").lstrip("@").strip()
     token = str(payload.get("telegram_bot_token") or "").strip()

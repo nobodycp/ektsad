@@ -50,6 +50,7 @@ class FollowUp(models.Model):
         FIELD = "field", "Field"
         LEGAL = "legal", "Legal"
         RETURN = "return", "Return"
+        DECISION = "decision", "Decision"
 
     complaint = models.ForeignKey(Complaint, on_delete=models.CASCADE, related_name="follow_ups")
     author = models.ForeignKey("accounts.User", null=True, blank=True, on_delete=models.SET_NULL)

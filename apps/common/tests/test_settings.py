@@ -26,3 +26,12 @@ class SystemSettingsTests(TestCase):
         self.assertNotIn("telegram_bot_token", body)
         self.assertEqual(SystemSettings.current().telegram_bot_token, "123:abc")
         self.assertFalse(self.client.get("/api/settings/public/").json()["web_complaints_enabled"])
+        self.assertNotIn("linked_complaint_button", self.client.get("/api/settings/public/").json())
+        self.assertFalse(body["linked_complaint_button"])
+        shown = self.client.patch(
+            "/api/system-settings/",
+            data={"linked_complaint_button": True},
+            content_type="application/json",
+        )
+        self.assertTrue(shown.json()["linked_complaint_button"])
+        self.assertNotIn("linked_complaint_button", self.client.get("/api/settings/public/").json())

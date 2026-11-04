@@ -263,6 +263,7 @@ def _mission_text(mission):
         details = details[:2500].rstrip() + "…"
     names = [item.display_name for item in mission.assignees.all() if item.display_name]
     inspector = f"\nالمفتش: {'، '.join(names)}" if names else ""
+    creator = f"\nأنشأها: {mission.created_by_name}" if mission.created_by_name else ""
     finding = (
         mission.follow_ups.filter(place="field")
         .order_by("-pk")
@@ -282,6 +283,7 @@ def _mission_text(mission):
         f"الجوال: {mission.phone}\n"
         f"التفاصيل: {details}\n"
         f"الحالة: {mission.status}"
+        f"{creator}"
         f"{inspector}"
         f"{note}"
     )

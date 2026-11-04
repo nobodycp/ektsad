@@ -19,6 +19,7 @@ from apps.complaints.services import (
     accept_complaint,
     assign_complaint,
     close_legal,
+    decide_complaint,
     return_complaint,
     submit_field_report,
     mark_complaint_seen,
@@ -255,16 +256,27 @@ def field_report(request, pk):
     complaint = _visible_complaint_or_forbidden(request, pk)
     if complaint is None:
         return JsonResponse({"detail": "Forbidden"}, status=403)
-    destination = request.POST.get("destination")
     try:
         with transaction.atomic():
             submit_field_report(
                 complaint, request.user, request.POST.get("text", ""), request.FILES.getlist("files"),
-                destination, channel="web", ip=_ip(request),
+                channel="web", ip=_ip(request),
             )
-            if destination == "governor":
-                from apps.telegram.webhook import notify_citizen_resolved
-                notify_citizen_resolved(complaint)
+    except ValidationError as error:
+        return JsonResponse({"detail": error.messages[0]}, status=400)
+    return JsonResponse(_complaint_data(complaint))
+
+
+@require_http_methods(["POST"])
+def complaint_decision(request, pk):
+    complaint = _visible_complaint_or_forbidden(request, pk)
+    if complaint is None:
+        return JsonResponse({"detail": "Forbidden"}, status=403)
+    try:
+        decide_complaint(
+            complaint, request.user, _payload(request).get("decision", ""),
+            channel="web", ip=_ip(request), telegram_id=None,
+        )
     except ValidationError as error:
         return JsonResponse({"detail": error.messages[0]}, status=400)
     return JsonResponse(_complaint_data(complaint))
@@ -278,8 +290,6 @@ def legal_close(request, pk):
     try:
         with transaction.atomic():
             close_legal(complaint, request.user, _payload(request).get("notes", ""), channel="web", ip=_ip(request), telegram_id=None)
-            from apps.telegram.webhook import notify_citizen_resolved
-            notify_citizen_resolved(complaint)
     except ValidationError as error:
         return JsonResponse({"detail": error.messages[0]}, status=400)
     return JsonResponse(_complaint_data(complaint))

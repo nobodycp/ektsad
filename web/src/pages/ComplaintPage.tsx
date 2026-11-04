@@ -170,17 +170,15 @@ function AssignAction({ complaint, onDone }: ActionProps) {
 
 function FieldReportAction({ complaint, onDone }: ActionProps) {
   const [text, setText] = useState("")
-  const [destination, setDestination] = useState("")
   const [files, setFiles] = useState<File[]>([])
   const [fileKey, setFileKey] = useState(0)
-  const [errors, setErrors] = useState<{ text?: string; destination?: string; files?: string }>({})
+  const [errors, setErrors] = useState<{ text?: string; files?: string }>({})
   const [busy, setBusy] = useState(false)
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const found: typeof errors = {}
     if (!text.trim()) found.text = "اكتب تفاصيل الكشف."
-    if (!destination) found.destination = "اختر جهة الإرسال."
     if (files.length > MAX_FILES) found.files = `الحد ${MAX_FILES} ملفات.`
     setErrors(found)
     if (Object.keys(found).length) return
@@ -188,14 +186,12 @@ function FieldReportAction({ complaint, onDone }: ActionProps) {
     const form = new FormData()
     form.append("text", text.trim())
     form.append("body", text.trim())
-    form.append("destination", destination)
     for (const file of files) form.append("files", file)
     setBusy(true)
     const result = await apiUpload(`/api/complaints/${complaint.id}/field-report/`, form)
     setBusy(false)
     if (result.ok) {
       setText("")
-      setDestination("")
       setFiles([])
       setFileKey((k) => k + 1)
       onDone({ tone: "ok", text: "تم إرسال نتيجة الكشف." })
@@ -215,19 +211,6 @@ function FieldReportAction({ complaint, onDone }: ActionProps) {
           error={errors.text}
           required
         />
-        <Select
-          label="الإرسال إلى"
-          name="destination"
-          placeholder="اختر الجهة"
-          options={[
-            { value: "governor", label: "مدير المحافظة وحده" },
-            { value: "legal", label: "مدير المحافظة والشؤون القانونية" },
-          ]}
-          value={destination}
-          onChange={(e) => setDestination(e.target.value)}
-          error={errors.destination}
-          required
-        />
         <FileField
           key={fileKey}
           label="المرفقات"
@@ -244,6 +227,30 @@ function FieldReportAction({ complaint, onDone }: ActionProps) {
           </Button>
         </div>
       </form>
+  )
+}
+
+function GovernorDecision({ complaint, onDone }: ActionProps) {
+  const [busy, setBusy] = useState<"" | "close" | "legal">("")
+  const decide = async (decision: "close" | "legal") => {
+    setBusy(decision)
+    const result = await apiRequest(`/api/complaints/${complaint.id}/decision/`, { method: "POST", body: { decision } })
+    setBusy("")
+    onDone(
+      result.ok
+        ? { tone: "ok", text: decision === "close" ? "أُغلقت الشكوى وأُنهيت." : "أُحيلت الشكوى إلى الشؤون القانونية." }
+        : { tone: "error", text: failureText(result) },
+    )
+  }
+  return (
+    <>
+      <Button loading={busy === "close"} disabled={busy !== ""} onClick={() => decide("close")}>
+        إغلاق وإنهاء الشكوى
+      </Button>
+      <Button variant="secondary" loading={busy === "legal"} disabled={busy !== ""} onClick={() => decide("legal")}>
+        إحالة للشؤون القانونية
+      </Button>
+    </>
   )
 }
 
@@ -334,7 +341,14 @@ function timelineFor(complaint: ComplaintDetail): TimelineEvent[] {
     ...received,
     ...complaint.follow_ups.map((line) => ({
       id: `follow-${line.id}`,
-      title: line.place === "legal" ? "الشؤون القانونية" : line.place === "return" ? "رفض وإرجاع للمدير" : "المتابعة الميدانية",
+      title:
+        line.place === "legal"
+          ? "الشؤون القانونية"
+          : line.place === "return"
+            ? "رفض وإرجاع للمدير"
+            : line.place === "decision"
+              ? "قرار مدير المحافظة"
+              : "المتابعة الميدانية",
       at: formatDateTime(line.created_at),
       actor: line.author_name,
       body: (
@@ -391,6 +405,7 @@ function ComplaintView({ complaint, user, reload }: { complaint: ComplaintDetail
   if (complaint.closed_at) facts.push({ label: "وقت الإغلاق", value: formatDateTime(complaint.closed_at) })
   if (submitter) facts.push({ label: "مقدّم الشكوى", value: submitter, ltr: true })
   if (complaint.map_url) facts.push({ label: "الموقع", value: "فتح الخريطة", href: complaint.map_url })
+  const awaitingGovernor = status === "قيد المتابعة الميدانية" && complaint.follow_ups.some((line) => line.place === "field")
   const actions = [
     user.role === "inspector" && status === "واردة" && !complaint.returned_at && <AcceptAction key="accept" {...props} />,
     user.role === "governor" && status === "واردة" && (
@@ -398,10 +413,13 @@ function ComplaintView({ complaint, user, reload }: { complaint: ComplaintDetail
         {(close) => <AssignAction {...props} onDone={(notice) => { close(); props.onDone(notice) }} />}
       </ActionLauncher>
     ),
-    user.role === "inspector" && status === "قيد المتابعة الميدانية" && complaint.inspector === user.id && (
+    user.role === "inspector" && status === "قيد المتابعة الميدانية" && complaint.inspector === user.id && !awaitingGovernor && (
       <ActionLauncher key="field" label="نتيجة الكشف" title="نتيجة الكشف">
         {(close) => <FieldReportAction {...props} onDone={(notice) => { close(); props.onDone(notice) }} />}
       </ActionLauncher>
+    ),
+    user.role === "governor" && user.governorate === complaint.governorate && awaitingGovernor && (
+      <GovernorDecision key="decision" {...props} />
     ),
     user.role === "legal" && status === "قيد المتابعة في الشؤون القانونية" && (
       <ActionLauncher key="legal" label="تم الانجاز" title="رد الشؤون القانونية">

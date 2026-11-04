@@ -5,7 +5,7 @@ from django.urls import include, path, re_path
 from apps.accounts.api import login_view, logout_view, me_view, return_session, user_detail
 from apps.common.api import public_settings, system_settings
 from apps.complaints.api import (
-    assign, complaint_actions, complaint_detail, complaint_media, complaint_notices, complaints, field_report,
+    assign, complaint_actions, complaint_decision, complaint_detail, complaint_media, complaint_notices, complaints, field_report,
     followup_media, legal_close, public_complaint, return_to_governor,
 )
 from apps.geography.api import (
@@ -48,6 +48,7 @@ urlpatterns = [
     path("api/complaints/<int:pk>/assign/", assign),
     path("api/complaints/<int:pk>/return/", return_to_governor),
     path("api/complaints/<int:pk>/field-report/", field_report),
+    path("api/complaints/<int:pk>/decision/", complaint_decision),
     path("api/complaints/<int:pk>/legal-close/", legal_close),
     path("api/media/complaints/<int:pk>/", complaint_media),
     path("api/media/followups/<int:pk>/<int:file_id>/", followup_media),

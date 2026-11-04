@@ -207,6 +207,7 @@ export function FieldMissionsPage({ user }: { user: SessionUser }) {
     { key: "phone", header: "الجوال", render: (row) => <bdi>{row.phone}</bdi> },
     { key: "where", header: "المكان", render: (row) => row.governorate_name },
     { key: "who", header: "المسؤولون", render: (row) => peopleOf(row) },
+    { key: "creator", header: "أنشأها", render: (row) => row.created_by_name || "—" },
     { key: "when", header: "التسجيل", render: (row) => formatDateTime(row.created_at) },
   ]
   return (

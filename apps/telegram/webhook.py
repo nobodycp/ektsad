@@ -52,7 +52,7 @@ def _home_markup():
 def _menu_markup(chat_id):
     from apps.telegram.buttons import rows_for
 
-    link = TelegramLink.objects.select_related("user").filter(telegram_id=str(chat_id)).first()
+    link = TelegramLink.objects.select_related("user__staff_role").filter(telegram_id=str(chat_id)).first()
     user = link.user if link and link.user.is_active else None
     return {"inline_keyboard": rows_for(user)}
 
@@ -67,7 +67,13 @@ def _show_menu(chat_id, welcome=False):
     _clear_field_draft(chat_id)
     TelegramDraft.objects.filter(chat_id=str(chat_id)).update(step="")
     reset_place(chat_id)
-    text = WELCOME if welcome and _linked_user(chat_id) is None else "اختر من القائمة."
+    user = _linked_user(chat_id)
+    if welcome and user is None:
+        text = WELCOME
+    elif user is not None:
+        text = _identity_line(user)
+    else:
+        text = "اختر من القائمة."
     enqueue(chat_id, text, markup=_menu_markup(chat_id))
 
 
@@ -237,8 +243,15 @@ def register_webhook():
 
 
 def _linked_user(telegram_id):
-    link = TelegramLink.objects.select_related("user").filter(telegram_id=str(telegram_id)).first()
+    link = TelegramLink.objects.select_related("user__staff_role").filter(telegram_id=str(telegram_id)).first()
     return link.user if link and link.user.is_active else None
+
+
+def _identity_line(user):
+    name = (user.display_name or user.username or "").strip()
+    role = getattr(user, "staff_role", None)
+    title = role.name if role is not None and role.name else ROLE_LABELS.get(user.role, "")
+    return f"{name} — {title}" if title else name
 
 
 def _linked_staff(role, **filters):
@@ -313,6 +326,63 @@ def notify_new_mission(mission, *, governors=True):
     for governor in _linked_staff(User.Role.GOVERNOR, governorate_id=mission.governorate_id):
         if allows(governor, "can_view_field_missions"):
             enqueue(governor.telegram_link.telegram_id, f"وصلت مهمة.\n{details}", markup=opened)
+
+
+def notify_complaint_reply(complaint):
+    from apps.complaints.models import FollowUp
+
+    finding = (
+        complaint.follow_ups.filter(place=FollowUp.Place.FIELD)
+        .order_by("-pk")
+        .values_list("body", flat=True)
+        .first()
+    ) or ""
+    message = (
+        f"رد المفتش على الشكوى: {complaint.title}\n"
+        f"المفتش: {complaint.inspector_name or 'المفتش'}\n"
+        f"الرد: {_note(finding)}\n"
+        f"الحالة: {complaint.status}"
+    )
+    markup = {"inline_keyboard": [
+        [{"text": "إغلاق وإنهاء الشكوى", "callback_data": f"gc:{complaint.pk}"}],
+        [{"text": "إحالة للشؤون القانونية", "callback_data": f"gl:{complaint.pk}"}],
+        [{"text": "فتح", "callback_data": f"op:{complaint.pk}"}],
+    ]}
+    for governor in _linked_staff(User.Role.GOVERNOR, governorate_id=complaint.governorate_id):
+        enqueue(governor.telegram_link.telegram_id, message, markup=markup)
+
+
+def notify_complaint_decision(complaint, decision):
+    link = TelegramLink.objects.filter(user_id=complaint.inspector_id).first()
+    if link is None:
+        return
+    verb = (
+        "أنهى مدير المحافظة الشكوى."
+        if decision == "close"
+        else "أحال مدير المحافظة الشكوى إلى الشؤون القانونية."
+    )
+    enqueue(
+        link.telegram_id,
+        f"{verb}\n{complaint.title}",
+        markup={"inline_keyboard": [[{"text": "فتح", "callback_data": f"op:{complaint.pk}"}]]},
+    )
+
+
+def notify_mission_reply(mission):
+    finding = (
+        mission.follow_ups.filter(place="field").order_by("-pk").values_list("body", flat=True).first()
+    ) or ""
+    names = [name for name in mission.assignees.values_list("display_name", flat=True) if name]
+    message = (
+        f"رد على المهمة: {mission.place_name}\n"
+        f"أنشأها: {mission.created_by_name or '—'}\n"
+        f"المفتش: {'، '.join(names) or '—'}\n"
+        f"الرد: {_note(finding)}\n"
+        f"الحالة: {mission.status}"
+    )
+    opened = {"inline_keyboard": [[{"text": "فتح", "callback_data": f"mo:{mission.pk}"}]]}
+    for governor in _linked_staff(User.Role.GOVERNOR, governorate_id=mission.governorate_id):
+        enqueue(governor.telegram_link.telegram_id, message, markup=opened)
 
 
 def notify_legal_mission(mission):
@@ -485,17 +555,17 @@ def _staff_action(chat_id, telegram_id, text):
             inspector = User.objects.get(pk=int(bits[2]))
             assign_complaint(complaint, user, inspector, channel="telegram", ip=None, telegram_id=str(telegram_id))
         elif command == "/field":
-            destination, body = bits[2], bits[3]
+            if len(bits) > 3 and bits[2] in {"governor", "legal"}:
+                body = bits[3]
+            else:
+                body = text.split(maxsplit=2)[2]
             submit_field_report(
-                complaint, user, body, [], destination,
+                complaint, user, body, [],
                 channel="telegram", ip=None, telegram_id=str(telegram_id),
             )
-            if destination == "governor":
-                _citizen_resolution(complaint)
         elif command == "/close":
             notes = text.split(maxsplit=2)[2] if len(text.split(maxsplit=2)) > 2 else ""
             close_legal(complaint, user, notes, channel="telegram", ip=None, telegram_id=str(telegram_id))
-            _citizen_resolution(complaint)
         else:
             return False
     except (Complaint.DoesNotExist, User.DoesNotExist, IndexError, ValueError, ValidationError) as error:
@@ -592,13 +662,24 @@ def _complaint_card(complaint):
     )
     if finding and finding.strip():
         text += f"\nنتيجة الكشف: {_note(finding)}"
+    decision = (
+        complaint.follow_ups.filter(place=FollowUp.Place.DECISION)
+        .order_by("-pk")
+        .values_list("body", flat=True)
+        .first()
+    )
+    if decision and decision.strip():
+        text += f"\nقرار مدير المحافظة: {_note(decision)}"
     if complaint.status == Complaint.Status.RECEIVED and complaint.return_reason:
         text += f"\nسبب الإرجاع: {complaint.return_reason}"
     return text
 
 
 def _complaint_actions(user, complaint):
+    from apps.complaints.models import FollowUp
+
     rows = []
+    pending_reply = complaint.follow_ups.filter(place=FollowUp.Place.FIELD).exists()
     if (
         user.role == User.Role.INSPECTOR and complaint.status == Complaint.Status.RECEIVED
         and user.region_id == complaint.region_id and not complaint.returned_at
@@ -609,9 +690,15 @@ def _complaint_actions(user, complaint):
         ])
     if (
         user.role == User.Role.INSPECTOR and complaint.status == Complaint.Status.FIELD
-        and complaint.inspector_id == user.pk
+        and complaint.inspector_id == user.pk and not pending_reply
     ):
         rows.append([{"text": "رد", "callback_data": f"ry:{complaint.pk}"}])
+    if (
+        user.role == User.Role.GOVERNOR and complaint.status == Complaint.Status.FIELD
+        and user.governorate_id == complaint.governorate_id and pending_reply
+    ):
+        rows.append([{"text": "إغلاق وإنهاء الشكوى", "callback_data": f"gc:{complaint.pk}"}])
+        rows.append([{"text": "إحالة للشؤون القانونية", "callback_data": f"gl:{complaint.pk}"}])
     if (
         user.role == User.Role.GOVERNOR and complaint.status == Complaint.Status.RECEIVED
         and user.governorate_id == complaint.governorate_id
@@ -767,27 +854,15 @@ def _start_reply(chat_id, telegram_id, pk):
     enqueue(chat_id, "اكتب نتيجة الكشف.", markup=_home_markup())
 
 
-def _destination_markup(pk):
-    return {"inline_keyboard": [
-        [{"text": "مدير المحافظة وحدها", "callback_data": f"dg:{pk}"}],
-        [{"text": "مدير المحافظة والشؤون القانونية", "callback_data": f"dl:{pk}"}],
-        [{"text": "القائمة", "callback_data": "mn"}],
-    ]}
-
-
-def _send_reply(chat_id, telegram_id, pk, destination):
+def _commit_field_report(chat_id, telegram_id, pk, text, draft):
     user = _linked_user(telegram_id)
-    draft = TelegramDraft.objects.filter(chat_id=str(chat_id)).first()
-    text = ""
-    if draft and draft.payload.get("field_complaint") == pk:
-        text = (draft.payload.get("field_text") or "").strip()
-    if user is None or not text:
+    if user is None or not (text or "").strip():
         enqueue(chat_id, "اكتب نتيجة الكشف." if user else UNLINKED, markup=_home_markup())
         return
     try:
         complaint = Complaint.objects.get(pk=pk)
         submit_field_report(
-            complaint, user, text, _field_files(draft), destination,
+            complaint, user, text, _field_files(draft) if draft else [],
             channel="telegram", ip=None, telegram_id=str(telegram_id),
         )
     except (Complaint.DoesNotExist, ValidationError) as error:
@@ -796,9 +871,27 @@ def _send_reply(chat_id, telegram_id, pk, destination):
         return
     if draft:
         draft.delete()
-    if destination == "governor":
-        _citizen_resolution(complaint)
-    enqueue(chat_id, "تم إرسال نتيجة الكشف.", markup=_home_markup())
+    enqueue(chat_id, "أُرسلت نتيجة الكشف إلى مدير المحافظة.", markup=_home_markup())
+
+
+def _governor_decide(chat_id, telegram_id, pk, decision):
+    from apps.complaints.services import decide_complaint
+
+    user = _linked_user(telegram_id)
+    if user is None:
+        enqueue(chat_id, UNLINKED, markup=_home_markup())
+        return
+    try:
+        complaint = Complaint.objects.get(pk=pk)
+        decide_complaint(
+            complaint, user, decision, channel="telegram", ip=None, telegram_id=str(telegram_id),
+        )
+    except (Complaint.DoesNotExist, ValidationError) as error:
+        message = error.messages[0] if isinstance(error, ValidationError) else "بيانات غير صالحة."
+        enqueue(chat_id, message, markup=_home_markup())
+        return
+    done = "أُغلقت الشكوى وأُنهيت." if decision == "close" else "أُحيلت الشكوى إلى الشؤون القانونية."
+    enqueue(chat_id, done, markup=_home_markup())
 
 
 def _show_inspectors(chat_id, telegram_id, pk, page):
@@ -857,7 +950,6 @@ def _legal_done(chat_id, telegram_id, pk):
         message = error.messages[0] if isinstance(error, ValidationError) else "بيانات غير صالحة."
         enqueue(chat_id, message, markup=_home_markup())
         return
-    _citizen_resolution(complaint)
     enqueue(chat_id, "تم الانجاز وأُغلقت الشكوى.", markup=_home_markup())
 
 
@@ -913,17 +1005,14 @@ def _advance_draft(chat_id, user_id, text):
         _finish_return(chat_id, user_id, payload.get("reject_complaint"), cleaned)
         return True
     if draft.step == "field_dest":
-        enqueue(chat_id, "اختر جهة الإرسال.", markup=_destination_markup(payload.get("field_complaint")))
+        stored = (payload.get("field_text") or cleaned).strip()
+        _commit_field_report(chat_id, user_id, payload.get("field_complaint"), stored, draft)
         return True
     if draft.step == "field_text":
         if not cleaned:
             enqueue(chat_id, "اكتب نتيجة الكشف.", markup=_home_markup())
             return True
-        payload["field_text"] = cleaned[:3500]
-        draft.step = "field_dest"
-        draft.payload = payload
-        draft.save(update_fields=["payload", "step", "updated_at"])
-        enqueue(chat_id, "اختر جهة الإرسال.", markup=_destination_markup(payload["field_complaint"]))
+        _commit_field_report(chat_id, user_id, payload.get("field_complaint"), cleaned[:3500], draft)
         return True
     if draft.step == "kind":
         _show_kinds(chat_id)
@@ -1278,10 +1367,10 @@ def _on_callback(chat_id, user_id, data):
             _start_reply(chat_id, user_id, int(data.split(":")[1]))
         elif data.startswith("rj:"):
             _start_return(chat_id, user_id, int(data.split(":")[1]))
-        elif data.startswith("dg:"):
-            _send_reply(chat_id, user_id, int(data.split(":")[1]), "governor")
-        elif data.startswith("dl:"):
-            _send_reply(chat_id, user_id, int(data.split(":")[1]), "legal")
+        elif data.startswith("gc:") or data.startswith("dg:"):
+            _governor_decide(chat_id, user_id, int(data.split(":")[1]), "close")
+        elif data.startswith("gl:") or data.startswith("dl:"):
+            _governor_decide(chat_id, user_id, int(data.split(":")[1]), "legal")
         elif data.startswith("as:"):
             _show_inspectors(chat_id, user_id, int(data.split(":")[1]), 0)
         elif data.startswith("ap:"):
@@ -1401,7 +1490,9 @@ def handle_update(update):
             else:
                 _ask_image(chat_id)
         elif draft and draft.step == "field_dest":
-            enqueue(chat_id, "تم حفظ الصورة. اختر جهة الإرسال." if downloaded else "اختر جهة الإرسال.", markup=_destination_markup(draft.payload.get("field_complaint")))
+            draft.step = "field_text"
+            draft.save(update_fields=["step", "updated_at"])
+            enqueue(chat_id, "تم حفظ الصورة. اكتب نتيجة الكشف." if downloaded else "اكتب نتيجة الكشف.", markup=_home_markup())
         elif draft and draft.step == "field_text":
             enqueue(chat_id, "تم حفظ الصورة. اكتب نتيجة الكشف." if downloaded else "اكتب نتيجة الكشف.", markup=_home_markup())
         elif draft and draft.step == "reject_reason":

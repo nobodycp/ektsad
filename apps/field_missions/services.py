@@ -206,9 +206,10 @@ def reply_mission(user, mission, text, files, destination):
             mission.status = FieldMission.Status.LEGAL
             mission.legal_referred_at = now
         mission.save(update_fields=["field_replied_at", "status", "closed_at", "legal_referred_at"])
+    from apps.telegram.webhook import notify_legal_mission, notify_mission_reply
     if destination == "legal":
-        from apps.telegram.webhook import notify_legal_mission
         notify_legal_mission(mission)
+    notify_mission_reply(mission)
     return mission
 
 
