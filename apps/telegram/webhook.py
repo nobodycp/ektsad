@@ -68,7 +68,9 @@ def _show_menu(chat_id, welcome=False):
     TelegramDraft.objects.filter(chat_id=str(chat_id)).update(step="")
     reset_place(chat_id)
     user = _linked_user(chat_id)
-    if welcome and user is None:
+    if user is not None and getattr(user, "preview_as_citizen", False):
+        text = WELCOME
+    elif welcome and user is None:
         text = WELCOME
     elif user is not None:
         text = _identity_line(user)
@@ -1355,6 +1357,7 @@ def _preview_roles(chat_id):
         [{"text": "المفتش", "callback_data": "pv:r:inspector"}],
         [{"text": "الشؤون القانونية", "callback_data": "pv:r:legal"}],
         [{"text": "إداري المحافظة", "callback_data": "pv:r:clerk"}],
+        [{"text": "الدخول كمواطن", "callback_data": "pv:r:citizen"}],
         [{"text": "القائمة", "callback_data": "mn"}],
     ]})
 
@@ -1406,7 +1409,7 @@ def _preview_callback(chat_id, telegram_id, data):
     try:
         if len(parts) == 3 and parts[1] == "r":
             key = parts[2]
-            if key in {"director", "legal"}:
+            if key == "citizen" or key in {"director", "legal"}:
                 _preview_apply(chat_id, user, key)
             elif key in {"governor", "clerk", "inspector"}:
                 _preview_governorates(chat_id, key, 0)

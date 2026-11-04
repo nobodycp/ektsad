@@ -80,7 +80,7 @@ def _me_payload(user, request):
         "display_name": user.display_name,
         "role": user.role,
         "role_id": user.staff_role_id,
-        "role_name": _role_name(user),
+        "role_name": "مواطن" if getattr(user, "preview_as_citizen", False) else _role_name(user),
         "governorate": user.governorate_id,
         "governorate_name": user.governorate.name if user.governorate_id else None,
         "region": user.region_id,
@@ -97,6 +97,7 @@ def _me_payload(user, request):
         "can_manage_settings": allows(user, "can_manage_settings"),
         "can_impersonate": allows(user, "can_impersonate"),
         "is_preview": bool(getattr(user, "is_preview", False)),
+        "preview_as_citizen": bool(getattr(user, "preview_as_citizen", False)),
         "linked_complaint_button": SystemSettings.current().linked_complaint_button,
         "impersonator": _impersonator_payload(request),
     }

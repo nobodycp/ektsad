@@ -10,6 +10,8 @@ import {
   type Publication,
   type RegionPlace,
 } from "../api"
+import { useAuthOptional } from "../auth"
+import { PreviewSwitch } from "../Shell"
 import { ALL_ROWS, NoticeLine, failureText, formatDateTime, type Notice } from "./common"
 
 export const COMPLAINT_RECEIVED = "تم استلام الشكوى."
@@ -185,6 +187,8 @@ function Bulletin({ latest, mediaPath, alt, sheet = false }: { latest: Latest; m
 }
 
 export function PublicPage() {
+  const auth = useAuthOptional()
+  const preview = auth?.session.status === "signed_in" && auth.session.user.is_preview ? auth.session.user : null
   const price = useLatest("/api/prices/latest/", NO_PRICES)
   const crossing = useLatest("/api/crossings/latest/", NO_CROSSINGS)
   const [webComplaints, setWebComplaints] = useState(true)
@@ -196,6 +200,7 @@ export function PublicPage() {
 
   return (
     <div className="portal" dir="rtl" lang="ar">
+      {preview && auth && <PreviewSwitch user={preview} onSwitched={auth.signIn} />}
       <header className="portal__bar">
         <p className="portal__ministry">وزارة الاقتصاد الوطني</p>
         <nav className="portal__nav" aria-label="أقسام الصفحة">

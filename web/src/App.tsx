@@ -90,7 +90,9 @@ function RoutePage({ route }: { route: AppRoute }) {
   return (
     <Protected>
       {(user) =>
-        canOpen(route, user) ? (
+        user.preview_as_citizen ? (
+          <Navigate to={PUBLIC_PATH} replace />
+        ) : canOpen(route, user) ? (
           <Shell user={user} activeId={route.navId ?? route.id} pageTitle={route.label}>
             {pageFor(route, user)}
           </Shell>
@@ -107,7 +109,9 @@ function RoutePage({ route }: { route: AppRoute }) {
 function NotFound() {
   return (
     <Protected>
-      {(user) => (
+      {(user) => user.preview_as_citizen ? (
+        <Navigate to={PUBLIC_PATH} replace />
+      ) : (
         <Shell user={user} pageTitle="الصفحة غير موجودة">
           <EmptyState title="لم نجد الصفحة المطلوبة." description="تحقق من الرابط أو اختر صفحة من القائمة." />
         </Shell>

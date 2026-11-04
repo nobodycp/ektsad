@@ -79,7 +79,7 @@ def seed_buttons():
 
 def public_button_open(user, target):
     """Citizens always see these. Linked accounts see them only after the setting is on."""
-    if user is None or target not in {"nw", "pr", "cr"}:
+    if user is None or getattr(user, "preview_as_citizen", False) or target not in {"nw", "pr", "cr"}:
         return True
     from apps.common.models import SystemSettings
     row = SystemSettings.current()
@@ -175,6 +175,8 @@ def _with_preview(user, rows):
 
 
 def rows_for(user):
+    if user is not None and getattr(user, "preview_as_citizen", False):
+        return _with_preview(user, rows_for(None))
     if user is not None and user.role == User.Role.INSPECTOR:
         return _with_preview(user, _inspector_rows(user))
     focused = _focused_publish_rows(user)

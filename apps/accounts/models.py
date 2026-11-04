@@ -65,6 +65,7 @@ class User(AbstractUser):
     can_open_field_missions = models.BooleanField(default=False)
     can_view_field_missions = models.BooleanField(default=False)
     is_preview = models.BooleanField(default=False)
+    preview_as_citizen = models.BooleanField(default=False)
 
     def clean(self):
         super().clean()

@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom"
 import { AppShell, Button, Dialog, Select, type NavEntry } from "./design-system"
 import { apiRequest, errorDetail, withQuery, type ComplaintRow, type Page, type Place, type RegionPlace, type SessionUser } from "./api"
 import { useAuth } from "./auth"
-import { HOME_PATH, LOGIN_PATH, navEntries } from "./routes"
+import { HOME_PATH, LOGIN_PATH, PUBLIC_PATH, navEntries } from "./routes"
 import { formatDateTime } from "./pages/common"
 
 export const ROLE_LABELS: Record<SessionUser["role"], string> = {
@@ -180,6 +180,7 @@ function UserMenu({ user, onSignOut, leaving }: { user: SessionUser; onSignOut: 
 }
 
 const PREVIEW_ROLES = [
+  { key: "citizen", label: "الدخول كمواطن", place: "none" },
   { key: "director", label: "مدير المحافظات", place: "none" },
   { key: "governor", label: "مدير المحافظة", place: "governorate" },
   { key: "inspector", label: "مفتش", place: "region" },
@@ -187,7 +188,7 @@ const PREVIEW_ROLES = [
   { key: "clerk", label: "إداري المحافظة", place: "governorate" },
 ] as const
 
-function PreviewSwitch({ user, onSwitched }: { user: SessionUser; onSwitched: (next: SessionUser) => void }) {
+export function PreviewSwitch({ user, onSwitched }: { user: SessionUser; onSwitched: (next: SessionUser) => void }) {
   const navigate = useNavigate()
   const [choice, setChoice] = useState<(typeof PREVIEW_ROLES)[number] | null>(null)
   const [governorates, setGovernorates] = useState<Place[]>([])
@@ -215,7 +216,7 @@ function PreviewSwitch({ user, onSwitched }: { user: SessionUser; onSwitched: (n
     }
     setChoice(null)
     onSwitched(result.data)
-    navigate(HOME_PATH)
+    navigate(result.data.preview_as_citizen ? PUBLIC_PATH : HOME_PATH)
   }
 
   const open = async (item: (typeof PREVIEW_ROLES)[number]) => {
@@ -258,13 +259,13 @@ function PreviewSwitch({ user, onSwitched }: { user: SessionUser; onSwitched: (n
 
   return (
     <div className="ds-preview">
-      <p>يوزر استعراضي. الصلاحية الحالية: {user.role_name || "غير محددة"}.</p>
+      <p>يوزر استعراضي. الصلاحية الحالية: {user.preview_as_citizen ? "مواطن" : user.role_name || "غير محددة"}.</p>
       <div className="ds-preview__roles">
         {PREVIEW_ROLES.map((item) => (
           <Button
             key={item.key}
             size="sm"
-            variant={user.role_name === item.label ? "primary" : "secondary"}
+            variant={(item.key === "citizen" ? user.preview_as_citizen : user.role_name === item.label && !user.preview_as_citizen) ? "primary" : "secondary"}
             loading={busy === item.key}
             onClick={() => void open(item)}
           >

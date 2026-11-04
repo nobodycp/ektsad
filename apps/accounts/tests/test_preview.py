@@ -90,6 +90,7 @@ class PreviewRoleTests(TestCase):
         self.assertIn("مدير المحافظة", choices)
         self.assertIn("المفتش", choices)
         self.assertIn("إداري المحافظة", choices)
+        self.assertIn("الدخول كمواطن", choices)
 
         handle_update({
             "callback_query": {
@@ -119,3 +120,23 @@ class PreviewRoleTests(TestCase):
         self.assertEqual(self.inspector.role, User.Role.INSPECTOR)
         self.assertEqual(TelegramLink.objects.get(telegram_id="881").user, self.inspector)
         self.assertIn("يوزر استعراضي — مفتش", TelegramOutbox.objects.filter(chat_id="880").latest("pk").text)
+
+        handle_update({
+            "callback_query": {
+                "id": "cb4",
+                "from": {"id": 880},
+                "data": "pv:r:citizen",
+                "message": {"chat": {"id": 880}, "message_id": 1},
+            }
+        })
+        self.preview.refresh_from_db()
+        self.assertTrue(self.preview.preview_as_citizen)
+        self.assertIsNone(self.preview.staff_role_id)
+        citizen = TelegramOutbox.objects.filter(chat_id="880").latest("pk")
+        citizen_labels = [button["text"] for row in citizen.markup["keyboard"] for button in row]
+        self.assertIn("أهلاً وسهلاً بك عزيز المواطن", citizen.text)
+        self.assertIn("تقديم شكوى", citizen_labels)
+        self.assertIn("القائمة الاسترشادية", citizen_labels)
+        self.assertIn("حركة المعابر", citizen_labels)
+        self.assertIn("تغيير الصلاحية", citizen_labels)
+        self.assertNotIn("الشكاوى", citizen_labels)
