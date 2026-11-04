@@ -87,6 +87,8 @@ def field_missions(request):
         return JsonResponse({"detail": "Forbidden"}, status=403)
     if request.method == "GET":
         queryset = visible_missions(request.user).select_related("governorate", "region").prefetch_related("assignees")
+        if request.GET.get("governorate"):
+            queryset = queryset.filter(governorate_id=request.GET["governorate"])
         kind = (request.GET.get("kind") or "").strip()
         if kind:
             queryset = queryset.filter(kind=kind)

@@ -739,20 +739,42 @@ def _complaint_mark(status):
     return "🟢"
 
 
-def _show_work(chat_id, telegram_id, filt, page):
+def _show_complaint_governorates(chat_id, page):
+    items = list(Governorate.objects.order_by("name"))
+    if not items:
+        enqueue(chat_id, "لا توجد محافظات.", markup=_home_markup())
+        return
+    rows = _paged(items, page, lambda item: item.name, lambda item: f"ld:{item.pk}:a:0", "lc")
+    rows.append([{"text": "القائمة", "callback_data": "mn"}])
+    enqueue(chat_id, "اختر المحافظة.", markup={"inline_keyboard": rows})
+
+
+def _show_work(chat_id, telegram_id, filt, page, governorate_id=None):
+    from apps.accounts.permissions import spans_governorates
+
     _clear_field_draft(chat_id)
     user = _linked_user(telegram_id)
     if user is None:
         enqueue(chat_id, UNLINKED, markup=_home_markup())
         return
+    if spans_governorates(user) and governorate_id is None:
+        _show_complaint_governorates(chat_id, 0)
+        return
+    scope = visible_complaints(user)
+    place = None
+    if governorate_id is not None:
+        place = Governorate.objects.filter(pk=governorate_id).first()
+        if place is None:
+            enqueue(chat_id, "المحافظة غير موجودة.", markup=_home_markup())
+            return
+        scope = scope.filter(governorate_id=place.pk)
     open_statuses = [Complaint.Status.RECEIVED, Complaint.Status.FIELD]
     transferred = [Complaint.Status.LEGAL]
     closed = [Complaint.Status.FINISHED, Complaint.Status.RESOLVED]
     if filt == "a":
-        visible = visible_complaints(user)
-        if visible.filter(status__in=open_statuses).exists():
+        if scope.filter(status__in=open_statuses).exists():
             filt = "o"
-        elif visible.filter(status__in=transferred).exists():
+        elif scope.filter(status__in=transferred).exists():
             filt = "t"
         else:
             filt = "c"
@@ -764,19 +786,21 @@ def _show_work(chat_id, telegram_id, filt, page):
         "t": "لا توجد شكاوى محوّلة.",
         "c": "لا توجد شكاوى مغلقة.",
     }
+    prefix = f"ld:{place.pk}" if place is not None else "ls"
     filters = [[
-        {"text": "🟢 المفتوحة", "callback_data": "ls:o:0"},
-        {"text": "↪️ المحولة", "callback_data": "ls:t:0"},
-        {"text": "🔒 المغلقة", "callback_data": "ls:c:0"},
+        {"text": "🟢 المفتوحة", "callback_data": f"{prefix}:o:0"},
+        {"text": "↪️ المحولة", "callback_data": f"{prefix}:t:0"},
+        {"text": "🔒 المغلقة", "callback_data": f"{prefix}:c:0"},
     ]]
     statuses = buckets.get(filt)
     if statuses is None:
         enqueue(chat_id, "بيانات غير صالحة.", markup=_home_markup())
         return
-    items = list(
-        visible_complaints(user).filter(status__in=statuses).select_related("region").order_by("-created_at")
-    )
-    footer = [[{"text": "القائمة", "callback_data": "mn"}]]
+    items = list(scope.filter(status__in=statuses).select_related("region").order_by("-created_at"))
+    footer = []
+    if place is not None:
+        footer.append([{"text": "المحافظات", "callback_data": "lc:0"}])
+    footer.append([{"text": "القائمة", "callback_data": "mn"}])
     if not items:
         enqueue(chat_id, empty[filt], markup={"inline_keyboard": filters + footer})
         return
@@ -787,12 +811,12 @@ def _show_work(chat_id, telegram_id, filt, page):
             + (f" · {item.inspector_name}" if item.inspector_name else "")
         ),
         lambda item: f"op:{item.pk}",
-        f"ls:{filt}",
+        f"{prefix}:{filt}",
         COMPLAINT_PAGE,
     )
     enqueue(
         chat_id,
-        f"{titles[filt]}\nالعدد {len(items)}. مرّر اللوحة واختر شكوى للعمل عليها.",
+        f"{place.name + ' — ' if place is not None else ''}{titles[filt]}\nالعدد {len(items)}. مرّر اللوحة واختر شكوى للعمل عليها.",
         markup={"inline_keyboard": filters + buttons + footer},
     )
 
@@ -1441,6 +1465,11 @@ def _on_callback(chat_id, user_id, data):
                 _finish_draft(chat_id, user_id, draft)
         elif data == "cq":
             _show_work(chat_id, user_id, "a", 0)
+        elif data.startswith("lc:"):
+            _show_complaint_governorates(chat_id, int(data.split(":")[1]))
+        elif data.startswith("ld:"):
+            _, governorate_id, filt, page = data.split(":")
+            _show_work(chat_id, user_id, filt, int(page), governorate_id=int(governorate_id))
         elif data.startswith("ls:"):
             _, filt, page = data.split(":")
             _show_work(chat_id, user_id, filt, int(page))

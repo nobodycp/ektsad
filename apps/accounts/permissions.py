@@ -47,3 +47,8 @@ def allows(user, name):
     if name == "can_field_missions":
         return bool(getattr(user, "can_view_field_missions", False) or getattr(user, "can_open_field_missions", False))
     return False
+
+
+def spans_governorates(user):
+    """مدير المحافظات sees every governorate, one at a time."""
+    return getattr(user, "role", None) == User.Role.CUSTOM and allows(user, "can_view_all_complaints")

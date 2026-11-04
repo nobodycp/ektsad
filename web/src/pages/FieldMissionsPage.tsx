@@ -18,6 +18,7 @@ import {
 import { apiRequest, apiUpload, withQuery, type FieldMission, type Page, type SessionUser, type UserRow } from "../api"
 import { Loaded, NoticeLine, PAGE_SIZE, failureText, formatDateTime, useLoad, type Notice } from "./common"
 import { optionsOf, useAdminGeography } from "./geo"
+import { GovernorateSwitch, listsByGovernorate } from "./GovernorateSwitch"
 
 export const MISSION_KINDS = ["ضبط", "تحفظ", "إثبات حالة", "مصادرة", "إتلاف", "عينات فحص", "أخرى"] as const
 export const MISSION_PRIORITIES = ["خطر", "عاجل", "متوسط", "عادي"] as const
@@ -187,9 +188,23 @@ export function FieldMissionsPage({ user }: { user: SessionUser }) {
   const [page, setPage] = useState(1)
   const [creating, setCreating] = useState(false)
   const [notice, setNotice] = useState<Notice>(null)
+  const [governorateId, setGovernorateId] = useState<number | null>(null)
+  const byGovernorate = listsByGovernorate(user)
+  const waitingForGovernorate = byGovernorate && governorateId == null
   const { state, reload } = useLoad(
-    () => apiRequest<Page<FieldMission>>(withQuery("/api/field-missions/", { q: filters.q, kind: filters.kind, page, page_size: PAGE_SIZE })),
-    [filters.q, filters.kind, page],
+    () =>
+      waitingForGovernorate
+        ? Promise.resolve({ ok: true as const, status: 200, data: { count: 0, page: 1, page_size: PAGE_SIZE, results: [] } })
+        : apiRequest<Page<FieldMission>>(
+            withQuery("/api/field-missions/", {
+              q: filters.q,
+              kind: filters.kind,
+              governorate: byGovernorate ? governorateId : undefined,
+              page,
+              page_size: PAGE_SIZE,
+            }),
+          ),
+    [filters.q, filters.kind, page, governorateId, byGovernorate],
   )
   const columns: Column<FieldMission>[] = [
     { key: "kind", header: "النوع", render: (row) => row.kind },
@@ -230,6 +245,22 @@ export function FieldMissionsPage({ user }: { user: SessionUser }) {
           />
         </Dialog>
       )}
+      {byGovernorate && (
+        <GovernorateSwitch
+          selected={governorateId}
+          onSelect={(id) => {
+            setGovernorateId(id)
+            setPage(1)
+          }}
+        />
+      )}
+      {byGovernorate && governorateId == null && <p className="account__note">اختر المحافظة لعرض مهماتها.</p>}
+      {user.role === "governor" && user.governorate_name && (
+        <p className="account__note">مهمات {user.governorate_name}</p>
+      )}
+      <NoticeLine notice={notice} />
+      {!waitingForGovernorate && (
+      <>
       <FilterBar
         schema={SCHEMA}
         onChange={(values) => {
@@ -237,7 +268,6 @@ export function FieldMissionsPage({ user }: { user: SessionUser }) {
           setPage(1)
         }}
       />
-      <NoticeLine notice={notice} />
       <Loaded state={state} onRetry={reload}>
         {(data) => (
           <DataTable
@@ -251,6 +281,8 @@ export function FieldMissionsPage({ user }: { user: SessionUser }) {
           />
         )}
       </Loaded>
+      </>
+      )}
     </div>
   )
 }

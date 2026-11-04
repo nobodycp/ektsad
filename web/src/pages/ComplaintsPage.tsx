@@ -37,6 +37,7 @@ import {
   useLoad,
   type Notice,
 } from "./common"
+import { GovernorateSwitch, listsByGovernorate } from "./GovernorateSwitch"
 import { COMPLAINT_RECEIVED, ComplaintForm } from "./PublicPage"
 
 const rowId = (row: ComplaintRow) => row.id
@@ -87,6 +88,8 @@ export function ComplaintsPage({ user }: { user: SessionUser }) {
   const [reason, setReason] = useState("")
   const [reasonError, setReasonError] = useState<string | undefined>()
   const [returningBusy, setReturningBusy] = useState(false)
+  const [governorateId, setGovernorateId] = useState<number | null>(null)
+  const byGovernorate = listsByGovernorate(user)
   const canFlag = user.role === "admin" || user.role === "governor"
   const missions = APP_ROUTES.find((route) => route.id === "field-missions")
   const showMissions = missions ? canOpen(missions, user) : false
@@ -100,22 +103,26 @@ export function ComplaintsPage({ user }: { user: SessionUser }) {
     navigate(`${location.pathname}${location.search}`, { replace: true, state: null })
   }, [location.pathname, location.search, location.state, navigate])
 
+  const waitingForGovernorate = byGovernorate && governorateId == null
   const { state, reload } = useLoad(
     () =>
-      apiRequest<Page<ComplaintRow>>(
-        withQuery("/api/complaints/", {
-          status: filters.status,
-          region: canFlag ? filters.region : undefined,
-          flagged: params.get("flagged") === "1" ? "1" : undefined,
-          created_from: params.get("created_from") || undefined,
-          created_to: params.get("created_to") || undefined,
-          closed_from: params.get("closed_from") || undefined,
-          closed_to: params.get("closed_to") || undefined,
-          page,
-          page_size: PAGE_SIZE,
-        }),
-      ),
-    [filters.status, filters.region, page, params],
+      waitingForGovernorate
+        ? Promise.resolve({ ok: true as const, status: 200, data: { count: 0, page: 1, page_size: PAGE_SIZE, results: [] } })
+        : apiRequest<Page<ComplaintRow>>(
+            withQuery("/api/complaints/", {
+              status: filters.status,
+              region: canFlag ? filters.region : undefined,
+              governorate: byGovernorate ? governorateId : undefined,
+              flagged: params.get("flagged") === "1" ? "1" : undefined,
+              created_from: params.get("created_from") || undefined,
+              created_to: params.get("created_to") || undefined,
+              closed_from: params.get("closed_from") || undefined,
+              closed_to: params.get("closed_to") || undefined,
+              page,
+              page_size: PAGE_SIZE,
+            }),
+          ),
+    [filters.status, filters.region, page, params, governorateId, byGovernorate],
   )
 
   const schema = useMemo<FilterField[]>(() => {
@@ -275,6 +282,22 @@ export function ComplaintsPage({ user }: { user: SessionUser }) {
           ]}
         />
       )}
+      {byGovernorate && (
+        <GovernorateSwitch
+          selected={governorateId}
+          onSelect={(id) => {
+            setGovernorateId(id)
+            setPage(1)
+          }}
+        />
+      )}
+      {byGovernorate && governorateId == null && <p className="account__note">اختر المحافظة لعرض شكاواها.</p>}
+      {user.role === "governor" && user.governorate_name && (
+        <p className="account__note">شكاوى {user.governorate_name}</p>
+      )}
+      <NoticeLine notice={notice} />
+      {!waitingForGovernorate && (
+      <>
       <FilterBar
         schema={schema}
         initialValues={{ status: params.get("status") || undefined }}
@@ -290,7 +313,6 @@ export function ComplaintsPage({ user }: { user: SessionUser }) {
           {params.get("closed_from") && `تاريخ الإغلاق ${params.get("closed_from")} → ${params.get("closed_to")}.`}
         </p>
       )}
-      <NoticeLine notice={notice} />
       <Loaded state={state} onRetry={reload}>
         {(data) => (
           <DataTable
@@ -306,6 +328,8 @@ export function ComplaintsPage({ user }: { user: SessionUser }) {
           />
         )}
       </Loaded>
+      </>
+      )}
       {showMissions && (
         <div className="page__bar">
           <a className="ds-btn" data-variant="secondary" href="/field-missions/">

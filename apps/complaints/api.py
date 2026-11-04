@@ -145,6 +145,8 @@ def complaints(request):
         queryset = _apply_day_filters(queryset, request.GET)
     except ValidationError as error:
         return JsonResponse({"detail": error.messages[0]}, status=400)
+    if request.GET.get("governorate"):
+        queryset = queryset.filter(governorate_id=request.GET["governorate"])
     if request.user.role in {User.Role.ADMIN, User.Role.GOVERNOR} and request.GET.get("region"):
         queryset = queryset.filter(region_id=request.GET["region"])
     page = paginate(queryset, request.GET)

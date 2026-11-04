@@ -205,6 +205,21 @@ describe("complaints list", () => {
     expect(JSON.parse(String(action?.[1]?.body))).toEqual({ action: "flag", ids: [7] })
     expect(fetchFn.mock.calls.filter(([url]) => String(url).startsWith("/api/complaints/?"))).toHaveLength(2)
   })
+
+  it("opens one governorate at a time for the governors director", async () => {
+    const fetchFn = mockFetch((url) => {
+      if (url.startsWith("/api/governorates/public/")) return page([{ id: 1, name: "الخليل" }, { id: 2, name: "غزة" }])
+      if (url.startsWith("/api/complaints/?")) return page([{ ...complaint, title: "شكوى غزة" }])
+      return undefined
+    })
+    inRouter(<ComplaintsPage user={{ ...base, role: "custom", can_view_all_complaints: true }} />)
+    expect(await screen.findByRole("button", { name: "الخليل" })).toBeInTheDocument()
+    expect(screen.getByText("اختر المحافظة لعرض شكاواها.")).toBeInTheDocument()
+    expect(screen.queryByText("شكوى غزة")).not.toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "غزة" }))
+    expect(await screen.findByRole("link", { name: "شكوى غزة" })).toBeInTheDocument()
+    expect(fetchFn.mock.calls.some(([url]) => String(url).includes("governorate=2"))).toBe(true)
+  })
 })
 
 describe("complaint page", () => {

@@ -807,6 +807,67 @@ class TelegramWebhookTests(TestCase):
         self.assertTrue(legal_mission.text.startswith("لديك مهمة جديدة."))
         self.assertIn("محل المهمة", legal_mission.text)
 
+    def test_director_steps_through_governorates_and_a_governor_stays_in_his(self):
+        from apps.accounts.models import StaffRole
+        from apps.field_missions.models import FieldMission
+        from apps.telegram.models import TelegramLink, TelegramOutbox
+
+        other = Governorate.objects.create(name="غزة")
+        other_region = Region.objects.create(governorate=other, name="الزيتون")
+        Complaint.objects.create(
+            governorate=self.governorate, region=self.region, title="شكوى الخليل", body="النص",
+        )
+        Complaint.objects.create(
+            governorate=other, region=other_region, title="شكوى غزة", body="النص",
+        )
+        FieldMission.objects.create(
+            kind="ضبط", priority="عادي", details="بضاعة", place_name="محل الخليل", phone="0599000000",
+            governorate=self.governorate, region=self.region,
+        )
+        FieldMission.objects.create(
+            kind="ضبط", priority="عادي", details="بضاعة", place_name="محل غزة", phone="0599000000",
+            governorate=other, region=other_region,
+        )
+        director = User.objects.create_user(
+            username="director", password="password-long-12", role=User.Role.CUSTOM, display_name="مدير المحافظات",
+            staff_role=StaffRole.objects.get(name="مدير المحافظات"),
+        )
+        TelegramLink.objects.create(user=director, telegram_id="710")
+        TelegramLink.objects.create(user=self.governor, telegram_id="711")
+
+        self.press("ls:a:0", chat=710, user=710)
+        places = self.button_labels(TelegramOutbox.objects.filter(chat_id="710").latest("pk").markup)
+        self.assertIn("الخليل", places)
+        self.assertIn("غزة", places)
+        self.assertNotIn("شكوى الخليل", " ".join(places))
+        self.press(f"ld:{self.governorate.pk}:a:0", chat=710, user=710)
+        hebron = self.button_labels(TelegramOutbox.objects.filter(chat_id="710").latest("pk").markup)
+        self.assertTrue(any("شكوى الخليل" in label for label in hebron))
+        self.assertFalse(any("شكوى غزة" in label for label in hebron))
+        self.assertIn("المحافظات", hebron)
+
+        self.press("ms:0", chat=710, user=710)
+        self.assertIn("غزة", self.button_labels(TelegramOutbox.objects.filter(chat_id="710").latest("pk").markup))
+        self.press(f"mw:{other.pk}:0", chat=710, user=710)
+        gaza_missions = self.button_labels(TelegramOutbox.objects.filter(chat_id="710").latest("pk").markup)
+        self.assertTrue(any("محل غزة" in label for label in gaza_missions))
+        self.assertFalse(any("محل الخليل" in label for label in gaza_missions))
+
+        self.press("ls:a:0", chat=711, user=711)
+        governor_labels = self.button_labels(TelegramOutbox.objects.filter(chat_id="711").latest("pk").markup)
+        self.assertTrue(any("شكوى الخليل" in label for label in governor_labels))
+        self.assertFalse(any("شكوى غزة" in label for label in governor_labels))
+        self.assertNotIn("اختر المحافظة.", TelegramOutbox.objects.filter(chat_id="711").latest("pk").text)
+
+        self.client.force_login(director)
+        gaza = self.client.get(f"/api/complaints/?governorate={other.pk}")
+        self.assertEqual([row["title"] for row in gaza.json()["results"]], ["شكوى غزة"])
+        missions = self.client.get(f"/api/field-missions/?governorate={self.governorate.pk}")
+        self.assertEqual([row["place_name"] for row in missions.json()["results"]], ["محل الخليل"])
+        self.client.force_login(self.governor)
+        own = self.client.get("/api/complaints/")
+        self.assertEqual([row["title"] for row in own.json()["results"]], ["شكوى الخليل"])
+
     def test_register_webhook_failure_keeps_unregistered_status(self):
         from apps.telegram.models import TelegramWebhookStatus
         from apps.telegram.webhook import register_webhook

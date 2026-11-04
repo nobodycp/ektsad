@@ -83,7 +83,12 @@ def extra_rows(user):
 
 def handle_callback(chat_id, user_id, data):
     user = _user(user_id)
-    if data.startswith("ms:"):
+    if data.startswith("mv:"):
+        _mission_governorates(chat_id, int(data.split(":")[1]))
+    elif data.startswith("mw:"):
+        _, governorate_id, page = data.split(":")
+        _missions(chat_id, user, int(page), governorate_id=int(governorate_id))
+    elif data.startswith("ms:"):
         _missions(chat_id, user, int(data.split(":")[1]))
     elif data.startswith("mo:"):
         _open_mission_card(chat_id, user, int(data.split(":")[1]))
@@ -228,18 +233,48 @@ def consume_photo(chat_id, user_id, photo):
     return True
 
 
-def _missions(chat_id, user, page):
+def _mission_governorates(chat_id, page):
+    from apps.telegram.webhook import _paged
+
+    items = list(Governorate.objects.order_by("name"))
+    if not items:
+        _say(chat_id, "لا توجد محافظات.")
+        return
+    rows = _paged(items, page, lambda item: item.name, lambda item: f"mw:{item.pk}:0", "mv")
+    rows.append([{"text": "القائمة", "callback_data": "mn"}])
+    _say(chat_id, "اختر المحافظة.", markup={"inline_keyboard": rows})
+
+
+def _missions(chat_id, user, page, governorate_id=None):
+    from apps.accounts.permissions import spans_governorates
+
     if user is None or not allows(user, "can_view_field_missions"):
         _say(chat_id, "غير مسموح.")
         return
-    items = list(visible_missions(user).prefetch_related("assignees").order_by("-created_at"))
+    if spans_governorates(user) and governorate_id is None:
+        _mission_governorates(chat_id, 0)
+        return
+    queryset = visible_missions(user)
+    place = None
+    if governorate_id is not None:
+        place = Governorate.objects.filter(pk=governorate_id).first()
+        if place is None:
+            _say(chat_id, "المحافظة غير موجودة.")
+            return
+        queryset = queryset.filter(governorate_id=place.pk)
+    items = list(queryset.prefetch_related("assignees").order_by("-created_at"))
+    footer = []
+    if place is not None and spans_governorates(user):
+        footer.append([{"text": "المحافظات", "callback_data": "mv:0"}])
+    footer.append([{"text": "القائمة", "callback_data": "mn"}])
     if not items:
-        _say(chat_id, "لا توجد مهمات.")
+        _say(chat_id, "لا توجد مهمات." if place is None else f"لا توجد مهمات في {place.name}.", markup={"inline_keyboard": footer})
         return
     from apps.telegram.webhook import _paged
-    rows = _paged(items, page, _mission_label, lambda item: f"mo:{item.pk}", "ms")
-    rows.append([{"text": "القائمة", "callback_data": "mn"}])
-    _say(chat_id, "اختر المهمة.", markup={"inline_keyboard": rows})
+    prefix = f"mw:{place.pk}" if place is not None else "ms"
+    rows = _paged(items, page, _mission_label, lambda item: f"mo:{item.pk}", prefix)
+    title = f"{place.name} — اختر المهمة." if place is not None else "اختر المهمة."
+    _say(chat_id, title, markup={"inline_keyboard": rows + footer})
 
 
 def _open_mission_card(chat_id, user, pk):
