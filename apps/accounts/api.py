@@ -95,6 +95,7 @@ def _me_payload(user, request):
         "can_manage_geography": allows(user, "can_manage_geography"),
         "can_manage_settings": allows(user, "can_manage_settings"),
         "can_impersonate": allows(user, "can_impersonate"),
+        "is_preview": bool(getattr(user, "is_preview", False)),
         "impersonator": _impersonator_payload(request),
     }
 
@@ -181,6 +182,29 @@ def logout_view(request):
 def me_view(request):
     if not request.user.is_authenticated:
         return JsonResponse({"detail": "Forbidden"}, status=403)
+    return JsonResponse(_me_payload(request.user, request))
+
+
+@require_http_methods(["POST"])
+def preview_role(request):
+    if not request.user.is_authenticated or not request.user.is_preview:
+        return _forbidden()
+    try:
+        payload = json.loads(request.body.decode() or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"detail": "بيانات غير صالحة."}, status=400)
+    from apps.accounts.preview import apply_preview_role
+
+    try:
+        apply_preview_role(
+            request.user,
+            str(payload.get("role") or ""),
+            governorate_id=payload.get("governorate"),
+            region_id=payload.get("region"),
+        )
+    except ValidationError as error:
+        return _validation_error(error)
+    request.user.refresh_from_db()
     return JsonResponse(_me_payload(request.user, request))
 
 

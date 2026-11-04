@@ -419,6 +419,28 @@ h4,
   gap: 16px;
 }
 
+.ds-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-2);
+  padding: 8px 12px;
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius-input);
+  background: var(--ds-surface);
+}
+
+.ds-preview p {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ds-preview__roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+}
+
 .ds-impersonate {
   display: flex;
   align-items: center;

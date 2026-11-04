@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
-import { AppShell, Button, type NavEntry } from "./design-system"
-import { apiRequest, errorDetail, type ComplaintRow, type SessionUser } from "./api"
+import { AppShell, Button, Dialog, Select, type NavEntry } from "./design-system"
+import { apiRequest, errorDetail, withQuery, type ComplaintRow, type Page, type Place, type RegionPlace, type SessionUser } from "./api"
 import { useAuth } from "./auth"
-import { LOGIN_PATH, navEntries } from "./routes"
+import { HOME_PATH, LOGIN_PATH, navEntries } from "./routes"
 import { formatDateTime } from "./pages/common"
 
 export const ROLE_LABELS: Record<SessionUser["role"], string> = {
@@ -179,6 +179,136 @@ function UserMenu({ user, onSignOut, leaving }: { user: SessionUser; onSignOut: 
   )
 }
 
+const PREVIEW_ROLES = [
+  { key: "director", label: "مدير المحافظات", place: "none" },
+  { key: "governor", label: "مدير المحافظة", place: "governorate" },
+  { key: "inspector", label: "مفتش", place: "region" },
+  { key: "legal", label: "الشؤون القانونية", place: "none" },
+  { key: "clerk", label: "إداري المحافظة", place: "governorate" },
+] as const
+
+function PreviewSwitch({ user, onSwitched }: { user: SessionUser; onSwitched: (next: SessionUser) => void }) {
+  const navigate = useNavigate()
+  const [choice, setChoice] = useState<(typeof PREVIEW_ROLES)[number] | null>(null)
+  const [governorates, setGovernorates] = useState<Place[]>([])
+  const [regions, setRegions] = useState<RegionPlace[]>([])
+  const [governorate, setGovernorate] = useState("")
+  const [region, setRegion] = useState("")
+  const [error, setError] = useState("")
+  const [busy, setBusy] = useState("")
+
+  const apply = async (role: string, governorateId?: string, regionId?: string) => {
+    setBusy(role)
+    setError("")
+    const result = await apiRequest<SessionUser>("/api/auth/preview-role/", {
+      method: "POST",
+      body: {
+        role,
+        governorate: governorateId ? Number(governorateId) : null,
+        region: regionId ? Number(regionId) : null,
+      },
+    })
+    setBusy("")
+    if (!result.ok || !result.data) {
+      setError(errorDetail(result.data) || "تعذر تغيير الصلاحية.")
+      return
+    }
+    setChoice(null)
+    onSwitched(result.data)
+    navigate(HOME_PATH)
+  }
+
+  const open = async (item: (typeof PREVIEW_ROLES)[number]) => {
+    if (item.place === "none") {
+      await apply(item.key)
+      return
+    }
+    setChoice(item)
+    setGovernorate("")
+    setRegion("")
+    setRegions([])
+    setError("")
+    const result = await apiRequest<Page<Place>>(withQuery("/api/governorates/public/", { page_size: 100 }))
+    setGovernorates(result.ok && result.data ? result.data.results : [])
+  }
+
+  const onGovernorate = async (value: string) => {
+    setGovernorate(value)
+    setRegion("")
+    if (!value || choice?.place !== "region") {
+      setRegions([])
+      return
+    }
+    const result = await apiRequest<Page<RegionPlace>>(withQuery("/api/regions/public/", { governorate: value, page_size: 100 }))
+    setRegions(result.ok && result.data ? result.data.results : [])
+  }
+
+  const confirm = () => {
+    if (!choice) return
+    if (!governorate) {
+      setError("اختر المحافظة.")
+      return
+    }
+    if (choice.place === "region" && !region) {
+      setError("اختر المنطقة.")
+      return
+    }
+    void apply(choice.key, governorate, choice.place === "region" ? region : undefined)
+  }
+
+  return (
+    <div className="ds-preview">
+      <p>يوزر استعراضي. الصلاحية الحالية: {user.role_name || "غير محددة"}.</p>
+      <div className="ds-preview__roles">
+        {PREVIEW_ROLES.map((item) => (
+          <Button
+            key={item.key}
+            size="sm"
+            variant={user.role_name === item.label ? "primary" : "secondary"}
+            loading={busy === item.key}
+            onClick={() => void open(item)}
+          >
+            {item.label}
+          </Button>
+        ))}
+      </div>
+      {error && !choice && <p className="ds-impersonate__error">{error}</p>}
+      {choice && (
+        <Dialog title={choice.label} onClose={() => setChoice(null)}>
+          <div className="sheet__form">
+            <Select
+              label="المحافظة"
+              name="governorate"
+              placeholder="اختر المحافظة"
+              options={governorates.map((item) => ({ value: String(item.id), label: item.name }))}
+              value={governorate}
+              onChange={(event) => void onGovernorate(event.target.value)}
+              required
+            />
+            {choice.place === "region" && (
+              <Select
+                label="المنطقة"
+                name="region"
+                placeholder={governorate ? "اختر المنطقة" : "اختر المحافظة أولاً"}
+                options={regions.map((item) => ({ value: String(item.id), label: item.name }))}
+                value={region}
+                onChange={(event) => setRegion(event.target.value)}
+                required
+              />
+            )}
+            {error && <p className="ds-impersonate__error">{error}</p>}
+            <div className="sheet__actions">
+              <Button loading={busy !== ""} onClick={confirm}>
+                دخول بهذه الصلاحية
+              </Button>
+            </div>
+          </div>
+        </Dialog>
+      )}
+    </div>
+  )
+}
+
 export function Shell({
   user,
   activeId,
@@ -250,6 +380,7 @@ export function Shell({
           </div>
         }
       >
+        {user.is_preview && <PreviewSwitch user={user} onSwitched={signIn} />}
         {impersonator && (
           <div className="ds-impersonate" role="status">
             <p>

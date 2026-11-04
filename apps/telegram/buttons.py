@@ -155,12 +155,18 @@ def _with_linked_complaint(rows):
     return [*rows, [_menu_button("تقديم شكوى", "nw", "danger")]]
 
 
+def _with_preview(user, rows):
+    if user is None or not getattr(user, "is_preview", False):
+        return rows
+    return [*rows, [_menu_button("تغيير الصلاحية", "pv", "")]]
+
+
 def rows_for(user):
     if user is not None and user.role == User.Role.INSPECTOR:
-        return _inspector_rows(user)
+        return _with_preview(user, _inspector_rows(user))
     focused = _focused_publish_rows(user)
     if focused is not None:
-        return focused
+        return _with_preview(user, focused)
     if not BotButton.objects.exists():
         return _builtin_rows(user)
     grouped = []
@@ -177,7 +183,7 @@ def rows_for(user):
         bucket.append(_menu_button(button.label, button.target, button.style))
     if bucket:
         grouped.append(bucket)
-    return grouped
+    return _with_preview(user, grouped)
 
 
 def _builtin_rows(user):
@@ -196,7 +202,7 @@ def _builtin_rows(user):
         bucket.append(_menu_button(label, target, style))
     if bucket:
         rows.append(bucket)
-    return rows
+    return _with_preview(user, rows)
 
 
 def _payload(button):

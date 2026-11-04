@@ -1311,6 +1311,87 @@ def _rewind_draft(chat_id, user_id):
     return False
 
 
+def _preview_roles(chat_id):
+    enqueue(chat_id, "اختر الصلاحية التي تريد تجربتها.", markup={"inline_keyboard": [
+        [{"text": "مدير المحافظات", "callback_data": "pv:r:director"}],
+        [{"text": "مدير المحافظة", "callback_data": "pv:r:governor"}],
+        [{"text": "المفتش", "callback_data": "pv:r:inspector"}],
+        [{"text": "الشؤون القانونية", "callback_data": "pv:r:legal"}],
+        [{"text": "إداري المحافظة", "callback_data": "pv:r:clerk"}],
+        [{"text": "القائمة", "callback_data": "mn"}],
+    ]})
+
+
+def _preview_governorates(chat_id, role_key, page):
+    items = list(Governorate.objects.order_by("name"))
+    if not items:
+        enqueue(chat_id, "لا توجد محافظات.", markup=_home_markup())
+        return
+    rows = _paged(
+        items, page, lambda item: item.name, lambda item: f"pv:g:{role_key}:{item.pk}", f"pv:gp:{role_key}",
+    )
+    rows.append([{"text": "القائمة", "callback_data": "mn"}])
+    enqueue(chat_id, "اختر المحافظة.", markup={"inline_keyboard": rows})
+
+
+def _preview_regions(chat_id, governorate_id, page):
+    items = list(Region.objects.filter(governorate_id=governorate_id).order_by("name"))
+    if not items:
+        enqueue(chat_id, "لا توجد مناطق في هذه المحافظة.", markup=_home_markup())
+        return
+    rows = _paged(
+        items, page, lambda item: item.name, lambda item: f"pv:n:{governorate_id}:{item.pk}", f"pv:np:{governorate_id}",
+    )
+    rows.append([{"text": "القائمة", "callback_data": "mn"}])
+    enqueue(chat_id, "اختر المنطقة.", markup={"inline_keyboard": rows})
+
+
+def _preview_apply(chat_id, user, key, governorate_id=None, region_id=None):
+    from apps.accounts.preview import apply_preview_role
+
+    try:
+        apply_preview_role(user, key, governorate_id=governorate_id, region_id=region_id)
+    except ValidationError as error:
+        enqueue(chat_id, error.messages[0], markup=_home_markup())
+        return
+    _show_menu(chat_id)
+
+
+def _preview_callback(chat_id, telegram_id, data):
+    user = _linked_user(telegram_id)
+    if user is None or not user.is_preview:
+        enqueue(chat_id, "غير مسموح.", markup=_home_markup())
+        return
+    parts = data.split(":")
+    if data == "pv":
+        _preview_roles(chat_id)
+        return
+    try:
+        if len(parts) == 3 and parts[1] == "r":
+            key = parts[2]
+            if key in {"director", "legal"}:
+                _preview_apply(chat_id, user, key)
+            elif key in {"governor", "clerk", "inspector"}:
+                _preview_governorates(chat_id, key, 0)
+            else:
+                enqueue(chat_id, "صلاحية غير معروفة.", markup=_home_markup())
+        elif len(parts) == 4 and parts[1] == "gp":
+            _preview_governorates(chat_id, parts[2], int(parts[3]))
+        elif len(parts) == 4 and parts[1] == "g":
+            if parts[2] == "inspector":
+                _preview_regions(chat_id, int(parts[3]), 0)
+            else:
+                _preview_apply(chat_id, user, parts[2], governorate_id=int(parts[3]))
+        elif len(parts) == 4 and parts[1] == "np":
+            _preview_regions(chat_id, int(parts[2]), int(parts[3]))
+        elif len(parts) == 4 and parts[1] == "n":
+            _preview_apply(chat_id, user, "inspector", governorate_id=int(parts[2]), region_id=int(parts[3]))
+        else:
+            enqueue(chat_id, "بيانات غير صالحة.", markup=_home_markup())
+    except (TypeError, ValueError):
+        enqueue(chat_id, "بيانات غير صالحة.", markup=_home_markup())
+
+
 def _on_callback(chat_id, user_id, data):
     from apps.telegram.keyboard import track
 
@@ -1318,6 +1399,8 @@ def _on_callback(chat_id, user_id, data):
     try:
         if data == "mn":
             _show_menu(chat_id)
+        elif data == "pv" or data.startswith("pv:"):
+            _preview_callback(chat_id, user_id, data)
         elif data == "nw":
             _start_complaint(chat_id)
         elif data in FIXED_KINDS or data == "k:other":

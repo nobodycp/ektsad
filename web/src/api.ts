@@ -21,6 +21,7 @@ export type SessionUser = {
   can_manage_geography?: boolean
   can_manage_settings?: boolean
   can_impersonate?: boolean
+  is_preview?: boolean
   impersonator?: { id: number; username: string; display_name: string } | null
 }
 
