@@ -92,6 +92,7 @@ export type UserRow = {
   can_open_field_missions: boolean
   can_view_field_missions: boolean
   is_active: boolean
+  whatsapp_phone?: string
   telegram_linked?: boolean
   telegram_username?: string
   telegram_online?: boolean

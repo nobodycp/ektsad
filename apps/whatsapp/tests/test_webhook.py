@@ -171,3 +171,41 @@ class WhatsAppComplaintFlowTests(TestCase):
     def test_price_list_without_a_report_says_so(self):
         self.post("d1", {"type": "interactive", "interactive": {"type": "button_reply", "button_reply": {"id": "pr"}}})
         self.assertEqual(self.sent[-1], ("text", "لا توجد قائمة أسعار منشورة."))
+
+
+class WhatsAppStaffTests(TestCase):
+    def test_a_linked_inspector_gets_his_work_and_a_stranger_stays_a_citizen(self):
+        from apps.accounts.models import User
+        from apps.whatsapp.models import WhatsAppLink
+
+        place = Governorate.objects.create(name="غزة")
+        region = Region.objects.create(governorate=place, name="الرمال")
+        inspector = User.objects.create_user(
+            username="inspector", password="password-long-12", role=User.Role.INSPECTOR,
+            governorate=place, region=region, display_name="المفتش",
+        )
+        WhatsAppLink.objects.create(user=inspector, phone="970599100000")
+        seen = []
+
+        def buttons(phone, body, items):
+            seen.append((phone, [item["title"] for item in items]))
+
+        with patch("apps.whatsapp.deliver.send_buttons", side_effect=buttons), patch(
+            "apps.whatsapp.deliver.send_list", side_effect=lambda phone, body, rows, button="اختر": buttons(phone, body, rows)
+        ), patch("apps.whatsapp.deliver.send_text"), patch("apps.whatsapp.flow.send_buttons", side_effect=buttons):
+            staff = self.client.post(
+                "/api/whatsapp/webhook/",
+                data=json.dumps(_envelope("s1", "970599100000", {"type": "text", "text": {"body": "مرحبا"}})),
+                content_type="application/json",
+            )
+            citizen = self.client.post(
+                "/api/whatsapp/webhook/",
+                data=json.dumps(_envelope("s2", "970599200000", {"type": "text", "text": {"body": "مرحبا"}})),
+                content_type="application/json",
+            )
+        self.assertEqual(staff.status_code, 200)
+        self.assertEqual(citizen.status_code, 200)
+        staff_labels = seen[0][1]
+        self.assertIn("مهماتي", staff_labels)
+        self.assertNotIn("تقديم شكوى", staff_labels)
+        self.assertIn("تقديم شكوى", seen[-1][1])

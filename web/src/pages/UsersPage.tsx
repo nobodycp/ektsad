@@ -68,6 +68,7 @@ type Panel =
   | { kind: "edit"; user: UserRow }
   | { kind: "password"; user: UserRow }
   | { kind: "telegram"; user: UserRow }
+  | { kind: "whatsapp"; user: UserRow }
   | { kind: "delete"; user: UserRow }
   | { kind: "enter"; user: UserRow }
   | null
@@ -413,6 +414,58 @@ function TelegramPanel({ user, onClose }: { user: UserRow; onClose: () => void }
   )
 }
 
+function WhatsAppPanel({ user, onClose }: { user: UserRow; onClose: () => void }) {
+  const [phone, setPhone] = useState(user.whatsapp_phone || "")
+  const [notice, setNotice] = useState<Notice>(null)
+  const [busy, setBusy] = useState<"save" | "unlink" | null>(null)
+
+  const onSave = async (event: FormEvent) => {
+    event.preventDefault()
+    setNotice(null)
+    setBusy("save")
+    const result = await apiRequest<{ phone: string }>(`/api/users/${user.id}/whatsapp-link/`, {
+      method: "POST",
+      body: { phone },
+    })
+    setBusy(null)
+    if (result.ok && result.data) {
+      setPhone(result.data.phone)
+      setNotice({ tone: "ok", text: "تم ربط واتساب. يراسل الموظف رقم النظام من هذا الجوال." })
+    } else setNotice({ tone: "error", text: failureText(result) })
+  }
+
+  const onUnlink = async () => {
+    setNotice(null)
+    setBusy("unlink")
+    const result = await apiRequest(`/api/users/${user.id}/whatsapp-link/`, { method: "DELETE" })
+    setBusy(null)
+    if (result.ok) {
+      setPhone("")
+      setNotice({ tone: "ok", text: "تم فك ربط واتساب." })
+    } else setNotice({ tone: "error", text: failureText(result) })
+  }
+
+  return (
+    <Section title={`واتساب ${user.username}`} note="اكتب الرقم مع مقدمة الدولة، مثل 970599000000. الموظف يفتح محادثة رقم واتساب النظام.">
+      <form className="sheet__form" onSubmit={onSave}>
+        <TextField label="رقم واتساب" name="phone" value={phone} onChange={(event) => setPhone(event.target.value)} dir="ltr" required />
+        <div className="sheet__actions">
+          <Button type="submit" loading={busy === "save"}>
+            حفظ الربط
+          </Button>
+          <Button type="button" variant="secondary" loading={busy === "unlink"} onClick={onUnlink}>
+            فك الربط
+          </Button>
+          <Button type="button" variant="ghost" onClick={onClose}>
+            إغلاق
+          </Button>
+        </div>
+      </form>
+      <NoticeLine notice={notice} />
+    </Section>
+  )
+}
+
 function DeletePanel({ user, onDone, onCancel }: { user: UserRow; onDone: (notice: Notice) => void; onCancel: () => void }) {
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<Notice>(null)
@@ -593,6 +646,11 @@ export function UsersPage() {
           <TelegramPanel key={panel.user.id} user={panel.user} onClose={() => setPanel(null)} />
         </Dialog>
       )}
+      {panel?.kind === "whatsapp" && (
+        <Dialog title="ربط واتساب" onClose={() => setPanel(null)}>
+          <WhatsAppPanel key={panel.user.id} user={panel.user} onClose={() => setPanel(null)} />
+        </Dialog>
+      )}
       {panel?.kind === "delete" && (
         <Dialog title="حذف الحساب" onClose={() => setPanel(null)}>
           <DeletePanel key={panel.user.id} user={panel.user} onDone={finish} onCancel={() => setPanel(null)} />
@@ -636,6 +694,7 @@ export function UsersPage() {
               { id: "edit", label: "تعديل", onSelect: () => setPanel({ kind: "edit", user: row }) },
               { id: "password", label: "كلمة المرور", onSelect: () => setPanel({ kind: "password", user: row }) },
               { id: "telegram", label: "تلغرام", onSelect: () => setPanel({ kind: "telegram", user: row }) },
+              { id: "whatsapp", label: "واتساب", onSelect: () => setPanel({ kind: "whatsapp", user: row }) },
               { id: "delete", label: "حذف", tone: "danger", onSelect: () => setPanel({ kind: "delete", user: row }) },
             ]}
             pagination={{ page: data.page, pageSize: data.page_size, total: data.count, onPageChange: setPage }}

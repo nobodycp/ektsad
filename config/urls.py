@@ -13,6 +13,7 @@ from apps.geography.api import (
 )
 from apps.publications.crossing_page import crossing_page, crossing_sheet_file
 from apps.telegram.map_page import map_page
+from apps.whatsapp.links import user_whatsapp_link
 from apps.whatsapp.webhook import webhook as whatsapp_webhook
 from config.spa import spa
 
@@ -35,6 +36,7 @@ urlpatterns = [
     path("api/settings/public/", public_settings),
     path("api/system-settings/", system_settings),
     path("api/users/<int:pk>/", user_detail),
+    path("api/users/<int:pk>/whatsapp-link/", user_whatsapp_link),
     path("api/governorates/public/", public_governorates),
     path("api/regions/public/", public_regions),
     path("api/governorates/<int:pk>/", governorate_detail),

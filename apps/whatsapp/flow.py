@@ -42,6 +42,11 @@ def _choice_id(message):
 
 
 def handle_message(phone, message):
+    from apps.whatsapp.staff import handle_staff, linked_employee
+
+    if linked_employee(phone) is not None:
+        handle_staff(phone, message)
+        return
     kind = message.get("type")
     if kind == "interactive" or kind == "button":
         _on_choice(phone, _choice_id(message))

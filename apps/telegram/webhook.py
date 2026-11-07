@@ -33,6 +33,10 @@ from apps.telegram.outbox import enqueue as _enqueue
 
 def enqueue(chat_id, text="", photo="", markup=None):
     """Queue the message. The outbox worker delivers it, so this request returns at once."""
+    if str(chat_id).startswith("wa:"):
+        from apps.whatsapp.deliver import deliver
+        deliver(str(chat_id)[3:], text, photo, markup)
+        return None
     if markup:
         markup = attach_keyboard(chat_id, markup)
     return _enqueue(chat_id, text, photo=photo, markup=markup)
@@ -52,9 +56,7 @@ def _home_markup():
 def _menu_markup(chat_id):
     from apps.telegram.buttons import rows_for
 
-    link = TelegramLink.objects.select_related("user__staff_role").filter(telegram_id=str(chat_id)).first()
-    user = link.user if link and link.user.is_active else None
-    return {"inline_keyboard": rows_for(user)}
+    return {"inline_keyboard": rows_for(_linked_user(chat_id))}
 
 
 def _clear_field_draft(chat_id):
@@ -246,7 +248,21 @@ def register_webhook():
 
 def _linked_user(telegram_id):
     link = TelegramLink.objects.select_related("user__staff_role").filter(telegram_id=str(telegram_id)).first()
-    return link.user if link and link.user.is_active else None
+    if link and link.user.is_active:
+        return link.user
+    from apps.whatsapp.links import find_link
+    found = find_link(str(telegram_id).removeprefix("wa:"))
+    return found.user if found and found.user.is_active else None
+
+
+def _reach(user, text, markup=None):
+    link = TelegramLink.objects.filter(user=user).first()
+    if link is not None:
+        enqueue(link.telegram_id, text, markup=markup)
+    from apps.whatsapp.models import WhatsAppLink
+    wa = WhatsAppLink.objects.filter(user=user).first()
+    if wa is not None:
+        enqueue(f"wa:{wa.phone}", text, markup=markup)
 
 
 def _identity_line(user):
@@ -257,9 +273,11 @@ def _identity_line(user):
 
 
 def _linked_staff(role, **filters):
-    return User.objects.filter(
-        is_active=True, role=role, telegram_link__isnull=False, **filters,
-    ).select_related("telegram_link")
+    from django.db.models import Q
+
+    return User.objects.filter(is_active=True, role=role, **filters).filter(
+        Q(telegram_link__isnull=False) | Q(whatsapp_link__isnull=False),
+    ).distinct()
 
 
 def _clip(text, limit=3500):
@@ -292,16 +310,16 @@ def notify_new_complaint(complaint):
     ]]}
     opened = {"inline_keyboard": [[{"text": "فتح", "callback_data": f"op:{complaint.pk}"}]]}
     for user in _linked_staff(User.Role.INSPECTOR, region_id=complaint.region_id):
-        enqueue(user.telegram_link.telegram_id, f"لديك شكوى جديدة.\n{details}", markup=accept)
+        _reach(user, f"لديك شكوى جديدة.\n{details}", markup=accept)
     for user in _linked_staff(User.Role.GOVERNOR, governorate_id=complaint.governorate_id):
-        enqueue(user.telegram_link.telegram_id, f"وصلت شكوى.\n{details}", markup=opened)
+        _reach(user, f"وصلت شكوى.\n{details}", markup=opened)
 
 
 def notify_legal_complaint(complaint):
     message = "لديك شكوى جديدة.\n" + _detail_block(complaint, _clip(complaint.body))
     opened = {"inline_keyboard": [[{"text": "فتح", "callback_data": f"op:{complaint.pk}"}]]}
     for user in _linked_staff(User.Role.LEGAL):
-        enqueue(user.telegram_link.telegram_id, message, markup=opened)
+        _reach(user, message, markup=opened)
 
 
 def notify_new_mission(mission, *, governors=True):
@@ -314,20 +332,21 @@ def notify_new_mission(mission, *, governors=True):
         f"التفاصيل: {_clip(mission.details)}"
     )
     opened = {"inline_keyboard": [[{"text": "فتح", "callback_data": f"mo:{mission.pk}"}]]}
+    from django.db.models import Q
     inspector_ids = set(mission.assignees.filter(
-        user__is_active=True, user__role=User.Role.INSPECTOR, user__telegram_link__isnull=False,
-    ).values_list("user_id", flat=True))
+        user__is_active=True, user__role=User.Role.INSPECTOR,
+    ).filter(Q(user__telegram_link__isnull=False) | Q(user__whatsapp_link__isnull=False)).values_list("user_id", flat=True))
     if mission.region_id:
         inspector_ids.update(
             _linked_staff(User.Role.INSPECTOR, region_id=mission.region_id).values_list("pk", flat=True)
         )
-    for user in User.objects.filter(pk__in=inspector_ids).select_related("telegram_link"):
-        enqueue(user.telegram_link.telegram_id, f"لديك مهمة جديدة.\n{details}", markup=opened)
+    for user in User.objects.filter(pk__in=inspector_ids):
+        _reach(user, f"لديك مهمة جديدة.\n{details}", markup=opened)
     if not governors:
         return
     for governor in _linked_staff(User.Role.GOVERNOR, governorate_id=mission.governorate_id):
         if allows(governor, "can_view_field_missions"):
-            enqueue(governor.telegram_link.telegram_id, f"وصلت مهمة.\n{details}", markup=opened)
+            _reach(governor, f"وصلت مهمة.\n{details}", markup=opened)
 
 
 def notify_complaint_reply(complaint):
@@ -351,20 +370,20 @@ def notify_complaint_reply(complaint):
         [{"text": "فتح", "callback_data": f"op:{complaint.pk}"}],
     ]}
     for governor in _linked_staff(User.Role.GOVERNOR, governorate_id=complaint.governorate_id):
-        enqueue(governor.telegram_link.telegram_id, message, markup=markup)
+        _reach(governor, message, markup=markup)
 
 
 def notify_complaint_decision(complaint, decision):
-    link = TelegramLink.objects.filter(user_id=complaint.inspector_id).first()
-    if link is None:
+    inspector = User.objects.filter(pk=complaint.inspector_id).first()
+    if inspector is None:
         return
     verb = (
         "أنهى مدير المحافظة الشكوى."
         if decision == "close"
         else "أحال مدير المحافظة الشكوى إلى الشؤون القانونية."
     )
-    enqueue(
-        link.telegram_id,
+    _reach(
+        inspector,
         f"{verb}\n{complaint.title}",
         markup={"inline_keyboard": [[{"text": "فتح", "callback_data": f"op:{complaint.pk}"}]]},
     )
@@ -384,7 +403,7 @@ def notify_mission_reply(mission):
     )
     opened = {"inline_keyboard": [[{"text": "فتح", "callback_data": f"mo:{mission.pk}"}]]}
     for governor in _linked_staff(User.Role.GOVERNOR, governorate_id=mission.governorate_id):
-        enqueue(governor.telegram_link.telegram_id, message, markup=opened)
+        _reach(governor, message, markup=opened)
 
 
 def notify_legal_mission(mission):
@@ -397,7 +416,7 @@ def notify_legal_mission(mission):
     )
     opened = {"inline_keyboard": [[{"text": "فتح", "callback_data": f"mo:{mission.pk}"}]]}
     for user in _linked_staff(User.Role.LEGAL):
-        enqueue(user.telegram_link.telegram_id, message, markup=opened)
+        _reach(user, message, markup=opened)
 
 
 def _create_complaint(chat_id, user_id, governorate_id, region_id, title, body, image=None, kind="", latitude=None, longitude=None):
@@ -603,10 +622,7 @@ def _accepted_image(image):
 
 
 def notify_return(complaint, actor):
-    governors = User.objects.filter(
-        role=User.Role.GOVERNOR, is_active=True, governorate_id=complaint.governorate_id,
-        telegram_link__isnull=False,
-    ).select_related("telegram_link")
+    governors = _linked_staff(User.Role.GOVERNOR, governorate_id=complaint.governorate_id)
     message = (
         "أُعيدت إليك شكوى لتوجيهها إلى مفتش آخر.\n"
         f"أرجعها: {actor.display_name or actor.username}\n"
@@ -619,17 +635,14 @@ def notify_return(complaint, actor):
         {"text": "فتح", "callback_data": f"op:{complaint.pk}"},
     ]]}
     for governor in governors:
-        enqueue(governor.telegram_link.telegram_id, message, markup=opened)
+        _reach(governor, message, markup=opened)
 
 
 def notify_accept(complaint, actor):
-    governors = User.objects.filter(
-        role=User.Role.GOVERNOR, is_active=True, governorate_id=complaint.governorate_id,
-        telegram_link__isnull=False,
-    ).select_related("telegram_link")
+    governors = _linked_staff(User.Role.GOVERNOR, governorate_id=complaint.governorate_id)
     message = f"قبل المفتش {actor.display_name or actor.username} الشكوى وتوجه للمتابعة الميدانية."
     for governor in governors:
-        enqueue(governor.telegram_link.telegram_id, message)
+        _reach(governor, message)
 
 
 def notify_citizen_resolved(complaint):

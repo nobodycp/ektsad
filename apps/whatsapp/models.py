@@ -1,4 +1,11 @@
+from django.conf import settings
 from django.db import models
+
+
+class WhatsAppLink(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="whatsapp_link")
+    phone = models.CharField(max_length=32, unique=True)
+    linked_at = models.DateTimeField(auto_now_add=True)
 
 
 class WhatsAppSession(models.Model):

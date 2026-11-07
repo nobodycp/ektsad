@@ -120,8 +120,15 @@ def _user_payload(user):
         "can_open_field_missions": allows(user, "can_open_field_missions"),
         "can_view_field_missions": allows(user, "can_view_field_missions"),
         "is_active": user.is_active,
+        "whatsapp_phone": _whatsapp_phone(user),
         **snapshot(user),
     }
+
+
+def _whatsapp_phone(user):
+    from apps.whatsapp.models import WhatsAppLink
+    row = WhatsAppLink.objects.filter(user=user).first()
+    return row.phone if row else ""
 
 
 def _forbidden():
