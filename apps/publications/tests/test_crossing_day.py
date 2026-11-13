@@ -132,6 +132,41 @@ class CrossingPublishTests(TestCase):
         self.assertEqual(CrossingReport.objects.filter(movement_date="2026-11-01").count(), 1)
         self.assertIn("تم إرسال تقرير هذا التاريخ سابقاً", TelegramOutbox.objects.filter(chat_id="501").latest("pk").text)
 
+    def test_hiding_the_qr_redraws_the_published_sheet(self):
+        from io import BytesIO
+
+        from PIL import Image
+
+        from apps.common.models import SystemSettings
+
+        settings_row = SystemSettings.current()
+        settings_row.crossing_qr_visible = True
+        settings_row.save(update_fields=["crossing_qr_visible"])
+        _ask_crossing(501, self.user)
+        consume_text(501, 501, SAMPLE)
+        handle_callback(501, 501, "crok")
+        report = CrossingReport.objects.get(movement_date="2026-11-01")
+
+        def dark_pixels(raw):
+            crop = Image.open(BytesIO(raw)).crop((40, 32, 224, 216))
+            return sum(1 for pixel in crop.getdata() if pixel[0] < 40)
+
+        with report.image.open("rb") as stored:
+            before = dark_pixels(stored.read())
+        admin = User.objects.create_user(username="admin", password="admin-password-12", role="admin", display_name="مدير")
+        self.client.force_login(admin)
+        hidden = self.client.patch(
+            "/api/system-settings/",
+            data={"crossing_qr_visible": False},
+            content_type="application/json",
+        )
+        self.assertEqual(hidden.status_code, 200)
+        self.assertFalse(hidden.json()["crossing_qr_visible"])
+        report.refresh_from_db()
+        with report.image.open("rb") as stored:
+            after = dark_pixels(stored.read())
+        self.assertLess(after, before / 2)
+
     def test_public_day_page_is_the_sheet_without_login(self):
         _ask_crossing(501, self.user)
         consume_text(501, 501, SAMPLE)

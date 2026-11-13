@@ -8,6 +8,7 @@ type Settings = {
   web_complaints_enabled: boolean
   linked_complaint_button: boolean
   linked_bulletin_buttons: boolean
+  crossing_qr_visible: boolean
   telegram_bot_username: string
   telegram_bot_configured: boolean
   telegram_webhook_secret_configured: boolean
@@ -49,6 +50,23 @@ export function SystemSettingsPage() {
     }
   }
 
+  const saveQr = async (visible: boolean) => {
+    setBusy(true)
+    const result = await apiRequest<Settings>("/api/system-settings/", {
+      method: "PATCH",
+      body: { crossing_qr_visible: visible },
+    })
+    setBusy(false)
+    if (!result.ok) setNotice({ tone: "error", text: failureText(result) })
+    else {
+      setNotice({
+        tone: "ok",
+        text: visible ? "رمز الاستجابة ظاهر على حركة المعابر." : "رمز الاستجابة مخفي من حركة المعابر.",
+      })
+      reload()
+    }
+  }
+
   const saveBulletins = async (enabled: boolean) => {
     setBusy(true)
     const result = await apiRequest<Settings>("/api/system-settings/", {
@@ -71,6 +89,7 @@ export function SystemSettingsPage() {
   const enabled = state.status === "ready" ? state.data.web_complaints_enabled : true
   const linked = state.status === "ready" ? state.data.linked_complaint_button : false
   const bulletins = state.status === "ready" ? state.data.linked_bulletin_buttons : false
+  const qrVisible = state.status === "ready" ? state.data.crossing_qr_visible : false
   return (
     <div className="page">
       <NoticeLine notice={notice} />
@@ -93,6 +112,13 @@ export function SystemSettingsPage() {
         <p className="account__note">المواطن يراهما دائماً. الحساب المربوط لا يراهما إلا بعد تشغيل هذا الخيار، فيظهران لكل الحسابات المربوطة معاً.</p>
         <Button variant="secondary" loading={busy} onClick={() => saveBulletins(!bulletins)}>
           {bulletins ? "إخفاء القائمة الاسترشادية وحركة المعابر عن الحسابات المربوطة" : "إظهار القائمة الاسترشادية وحركة المعابر للحسابات المربوطة"}
+        </Button>
+      </section>
+      <section className="sheet">
+        <h2 className="account__heading">رمز الاستجابة في حركة المعابر</h2>
+        <p className="account__note">الرمز مخفي عن صور حركة المعابر، بما فيها النسخ المنشورة سابقاً. إظهاره يعيد رسمها بالرمز.</p>
+        <Button variant="secondary" loading={busy} onClick={() => saveQr(!qrVisible)}>
+          {qrVisible ? "إخفاء رمز الاستجابة" : "إظهار رمز الاستجابة"}
         </Button>
       </section>
     </div>

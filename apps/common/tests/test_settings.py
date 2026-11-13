@@ -29,7 +29,9 @@ class SystemSettingsTests(TestCase):
         self.assertNotIn("linked_complaint_button", self.client.get("/api/settings/public/").json())
         self.assertFalse(body["linked_complaint_button"])
         self.assertFalse(body["linked_bulletin_buttons"])
+        self.assertFalse(body["crossing_qr_visible"])
         self.assertNotIn("linked_bulletin_buttons", self.client.get("/api/settings/public/").json())
+        self.assertNotIn("crossing_qr_visible", self.client.get("/api/settings/public/").json())
         shown = self.client.patch(
             "/api/system-settings/",
             data={"linked_complaint_button": True},

@@ -120,7 +120,7 @@ def _gate_block(draw, gate, left, right, top):
     return _rows(draw, gate["lines"], left, right, top, 1, INK)
 
 
-def _header(image, draw, parsed, url):
+def _header(image, draw, parsed, url, show_qr=True):
     logo_size = 92 * S
     top = 16 * S
     logo = Image.open(ASSETS / "ministry-logo.png").convert("RGBA")
@@ -137,13 +137,15 @@ def _header(image, draw, parsed, url):
         _draw_rtl(draw, line, WIDTH - PAD, text_top + index * line_height, font, INK)
 
     qr_size = 92 * S
-    buffer = io.BytesIO()
-    segno.make(url, error="m").save(buffer, kind="png", scale=6, border=1, dark="#1a1814", light="#fbf9f4")
-    buffer.seek(0)
-    qr = Image.open(buffer).convert("RGB").resize((qr_size, qr_size), Image.Resampling.NEAREST)
-    image.paste(qr, (PAD, top))
-
-    table_left = PAD + qr_size + 8 * S
+    if show_qr:
+        buffer = io.BytesIO()
+        segno.make(url, error="m").save(buffer, kind="png", scale=6, border=1, dark="#1a1814", light="#fbf9f4")
+        buffer.seek(0)
+        qr = Image.open(buffer).convert("RGB").resize((qr_size, qr_size), Image.Resampling.NEAREST)
+        image.paste(qr, (PAD, top))
+        table_left = PAD + qr_size + 8 * S
+    else:
+        table_left = PAD
     table_right = table_left + 96 * S
     label = date_label(parsed.movement_date, parsed.weekday)
     cells = (label["weekday"], label["year"], label["month"], label["day"])
@@ -179,11 +181,11 @@ def _side(draw, view, side, left, right, top):
     return top
 
 
-def render_sheet(parsed, url):
+def render_sheet(parsed, url, show_qr=True):
     view = present(parsed)
     image = Image.new("RGB", (WIDTH, 4200), PAPER)
     draw = ImageDraw.Draw(image)
-    top = _header(image, draw, parsed, url)
+    top = _header(image, draw, parsed, url, show_qr=show_qr)
     content_right = WIDTH - PAD
     content_left = PAD
     span = content_right - content_left
@@ -221,8 +223,10 @@ def store_crossing(parsed, body, user):
 
     from apps.publications.models import CrossingAidLine, CrossingFuel, CrossingGate, CrossingLoad, CrossingReport
 
+    from apps.common.models import SystemSettings
+
     url = f"{settings.PUBLIC_BASE_URL.rstrip('/')}/crossings/{parsed.movement_date.isoformat()}/"
-    png = render_sheet(parsed, url)
+    png = render_sheet(parsed, url, show_qr=SystemSettings.current().crossing_qr_visible)
     name = ""
     if user is not None:
         name = user.display_name or user.username
@@ -259,3 +263,29 @@ def store_crossing(parsed, body, user):
     except IntegrityError:
         return None
     return report
+
+
+def refresh_crossing_sheets():
+    from django.conf import settings
+    from django.core.files.base import ContentFile
+
+    from apps.common.models import SystemSettings
+    from apps.publications.crossing_text import parse_crossing
+    from apps.publications.models import CrossingReport
+
+    show_qr = SystemSettings.current().crossing_qr_visible
+    base = settings.PUBLIC_BASE_URL.rstrip("/")
+    for report in CrossingReport.objects.exclude(body=""):
+        parsed = parse_crossing(report.body)
+        if not parsed.ready or report.movement_date is None:
+            continue
+        url = f"{base}/crossings/{report.movement_date.isoformat()}/"
+        png = render_sheet(parsed, url, show_qr=show_qr)
+        if report.image:
+            stored = report.image.open("wb")
+            try:
+                stored.write(png)
+            finally:
+                stored.close()
+        else:
+            report.image.save(f"{report.movement_date.isoformat()}.png", ContentFile(png), save=True)

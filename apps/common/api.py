@@ -23,6 +23,7 @@ def _admin_payload(row):
         "telegram_webhook_secret_configured": bool(row.telegram_webhook_secret),
         "linked_complaint_button": row.linked_complaint_button,
         "linked_bulletin_buttons": row.linked_bulletin_buttons,
+        "crossing_qr_visible": row.crossing_qr_visible,
     }
 
 
@@ -42,12 +43,17 @@ def system_settings(request):
         payload = json.loads(request.body.decode() or "{}")
     except json.JSONDecodeError:
         return JsonResponse({"detail": "بيانات غير صالحة."}, status=400)
+    redraw_crossings = False
     if "web_complaints_enabled" in payload:
         row.web_complaints_enabled = bool(payload["web_complaints_enabled"])
     if "linked_complaint_button" in payload:
         row.linked_complaint_button = bool(payload["linked_complaint_button"])
     if "linked_bulletin_buttons" in payload:
         row.linked_bulletin_buttons = bool(payload["linked_bulletin_buttons"])
+    if "crossing_qr_visible" in payload:
+        show_qr = bool(payload["crossing_qr_visible"])
+        redraw_crossings = row.crossing_qr_visible != show_qr
+        row.crossing_qr_visible = show_qr
     if "telegram_bot_username" in payload:
         row.telegram_bot_username = str(payload.get("telegram_bot_username") or "").lstrip("@").strip()
     token = str(payload.get("telegram_bot_token") or "").strip()
@@ -57,6 +63,10 @@ def system_settings(request):
     if secret:
         row.telegram_webhook_secret = secret
     row.save()
+    if redraw_crossings:
+        from apps.publications.crossing_sheet import refresh_crossing_sheets
+
+        refresh_crossing_sheets()
     from apps.telegram.webhook import register_webhook
 
     register_webhook()
